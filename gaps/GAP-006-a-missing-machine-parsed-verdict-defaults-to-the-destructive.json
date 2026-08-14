@@ -1,0 +1,34 @@
+{
+  "id": "GAP-006",
+  "title": "A missing machine-parsed verdict defaults to the destructive answer",
+  "layer": "orchestration",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My release gate was killed before it printed its decision, and because absence parses as failure, it threw away work that had already passed every check.",
+  "symptom": "An iteration reverts with all gates green and no stated reason; the gate's log ends mid-verification.",
+  "why_now": "Pessimistic defaults are correct for safety, but they are combined with writers that run under a hard timeout. The combination converts an interrupted decision into a destructive one, and no runtime distinguishes 'decided to revert' from 'never decided'.",
+  "existing": [
+    "Pessimistic parsing: safe in isolation, unsafe when the writer can be killed.",
+    "Allowing a pending token: cures this failure and reintroduces premature reverts.",
+    "Longer timeouts: shift the cliff instead of removing it."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0005: a killed step with no verdict token is read as reverted",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0005-a-killed-step-with-no-verdict-token-is-read-as-reverted.md",
+      "date": "2026-08-13",
+      "quote": "A machine-parsed verdict token that defaults to the destructive answer on absence is a critical safety hazard when its writer runs under a hard timeout.",
+      "note": "Classified critical. Recorded fix is to write the verdict early on decisive evidence only and demote lower-priority audits to follow-ups."
+    }
+  ],
+  "build_hypothesis": "Separate the two absences in the protocol: require an explicit decision record with a timestamp, and treat a missing record as INDETERMINATE (retry, preserve the tree) rather than as a revert.",
+  "tags": [
+    "verdict",
+    "safety",
+    "control-plane"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "GAP-008",
+  "title": "Evaluation investment has visible upfront cost and deferred benefit, so it is chronically under-provisioned",
+  "layer": "eval-verification",
+  "gap_type": "ergonomics",
+  "status": "open",
+  "problem": "I know I should build evals before scaling my agent, but the cost lands this sprint and the payoff lands in a quarter I cannot point at.",
+  "symptom": "Teams ship agents on manual testing and intuition, then hit a wall where they cannot tell a regression from noise and have no way to verify a change except to guess.",
+  "why_now": "Agent quality is now the top barrier to deployment while eval tooling remains a per-team build. The economics are understood and still lose to delivery pressure, which makes this an adoption gap rather than a knowledge gap.",
+  "existing": [
+    "Eval frameworks and hosted platforms: reduce build cost but still require a task bank the team must author.",
+    "Production monitoring: catches issues after users do.",
+    "Golden transcripts: cheap to start, brittle as the agent legitimately changes behaviour."
+  ],
+  "severity": 3,
+  "frequency": 5,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Demystifying evals for AI agents (Anthropic Engineering)",
+      "locator": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "date": "2026-01-01",
+      "quote": "Their compounding value is easy to miss given that costs are visible upfront while benefits accumulate later.",
+      "note": "The same post names the failure state precisely: 'Absent evals, debugging is reactive: wait for complaints, reproduce manually, fix the bug, and hope nothing else regressed.' Date is the publication month listed by the publisher."
+    }
+  ],
+  "build_hypothesis": "Derive the first eval bank from artefacts the team already has - production traces and closed bug reports - so the upfront cost is a script run rather than an authoring project.",
+  "tags": [
+    "evals",
+    "adoption",
+    "economics"
+  ]
+}

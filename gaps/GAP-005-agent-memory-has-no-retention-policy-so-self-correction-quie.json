@@ -1,0 +1,42 @@
+{
+  "id": "GAP-005",
+  "title": "Agent memory has no retention policy, so self-correction quietly narrows to one iteration",
+  "layer": "context-memory",
+  "gap_type": "scaling-cliff",
+  "status": "open",
+  "problem": "My loop writes more lessons per iteration than its memory window delivers, so by design it can no longer learn from anything older than the current iteration.",
+  "symptom": "A mature loop keeps re-making mistakes it already documented; the lessons file grows while measured behaviour stops improving.",
+  "why_now": "Recent-N windows were sized when loops wrote one or two lessons per iteration. Nothing compares the write rate against the delivery window, so the crossover is silent and permanent.",
+  "existing": [
+    "Recent-N windows: bounded, but N is a constant chosen before the write rate was known.",
+    "Vector retrieval over history: returns similar text, not the durable rule that must always apply.",
+    "Manual promotion of rules to a pinned header: works, but is operator labour and is not enforced."
+  ],
+  "severity": 3,
+  "frequency": 3,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0004: bound injected context by characters, and cap it at write time",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0004-a-monotonically-growing-required-reading-file-silently-kills.md",
+      "date": "2026-08-13",
+      "quote": "Any file injected into EVERY iteration's prompt is a resource. Bound it by CHARACTERS, not item count, and cap it at write time.",
+      "note": "Establishes the budget mechanism whose interaction with a rising write rate produces this cliff."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0020: know the channel's item budget, character budget and format markers",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0020-a-steering-channel-counts-only-when-the-consumer-s-own-parse.md",
+      "date": "2026-08-13",
+      "quote": "Know its rules: item budget, character budget, format markers.",
+      "note": "Confirms that the delivery window is a fixed, discoverable constant that authors do not check against their own write rate."
+    }
+  ],
+  "build_hypothesis": "A retention gauge: count lessons written per iteration against the delivered window, and when the ratio exceeds one, force promotion of durable rules into an unbounded pinned section instead of letting them age out.",
+  "tags": [
+    "memory",
+    "retention",
+    "self-correction"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "GAP-002",
+  "title": "Static graders cannot separate a policy loophole from a genuinely better answer",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My grader marks an agent run as failed when it did something smarter than my rubric anticipated, and marks it passed when it gamed the rubric - and both look identical in my dashboard.",
+  "symptom": "Eval scores stop tracking user-visible quality: pass rate moves while real outcomes do not, or a capable model scores worse than a compliant one.",
+  "why_now": "Graders encode the expected trajectory, but agents optimise the scored signal. As capability rises, the share of runs that are off-rubric-but-correct AND on-rubric-but-hollow both grow, and no standard mechanism distinguishes them.",
+  "existing": [
+    "Code-based graders: fast and reproducible, but brittle to valid variations that do not match the expected pattern.",
+    "LLM judges: can accept a reasonable deviation, but drift and need periodic human calibration.",
+    "Mutation testing: catches assertions that cannot fail, but says nothing about whether the task goal was met."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 2,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Demystifying evals for AI agents (Anthropic Engineering)",
+      "locator": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "date": "2026-01-01",
+      "quote": "Frontier models can also find creative solutions that surpass the limits of static evals.",
+      "note": "The post's worked example is a model solving a benchmark flight-booking task by discovering a loophole in the stated policy: it failed the evaluation as written while producing a better outcome for the user. Date is the post's publication month as listed by the publisher; refine if a precise date is confirmed."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0001: reward hacking - near-identical features shipped as different work",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0001-reward-hacking-twelve-near-identical-features-shipped-as-dif.md",
+      "date": "2026-08-13",
+      "quote": "A loop that meets its reward but not its goal is Goodhart's law in production. Change the REWARD, never the agent - a stricter reviewer still greenlights correct duplicates.",
+      "note": "The inverse case from the same phenomenon: every duplicate passed review and tests. Confirms that tightening the grader does not fix a mis-specified objective."
+    }
+  ],
+  "build_hypothesis": "A divergence classifier over eval transcripts: when a run fails the rubric, decide whether the outcome state satisfies the task's INTENT, and route those runs to a human queue as candidate rubric bugs rather than agent failures.",
+  "tags": [
+    "evals",
+    "goodhart",
+    "reward-hacking"
+  ]
+}

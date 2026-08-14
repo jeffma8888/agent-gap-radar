@@ -1,0 +1,34 @@
+{
+  "id": "GAP-009",
+  "title": "Shipped is not live: a long-running agent keeps executing the code it imported at launch",
+  "layer": "lifecycle-deploy",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "I merged the fix days ago and my loop is still running the old behaviour, while git, the roadmap and the changelog all report it as shipped.",
+  "symptom": "A verified fix has no effect in production; commits accumulate that are inert in the running process.",
+  "why_now": "Agent supervisors are long-lived processes that import their own logic once. Deploy tooling reports repository state, not process state, and nothing compares the two.",
+  "existing": [
+    "Restart on deploy: correct for servers, but restarting a supervisor mid-iteration destroys in-flight work.",
+    "Hot reload: rarely implemented, and unsafe while a step holds state.",
+    "Version banners in logs: only as fresh as the launch that printed them."
+  ],
+  "severity": 4,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0021: stale module import - shipped is not live",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0021-stale-module-import-shipped-is-not-live.md",
+      "date": "2026-08-13",
+      "quote": "A long-running process runs the code it imported AT LAUNCH. Merged is not shipped is not live: git can say 'landed' while the process is still on the old bytecode.",
+      "note": "Includes the distinction that matters for diagnosis: role and prompt files read per-run ARE live even when the module is frozen."
+    }
+  ],
+  "build_hypothesis": "A live-lag check that compares process start time against the commit history of every module the process imported, and reports a per-module staleness age rather than a boolean.",
+  "tags": [
+    "deployment",
+    "staleness",
+    "long-running"
+  ]
+}

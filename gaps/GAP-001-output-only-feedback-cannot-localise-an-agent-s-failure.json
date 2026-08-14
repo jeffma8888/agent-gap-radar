@@ -1,0 +1,42 @@
+{
+  "id": "GAP-001",
+  "title": "Output-only feedback cannot localise an agent's failure",
+  "layer": "observability",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "I can see that my agent's result is wrong, but nothing tells me which step made it wrong, so my feedback cannot be acted on.",
+  "symptom": "The agent oscillates between failure modes across iterations instead of converging: each fix trades one visible defect for another.",
+  "why_now": "Tracing tooling has converged on spans around tool calls and token usage, which records THAT a step ran, not the execution state it produced. The mapping from internal state to visible outcome is many-to-one, so output-level judgement cannot invert it.",
+  "existing": [
+    "Trace/span tooling (OpenTelemetry-based agent tracing): captures call structure and cost, not intermediate correctness.",
+    "LLM-as-judge on final output: scores the same output layer where the information is already lost.",
+    "Manual transcript review: does not scale and still reads the output, not the state."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "The Observability Gap: Why Output-Level Human Feedback Fails for LLM Coding Agents",
+      "locator": "https://arxiv.org/abs/2603.26942",
+      "date": "2026-03-27",
+      "quote": "bugs originate in code logic and execution state, while human evaluation occurs only at the output layer, and the many-to-one mapping from internal states to visible outcomes prevents symptom-level feedback from reliably identifying root causes",
+      "note": "Same paper measures 0% full-scene success under output-only feedback, and reports that injecting minimal code-level knowledge restored convergence - i.e. the bottleneck was feedback observability, not model competence. Accepted to CHI 2026 Workshop on Human-Agent Collaboration."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0007: diagnose stalled work from the duration distribution, not the outcome",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0007-diagnose-stalled-work-from-the-duration-distribution-not-the.md",
+      "date": "2026-08-13",
+      "quote": "A success predicate defined as 'the output file exists' hides a chronically over-budget step.",
+      "note": "Independent corroboration from operations rather than a lab: an outcome-level success signal concealed a step that was failing structurally for many iterations."
+    }
+  ],
+  "build_hypothesis": "A step-level state recorder that snapshots the agent's declared intermediate state and diffs consecutive attempts, so a reviewer can see WHICH state transition changed rather than only that the output changed.",
+  "tags": [
+    "feedback-loop",
+    "root-cause",
+    "coding-agents"
+  ]
+}

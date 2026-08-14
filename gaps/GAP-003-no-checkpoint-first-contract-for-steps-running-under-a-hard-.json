@@ -1,0 +1,42 @@
+{
+  "id": "GAP-003",
+  "title": "No checkpoint-first contract for steps running under a hard wall-clock cap",
+  "layer": "orchestration",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent step is killed by a timeout I did not configure, and because it was still composing its answer when it died, hours of correct work score as zero.",
+  "symptom": "Attempt logs are all the same tiny size, the step's median duration sits exactly AT the cap, and the run looks like it produced nothing rather than like it was interrupted.",
+  "why_now": "Runtimes expose a per-step cap but no convention that a step should emit a minimal complete artifact first and refine in place. Every loop author rediscovers this after losing a shift.",
+  "existing": [
+    "Outer retry with backoff: re-runs the same oversized step into the same cap.",
+    "Raising the outer timeout: ineffective, because the binding cap is internal to the agent runtime.",
+    "Streaming output: shows partial text to a human but leaves no machine-consumable artifact."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0002: the hard per-step wall-clock cap is the number one cause of lost shifts",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0002-the-hard-per-step-wall-clock-cap-is-the-number-one-cause-of.md",
+      "date": "2026-08-13",
+      "quote": "A per-step timeout you did not set is often the real timeout. If a step's attempt logs are all the same tiny size, its median is AT the cap, not near it.",
+      "note": "Classified critical in the source corpus. The measured fix was a write-early checkpoint plus reporting the duration distribution rather than a single-shot health flag."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0006: checkpoint-first - a killed step that already wrote its output still succeeded",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0006-checkpoint-first-a-killed-step-that-already-wrote-its-output.md",
+      "date": "2026-08-13",
+      "quote": "Success is an ARTIFACT, not an exit code. Under a hard timeout, an agent that writes its minimal complete output first and refines in place still succeeds if killed.",
+      "note": "States the missing contract directly, including its corollary: never call a timeout a failure without checking whether the output file exists."
+    }
+  ],
+  "build_hypothesis": "A tiny step wrapper that requires a declared output path, writes a schema-valid minimal artifact within the first N seconds, and marks it refinable - so a kill degrades quality instead of destroying the step.",
+  "tags": [
+    "timeout",
+    "durability",
+    "loop-engineering"
+  ]
+}

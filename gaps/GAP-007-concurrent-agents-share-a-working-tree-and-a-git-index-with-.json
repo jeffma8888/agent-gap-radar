@@ -1,0 +1,42 @@
+{
+  "id": "GAP-007",
+  "title": "Concurrent agents share a working tree and a git index with no coordination protocol",
+  "layer": "multi-agent",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "Two agents, or an agent and me, wrote to the same repository at the same time, and one of them committed or reverted the other's work without either noticing.",
+  "symptom": "Unrelated edits appear inside a loop's commit, or uncommitted work vanishes after a failure-path reset; nobody's log shows an error.",
+  "why_now": "Agent frameworks assume a single writer per repository. The git index is process-shared, so blanket staging and reset-to-remote are destructive to a co-writer, and there is no standard sentinel or lease that a second writer must respect.",
+  "existing": [
+    "Path-limited commits: protect the loop from a human, not the human from the loop, and cannot stage untracked files.",
+    "Worktrees or clones per agent: correct but unadopted, and merge remains unspecified.",
+    "Ad-hoc STOP files: effective, but every team invents its own semantics."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0012: a loop's git add -A sweeps a human's uncommitted edits into its commit",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0012-a-loop-s-git-add-a-sweeps-a-human-s-uncommitted-edits-into-a.md",
+      "date": "2026-08-13",
+      "quote": "The git index is process-shared. A blanket `git add -A` stages everything in the tree, including uncommitted work you did not author.",
+      "note": ""
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0014: a revert-on-failure loop destroys uncommitted human work",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0014-a-revert-on-failure-loop-destroys-uncommitted-human-work-in.md",
+      "date": "2026-08-13",
+      "quote": "A loop's revert-to-remote cannot distinguish loop dirt from human work-in-progress.",
+      "note": "Classified critical. The recorded mitigation is a per-team sentinel naming owner, files at risk, lift condition and whether a restart is needed - i.e. a convention, not a runtime guarantee."
+    }
+  ],
+  "build_hypothesis": "A lease file with a declared owner, scope of paths and expiry that both loop and human tooling check before staging or resetting, plus a merge rule for the case where the lease is stale.",
+  "tags": [
+    "concurrency",
+    "vcs",
+    "shared-state"
+  ]
+}

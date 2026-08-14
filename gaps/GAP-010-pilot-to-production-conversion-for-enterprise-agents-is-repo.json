@@ -1,0 +1,32 @@
+{
+  "id": "GAP-010",
+  "title": "Pilot-to-production conversion for enterprise agents is reported as very low, but the measurement is unaudited",
+  "layer": "lifecycle-deploy",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "Every vendor blog quotes a different single-digit production rate for enterprise agents, and I cannot tell whether the number describes my situation.",
+  "symptom": "Widely repeated statistics with no consistent definition of 'in production', traced back to surveys that are cited but not linked.",
+  "why_now": "The claim drives real budget decisions while the underlying instruments are not comparable: adoption, pilot, scaled deployment and production are used interchangeably across reports.",
+  "existing": [
+    "Vendor state-of-the-industry reports: useful signal, but self-selected respondents and shifting definitions.",
+    "Analyst notes: usually paywalled, so the definition cannot be checked."
+  ],
+  "severity": 2,
+  "frequency": 4,
+  "tractability": 2,
+  "evidence": [
+    {
+      "source_class": "secondary-summary",
+      "title": "AI Agent Reality Check: hype to production gap (agentmarketcap.ai)",
+      "locator": "https://agentmarketcap.ai/blog/2026/04/11/ai-agent-reality-check-hype-to-production-gap-2026",
+      "date": "2026-04-11",
+      "quote": "A March 2026 survey found that 78% of enterprises have AI agent pilots - but fewer than 15% have successfully scaled even one agent to organization-wide operational use. Only 11% run agents in production at all.",
+      "note": "DELIBERATELY RETAINED AS A BELOW-FLOOR RECORD. The survey itself is not linked, so this is a secondary summary of an unverified instrument. It scores confidence 1 and is excluded from the ranking until a primary source with a stated definition and methodology is attached. This record exists to demonstrate that the credibility ladder is enforced rather than decorative."
+    }
+  ],
+  "build_hypothesis": "Before this gap can be ranked, resolve it to the primary survey and record the exact definition of 'in production' used.",
+  "tags": [
+    "market-data",
+    "needs-primary-source"
+  ]
+}

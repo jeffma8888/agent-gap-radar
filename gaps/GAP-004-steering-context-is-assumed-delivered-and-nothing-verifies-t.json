@@ -1,0 +1,42 @@
+{
+  "id": "GAP-004",
+  "title": "Steering context is assumed delivered, and nothing verifies that it was",
+  "layer": "context-memory",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "I wrote the instruction that would have prevented this failure, it was in the file the agent is supposed to read, and it never reached the model.",
+  "symptom": "The agent repeats a mistake that is explicitly addressed in its steering file; inspecting the file shows the text present, so the steering looks correct.",
+  "why_now": "Steering is injected through a consumer-side transform (a digest, a summariser, a bounded window) whose truncation and parsing rules are invisible to the author. Authoring and delivery are never tested as separate things.",
+  "existing": [
+    "Prompt logging: shows the final prompt but only if you look, and usually after the loss.",
+    "Character or token budgets: exist, but silently cut and are read from the newest source rather than the running version.",
+    "Convention files that tools auto-read: still subject to the same truncation, with no receipt."
+  ],
+  "severity": 4,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0020: a steering channel counts only when the consumer's own parser emits it",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0020-a-steering-channel-counts-only-when-the-consumer-s-own-parse.md",
+      "date": "2026-08-13",
+      "quote": "A steering channel counts as delivered only when the CONSUMER's own parser emits it - verify by calling that parser, not by inspecting the file.",
+      "note": "Also records the specific trap of reading the budget from the newest source rather than the version actually running."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0004: a monotonically growing required-reading file silently kills the loop",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0004-a-monotonically-growing-required-reading-file-silently-kills.md",
+      "date": "2026-08-13",
+      "quote": "Any file injected into EVERY iteration's prompt is a resource. Bound it by CHARACTERS, not item count, and cap it at write time.",
+      "note": "The same channel fails in the opposite direction when unbounded: the log then resembles a rate-limit stall, so the cause is misattributed."
+    }
+  ],
+  "build_hypothesis": "A delivery receipt: call the consumer's own digest function on the steering file, assert a caller-supplied marker survives, and fail the run loudly at startup if it does not.",
+  "tags": [
+    "steering",
+    "context-engineering",
+    "silent-failure"
+  ]
+}
