@@ -59,6 +59,10 @@ Ten seed records spanning observability, evaluation, orchestration, context and 
 
 The first-party records cite specific incidents in [agent-failure-modes](https://github.com/jeffma8888/agent-failure-modes), a corpus of post-mortems from running autonomous multi-agent build loops, so a reader can check the claim rather than take it on trust.
 
+## Checking the citations
+
+Locators are verified out of band, never in the test suite: `python3 tools/check_locators.py gaps`. The suite is offline by contract, and a test that needs the network fails on a plane and in CI without egress, which teaches a team to ignore red. All 13 locators in the current register resolved when last checked.
+
 ## Design constraints
 
 Offline-first: no network access at runtime or in tests. One runtime dependency (pydantic v2). Deterministic output, so a report can be committed and diffed. Python 3.12+, uv-managed.
