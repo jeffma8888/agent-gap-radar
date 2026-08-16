@@ -1,0 +1,152 @@
+{
+  "id": "GAP-014",
+  "title": "A machine-generated artifact that drives inference is trusted because it is first-party, so nothing validates its shape at ingestion",
+  "layer": "lifecycle-deploy",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My prompt bundle, feature file, retrieval index and eval rubric are produced by my own pipeline and pushed to production every few minutes, and because they are internal they cross into the serving path with none of the validation I would apply to a byte of user input.",
+  "symptom": "A change nowhere near the model, in a query, a permissions grant or an upstream schema, silently changes the shape of a generated artifact; the consumer then either dies in the request path or keeps serving with a degenerate default, and because the artifact is regenerated on a timer the failure flaps as good and bad versions alternate, which reads as an attack rather than a deploy.",
+  "why_now": "Agent and ML systems moved their fastest-changing behaviour out of code and into generated artifacts pushed on a minutes-scale cadence, precisely so it can change without a deploy, and in doing so routed it around every gate the deploy path has: no schema, no bounds, no staged rollout, no review. The artifact is treated as configuration while functioning as control flow.",
+  "existing": [
+    "Trusting provenance instead of shape (signed or checksummed artifacts, internal-only networks): does not help at all here, because the artifact was authentically produced by the right pipeline and was still wrong. This is why an integrity check must not be accepted as a mitigation for a shape contract.",
+    "Preallocated bounds inside the consumer with no graceful path (Cloudflare's 200-feature limit): a limit that aborts is still better than unbounded memory, but as an unhandled error in a request path it converts a bad artifact into a total outage.",
+    "Post-hoc output detection (Anthropic added tests for unexpected character output after a serving misconfiguration): catches a class of symptom downstream of ingestion, and only for symptoms you already thought of.",
+    "Config-as-code review for hand-written config: does not apply, because nobody reviews a file a query emits every five minutes."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Cloudflare outage on November 18, 2025",
+      "locator": "https://blog.cloudflare.com/18-november-2025-outage/",
+      "date": "2025-11-18",
+      "quote": "The software had a limit on the size of the feature file that was below its doubled size. That caused the software to fail.",
+      "note": "A permissions change in an unrelated database caused duplicate rows in a generated feature file consumed by a machine learning scoring path. The trigger was the query; the missing contract was validation at ingestion."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Cloudflare outage on November 18, 2025",
+      "locator": "https://blog.cloudflare.com/18-november-2025-outage/",
+      "date": "2025-11-18",
+      "quote": "When the bad file with more than 200 features was propagated to our servers, this limit was hit — resulting in the system panicking.",
+      "note": "The consumer failed closed in the request path. The bound existed but had no graceful path, so a bad artifact became an outage rather than a rejected artifact."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Cloudflare outage on November 18, 2025",
+      "locator": "https://blog.cloudflare.com/18-november-2025-outage/",
+      "date": "2025-11-18",
+      "quote": "Hardening ingestion of Cloudflare-generated configuration files in the same way we would for user-generated input",
+      "note": "The first remediation item names the missing contract in the operator's own words, and names the reason it was missing: first-party generation was treated as a substitute for validation."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Cloudflare outage on November 18, 2025",
+      "locator": "https://blog.cloudflare.com/18-november-2025-outage/",
+      "date": "2025-11-18",
+      "quote": "Customers on our old proxy engine, known as FL, did not see errors, but bot scores were not generated correctly, resulting in all traffic receiving a bot score of zero.",
+      "note": "The same bad artifact produced the two failure modes a missing ingestion contract allows: fail-closed on one consumer and silently degenerate scores on the other. The silent one is the worse of the pair and would not have paged anyone."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "On August 25, we deployed a misconfiguration to the Claude API TPU servers that caused an error during token generation.",
+      "note": "An independent instance in a pure LLM serving path: a configuration artifact reached inference and corrupted token generation, and the remediation was a post-hoc output detector rather than an ingestion contract."
+    }
+  ],
+  "build_hypothesis": "An artifact contract at the ingestion boundary, small enough to be a decorator: a declared schema with an explicit row or token budget, a required version field, a load path that on rejection keeps serving the last known good artifact and emits a rejected-artifact metric, and a generator-side dry run that refuses to publish an artifact its own consumer would reject. The two design commitments that make it worth building are that provenance is never accepted in place of shape, and that rejection degrades rather than aborts.",
+  "tags": [
+    "generated-config",
+    "ingestion",
+    "fail-closed",
+    "prompt-bundle",
+    "postmortem-2025"
+  ],
+  "check": {
+    "id": "CHK-013",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)(json\\.loads?|yaml\\.safe_load|yaml\\.load|np\\.load|numpy\\.load|pickle\\.loads?|read_parquet|read_json|toml\\.load|JSON\\.parse)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)[\\w/.-]*(feature|prompt|rubric|manifest|embedding|policy|weights|index|model)[\\w/.-]*\\.(json|jsonl|ya?ml|parquet|npz|npy|pkl|toml)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)(json\\.loads?|yaml\\.safe_load|yaml\\.load|np\\.load|numpy\\.load|pickle\\.loads?|read_parquet|read_json|toml\\.load|JSON\\.parse)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)(jsonschema|json_schema|validate_(features?|config|manifest|artifact|prompt|rubric|payload)|schema_version|MAX_FEATURES|max_features|feature_limit|expected_(rows|columns|features|count)|bounds_check|row_count_check|assert\\s+len\\(|len\\([\\w.\\[\\]\\\"']{1,30}\\)\\s*>\\s*[A-Z_]{3,})"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)(jsonschema|json_schema|validate_(features?|config|manifest|artifact|prompt|rubric|payload)|schema_version|MAX_FEATURES|max_features|feature_limit|expected_(rows|columns|features|count)|bounds_check|row_count_check|assert\\s+len\\(|len\\([\\w.\\[\\]\\\"']{1,30}\\)\\s*>\\s*[A-Z_]{3,})"
+    },
+    "manual_question": "Name the artifact your inference path loads at runtime that your own pipeline generates: a prompt bundle, a feature file, a retrieval index, an eval rubric. What rejects it if its shape changes, and what serves traffic while it is rejected? If the answer is a checksum, that proves the file is the one you generated, not that it is the shape your consumer can survive.",
+    "rationale": "The signature is a runtime load of a behaviour-driving artifact whose name marks it as feature, prompt, model, index or rubric shaped, with no shape or bounds validation vocabulary anywhere in the tree. What it can get wrong: validation may live in the GENERATING pipeline, in a separate repo, or in a typed deserialiser whose bound is expressed in a way this keyword list does not name, and a mere filename mention in a comment can match. Deliberately excluded from the mitigation vocabulary: checksums and signatures. They attest provenance, and the Cloudflare artifact was authentically generated and still fatal, so accepting integrity as a mitigation here would be a fail-open.",
+    "fixtures": {
+      "bad": {
+        "app/scoring.py": "import json\nimport pathlib\n\n# Regenerated every five minutes by our own pipeline and pushed to every server.\n# It is first-party, so we read it and go.\nFEATURE_FILE = pathlib.Path(\"/etc/scoring/http_requests_features.json\")\n\nSLOTS = [0.0] * 200  # preallocated for performance\n\n\ndef load_features():\n    return json.loads(FEATURE_FILE.read_text())[\"features\"]\n\n\ndef score(request, model):\n    features = load_features()\n    for i, feature in enumerate(features):\n        SLOTS[i] = request.get(feature[\"name\"], 0.0)\n    return model.predict(SLOTS)\n"
+      },
+      "good": {
+        "app/scoring.py": "import json\nimport logging\nimport pathlib\n\nFEATURE_FILE = pathlib.Path(\"/etc/scoring/http_requests_features.json\")\n\nSLOTS = [0.0] * 200\nMAX_FEATURES = 200\nSCHEMA_VERSION = 2\n\nlog = logging.getLogger(__name__)\n_last_good = None\n\n\nclass ArtifactRejected(Exception):\n    \"\"\"The generated artifact did not satisfy the contract, so it is not ingested.\"\"\"\n\n\ndef validate_features(raw):\n    \"\"\"Ingest a first-party generated artifact with the same suspicion as user input.\"\"\"\n    if raw.get(\"schema_version\") != SCHEMA_VERSION:\n        raise ArtifactRejected(f\"unexpected schema_version {raw.get('schema_version')!r}\")\n    features = raw.get(\"features\")\n    if not isinstance(features, list) or not features:\n        raise ArtifactRejected(\"features must be a non-empty list\")\n    if len(features) > MAX_FEATURES:\n        raise ArtifactRejected(f\"{len(features)} features exceeds MAX_FEATURES={MAX_FEATURES}\")\n    names = [f[\"name\"] for f in features]\n    if len(set(names)) != len(names):\n        raise ArtifactRejected(\"duplicate feature rows: the generating query changed shape\")\n    return features\n\n\ndef load_features():\n    \"\"\"Reject a bad artifact and keep serving on the last known good one.\"\"\"\n    global _last_good\n    try:\n        _last_good = validate_features(json.loads(FEATURE_FILE.read_text()))\n    except (ArtifactRejected, ValueError, KeyError, OSError) as exc:\n        log.error(\"feature artifact rejected, serving last known good: %s\", exc)\n        if _last_good is None:\n            raise\n    return _last_good\n\n\ndef score(request, model):\n    features = load_features()\n    for i, feature in enumerate(features):\n        SLOTS[i] = request.get(feature[\"name\"], 0.0)\n    return model.predict(SLOTS)\n"
+      }
+    }
+  }
+}

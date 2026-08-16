@@ -1,0 +1,124 @@
+{
+  "id": "GAP-011",
+  "title": "MCP tool descriptions are authoritative prompt text with no integrity pin, so a change after approval needs no re-approval",
+  "layer": "tool-action",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I approved an MCP server once, and its tool descriptions - which are instructions my model obeys - can change on the next handshake without telling me and without asking again.",
+  "symptom": "The agent starts routing arguments to a new destination or reading files nobody asked about, while the user-facing log shows only familiar tool names; the text that changed its behaviour lives in a description the UI never rendered.",
+  "why_now": "MCP acquired a package-manager-shaped distribution model, where a client launches a server by name with npx or uvx, without the integrity machinery package managers eventually grew. There is no digest over the tool list, no lockfile for descriptions, and no re-consent when a description changes, so pinning is advice a client may follow rather than a field the protocol carries. The consequence is that the most instruction-dense text in the whole system is the least version-controlled.",
+  "existing": [
+    "One-time install approval: it covers the description as it read at approval time, which is exactly what a rug pull changes afterwards.",
+    "Per-call user confirmation: insufficient because clients render a summarised tool name, and Invariant showed Cursor's extended dialog not displaying the exfiltrated SSH key argument.",
+    "Out-of-band scanners such as MCP-scan: a detector bolted alongside the protocol, so it inspects rather than enforces, and it cannot make a client refuse to run.",
+    "Hand-pinning the server package version in the client config: possible today and rarely done, and it pins the package rather than the description a running server returns.",
+    "The spec's own security document addresses the transport and authorisation surface. In the sections retrieved it covers the OAuth confused deputy problem, token passthrough, SSRF and session hijacking, and integrity of tool descriptions is left to client guidance."
+  ],
+  "severity": 4,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "MCP's security model assumes that tool descriptions are trustworthy and benign.",
+      "note": "Names the trust assumption directly. The same post demonstrates the attack against Cursor, including a shadowing variant where a malicious server rewrites the agent's behaviour with respect to a trusted server's send_email tool."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "Clients should pin the version of the MCP server and its tools to prevent unauthorized changes.",
+      "note": "The recommended mitigation is stated as something clients should do, which is the evidence that it is not a protocol guarantee. The same post describes the rug pull it is meant to stop: a malicious server can change the tool description after the client has already approved it."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Security Best Practices - Model Context Protocol",
+      "locator": "https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices",
+      "date": "2025-06-18",
+      "quote": "This document identifies security risks, attack vectors, and best practices specific to MCP implementations.",
+      "note": "Maintainer-owned security document for the 2025-06-18 spec revision, cited for scope. The attack sections I retrieved are the OAuth confused deputy problem, token passthrough, SSRF and session hijacking; I did not find an integrity or change-consent requirement for tool descriptions in the retrieved portion, and the page was truncated by my fetch, so treat this as scope evidence rather than a proof of absence."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "The lethal trifecta for AI agents: private data, untrusted content, and external communication",
+      "locator": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/",
+      "date": "2025-06-16",
+      "quote": "Almost all of these were promptly fixed by the vendors, usually by locking down the exfiltration vector such that malicious instructions no longer had a way to extract any data that they had stolen.",
+      "note": "Describes the industry pattern of patching one exfiltration vector at a time, and observes that this vendor-side remedy stops working once a user composes tools from several sources, which is precisely the MCP configuration this check inspects."
+    }
+  ],
+  "build_hypothesis": "A description lockfile for MCP clients: on first approval, record a hash per server over the tool names, descriptions and argument schemas; on every subsequent connect, re-hash and refuse to expose changed tools until a human approves a rendered diff, with the full description text shown rather than a summarised tool name.",
+  "tags": [
+    "mcp",
+    "tool-poisoning",
+    "integrity",
+    "supply-chain",
+    "re-consent"
+  ],
+  "check": {
+    "id": "CHK-010",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "**/.mcp.json",
+        "**/mcp.json",
+        "**/claude_desktop_config.json",
+        "**/*.mcp.json",
+        "**/mcp_config.json",
+        "**/mcp-servers.json"
+      ]
+    },
+    "present_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/.mcp.json",
+        "**/mcp.json",
+        "**/claude_desktop_config.json",
+        "**/*.mcp.json",
+        "**/mcp_config.json",
+        "**/mcp-servers.json"
+      ],
+      "pattern": "\\\"@[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\\\"|\\\"mcp-server-[A-Za-z0-9._-]+\\\""
+    },
+    "mitigated_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/.mcp.json",
+            "**/mcp.json",
+            "**/claude_desktop_config.json",
+            "**/*.mcp.json",
+            "**/mcp_config.json",
+            "**/mcp-servers.json"
+          ],
+          "pattern": "\\\"@[A-Za-z0-9._-]+/[A-Za-z0-9._-]+@[0-9]|\\\"mcp-server-[A-Za-z0-9._-]+[@=][0-9]|sha256-|\\\"integrity\\\"|toolHash|tool_description_hash"
+        },
+        {
+          "kind": "file_exists",
+          "globs": [
+            "**/mcp.lock",
+            "**/mcp-servers.lock",
+            "**/package-lock.json",
+            "**/uv.lock"
+          ]
+        }
+      ]
+    },
+    "manual_question": "Your client connects to MCP servers by name. If a server changed a tool description between two sessions, which artifact would record the change, and what would refuse to run until a human re-approved it?",
+    "rationale": "A tool description is prompt text the model obeys, distributed like a package but without package-manager integrity. An unpinned server reference in a client config is the lexically visible form of accepting whatever the server returns today as authoritative. It under-reports servers pinned by a lockfile outside these globs or launched from a local path, and it cannot observe a description change at all, which is why the manual question asks about re-consent rather than about the config file. A partially pinned config matches both rules and escalates to MANUAL by design.",
+    "fixtures": {
+      "bad": {
+        ".mcp.json": "{\n  \"mcpServers\": {\n    \"github\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"]\n    }\n  }\n}\n"
+      },
+      "good": {
+        ".mcp.json": "{\n  \"mcpServers\": {\n    \"github\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-github@2025.4.8\"]\n    }\n  }\n}\n"
+      }
+    }
+  }
+}

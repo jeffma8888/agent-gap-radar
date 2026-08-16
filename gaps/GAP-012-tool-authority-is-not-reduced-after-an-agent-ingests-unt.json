@@ -1,0 +1,126 @@
+{
+  "id": "GAP-012",
+  "title": "Tool authority is not reduced after an agent ingests untrusted content, so reading and exfiltrating stay in one privilege domain",
+  "layer": "sandbox-isolation",
+  "gap_type": "missing-contract",
+  "status": "partially-addressed",
+  "problem": "My agent reads an attacker-writable issue and then, in the same turn with the same permissions, opens a pull request and sends mail; nothing in between reduced what it was allowed to do.",
+  "symptom": "A tool sequence that is individually authorised and collectively an exfiltration: a private read followed by a public write, each step permitted, with nothing flagging the combination.",
+  "why_now": "Permissioning is per-tool and static: a tool is enabled for the session or it is not. There is no standard way to declare that a tool returns attacker-writable bytes, and no way to express that the egress set is revoked for the rest of the turn once such bytes arrive. So the authority an agent holds while acting on attacker-controlled text is exactly the authority it held before reading it. The deployed substitute is a per-call human confirmation, which users switch off and which UIs summarise so heavily that the dangerous argument is not shown.",
+  "existing": [
+    "Per-call human confirmation (Claude Desktop, Gemini's user confirmation framework): the mitigation of record, and Invariant observed users moving to Always Allow and stopping monitoring, with Cursor's dialog not displaying the exfiltrated argument at all.",
+    "Site and category allowlists plus injection classifiers: Anthropic measured targeted attack success falling from 23.6 percent to 11.2 percent in autonomous browser use, so roughly one in nine targeted attacks still succeeded with all mitigations enabled.",
+    "Least-privilege API tokens: real but static and coarse, and cannot express a session-scoped rule such as one repository per session without an external policy engine.",
+    "Capability-based enforcement at tool-call time is the design that actually closes it, but it requires re-expressing the agent as a program with explicit control and data flow rather than a free-running loop.",
+    "MCP SEP-1913 would supply the missing primitive, an openWorldHint marking untrusted sources plus escalate-only propagation across a session, but it remains an open unmerged proposal, so no client can rely on it."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "The lethal trifecta for AI agents: private data, untrusted content, and external communication",
+      "locator": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/",
+      "date": "2025-06-16",
+      "quote": "once an LLM agent has ingested untrusted input, it must be constrained so that it is impossible for that input to trigger any consequential actions.",
+      "note": "This sentence appears on the page as Willison quoting the Design Patterns for Securing LLM Agents paper he is reviewing. It is the contract that is missing: nothing in a normal agent runtime constrains authority as a function of what has been ingested."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "GitHub MCP Exploited: Accessing private repositories via MCP",
+      "locator": "https://invariantlabs.ai/blog/mcp-github-vulnerability",
+      "date": "2025-05-26",
+      "quote": "However, many users already opt for an “Always Allow” confirmation policy when using agents, and stop monitoring individual actions.",
+      "note": "Named researchers reproducing the attack against the official GitHub MCP server with Claude 4 Opus. This is the direct evidence that the human-confirmation mitigation fails in practice. The same post concludes it is not a flaw in the server code but a fundamental architectural issue that must be addressed at the agent system level, and that many off-the-shelf injection detectors do not catch it."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Piloting Claude in Chrome",
+      "locator": "https://www.anthropic.com/news/claude-for-chrome",
+      "date": "2025-08-25",
+      "quote": "When we added safety mitigations to autonomous mode, we reduced the attack success rate of 23.6% to 11.2%",
+      "note": "A vendor measuring its own residual failure rate after shipping permissions, action confirmations, system-prompt hardening, site-category blocking and classifiers. Date taken from the date string in the page markup; the page carries rolling updates through Dec 18 2025, so treat it as the announcement date rather than the date of the numbers' last revision."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Mitigating prompt injection attacks with a layered defense strategy",
+      "locator": "https://security.googleblog.com/2025/06/mitigating-prompt-injection-attacks.html",
+      "date": "2025-06-13",
+      "quote": "This framework enables Gemini to require user confirmation for certain actions, also known as “Human-In-The-Loop” (HITL), using these responses to bolster security and streamline the user experience.",
+      "note": "Confirms that the shipped authority control is a per-action human prompt, not a rule that scopes authority to the trust level of what was ingested."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "SEP-1913: Trust and Sensitivity Annotations",
+      "locator": "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1913",
+      "date": "2025-11-27",
+      "quote": "Sensitive information can be passed to external destinations without policy enforcement",
+      "note": "SEP-1913 in the official MCP specification repository, opened 2025-11-27 by SamMorrowDrums with @dend cc'd as sponsor, author_association CONTRIBUTOR. Confirmed via the GitHub API on 2026-08-16 as state=open, merged=false, 41 issue comments and 31 review comments, last updated 2026-08-03. An unmerged proposal after eight months of discussion is direct evidence that the contract does not exist in the protocol today, from the tracker of the people who own it. Its propagation rules are taint semantics in all but name (sensitivity escalates and never decreases within a session, boolean hints are union), which is the mechanism this gap says is missing; the fact that it is unmerged is the point."
+    }
+  ],
+  "build_hypothesis": "A taint-scoped capability broker in front of the tool router: each tool declares whether it returns attacker-writable bytes and whether it can move data outward; once a tainting tool returns within a turn, the broker revokes the egress set for that turn and any egress requires a fresh authorisation that names the specific payload and destination, defaulting closed.",
+  "tags": [
+    "prompt-injection",
+    "lethal-trifecta",
+    "capability",
+    "exfiltration",
+    "authority"
+  ],
+  "check": {
+    "id": "CHK-011",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "@tool\\b|@mcp\\.tool|register_tool|tools\\s*=\\s*\\[|StructuredTool|FunctionTool"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "def\\s+\\w*(?:fetch|browse|read_url|get_url|list_issues|get_issue|read_email|read_mail|search_web|crawl|scrape)\\w*\\s*\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "def\\s+\\w*(?:send_email|send_mail|post_message|create_pull_request|create_issue|upload|webhook|http_post|post_url|publish)\\w*\\s*\\("
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py"
+            ],
+            "pattern": "taint|untrusted_(?:read|source|content|turn)|revoke_(?:tool|capabilit)|capability_(?:token|broker|policy)|egress_(?:policy|guard|allowlist)|downgrade_privileg"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "taint|untrusted_(?:read|source|content|turn)|revoke_(?:tool|capabilit)|capability_(?:token|broker|policy)|egress_(?:policy|guard|allowlist)|downgrade_privileg"
+    },
+    "manual_question": "Name the point in your runtime where an agent that has just read attacker-writable bytes loses the ability to send data outward. If that point does not exist, what stops a read from being followed by an egress in the same turn?",
+    "rationale": "The lethal trifecta is structurally visible: a tool that returns attacker-writable content and a tool that can move data outward, registered in the same agent, with no vocabulary anywhere for taint, revocation or capability scoping. Matching is by tool-function naming, so it under-reports tools with domain names that do not say what they do, and over-reports a deployment where the two tools are never enabled for the same principal. The mitigation rule demands positive evidence of scoping rather than inferring safety from silence.",
+    "fixtures": {
+      "bad": {
+        "agent/tools.py": "from agent import tool\n\n\n@tool\ndef fetch_url(url: str) -> str:\n    \"\"\"Fetch a page and return its text.\"\"\"\n    return http_get(url)\n\n\n@tool\ndef send_email(to: str, body: str) -> None:\n    \"\"\"Send an email on behalf of the user.\"\"\"\n    smtp_send(to, body)\n"
+      },
+      "good": {
+        "agent/tools.py": "from agent import tool\nfrom .authority import mark_taint, revoke_tool, require_untainted_turn\n\n\n@tool\ndef fetch_url(url: str) -> str:\n    \"\"\"Fetch a page. Its bytes are attacker controlled.\"\"\"\n    text = http_get(url)\n    mark_taint(text, origin=url)\n    revoke_tool(\"send_email\", reason=\"this turn ingested attacker controlled bytes\")\n    return text\n\n\n@tool\ndef send_email(to: str, body: str) -> None:\n    \"\"\"Send an email. Refused for the remainder of a tainted turn.\"\"\"\n    require_untainted_turn()\n    smtp_send(to, body)\n"
+      }
+    }
+  }
+}

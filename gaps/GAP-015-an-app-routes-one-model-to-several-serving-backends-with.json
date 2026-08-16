@@ -1,0 +1,154 @@
+{
+  "id": "GAP-015",
+  "title": "An app routes one model to several serving backends with no output-equivalence contract between them",
+  "layer": "model-runtime",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I send the same prompt to the same model through two providers for capacity and failover, and nothing anywhere asserts that the two answer the same way, so a defect in one route reaches only part of my traffic and my aggregate metrics stay green.",
+  "symptom": "A minority of requests degrade while the rest look normal, user reports contradict each other, and dashboards show no incident because the healthy route dilutes the broken one; the bug is only reproducible on a particular backend, batch size or hardware.",
+  "why_now": "Multi-backend routing became the default in 2025 (same weights served through first-party APIs, Amazon Bedrock, Google Vertex, plus aggregator gateways on different accelerators), but the tooling grew only a common request SCHEMA, never an output-equivalence GATE, so precision, sampling and routing differences between backends are invisible until users complain.",
+  "existing": [
+    "Provider-abstraction gateways (LiteLLM, OpenRouter, LangChain chat models) normalise the request and response shape, which makes routes interchangeable in code and thereby hides that they are not interchangeable in behaviour.",
+    "Static benchmarks and eval suites are run pre-release against one implementation; Anthropic's own postmortem says the evaluations they ran did not capture the degradation users reported, and were run outside true production systems.",
+    "Canary deploys catch a route that errors, not a route that answers slightly worse, because there is no per-route quality signal to compare against a reference route."
+  ],
+  "severity": 4,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Each bug produced different symptoms on different platforms at different rates. This created a confusing mix of reports that didn't point to any single cause.",
+      "note": "The vendor's own postmortem names per-backend divergence as the thing that defeated diagnosis. Same model, three serving platforms (first-party API, Amazon Bedrock, Vertex AI) on three accelerator families, with impact rates differing by four orders of magnitude between platforms."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "The evaluations we ran simply didn't capture the degradation users were reporting, in part because Claude often recovers well from isolated mistakes.",
+      "note": "Direct statement that the pre-existing eval layer was insensitive to a real production regression, which is why the missing primitive is a continuous per-route comparison rather than a better static benchmark."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Although we run regular evaluations on our systems, we will run them continuously on true production systems to catch issues such as the context window load balancing error.",
+      "note": "The remediation the provider committed to is exactly the missing primitive: continuous equivalence measurement on live routes. A consumer of several providers needs the same gate and has no off-the-shelf way to get it."
+    }
+  ],
+  "build_hypothesis": "A parity harness with two moving parts: a golden transcript set with assertions that are stable under sampling (schema validity, tool-call shape, refusal or non-refusal, numeric answer, language of the response), and a runner that replays it against EVERY configured backend on a schedule plus a small shadow sample of live traffic, reporting per-route pass rates side by side. The signal that matters is the divergence between routes, not the absolute score, which is why it can be built without a labelled benchmark.",
+  "tags": [
+    "multi-provider",
+    "serving",
+    "equivalence",
+    "canary",
+    "postmortem-2025"
+  ],
+  "check": {
+    "id": "CHK-014",
+    "applies_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(bedrock|vertexai|aiplatform|azure[_-]?openai|azure\\.openai)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(api\\.anthropic\\.com|api\\.openai\\.com|OpenAI\\(|Anthropic\\(|openrouter|litellm|fireworks|together\\.ai|ollama)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(bedrock|vertexai|aiplatform|azure[_-]?openai|azure\\.openai)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(api\\.anthropic\\.com|api\\.openai\\.com|OpenAI\\(|Anthropic\\(|openrouter|litellm|fireworks|together\\.ai|ollama)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "tests/**/*.py",
+            "**/test_*.py",
+            "**/*_test.py",
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "tests/**/*.ts",
+            "**/*.spec.ts",
+            "**/*.test.ts"
+          ],
+          "pattern": "(?i)(parity|equivalence|equivalent output|cross[- _]?backend|cross[- _]?provider|golden[- _]?transcript|backend[- _]?matrix|provider[- _]?matrix|shadow[- _]?compare)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "tests/**/*.py",
+        "**/test_*.py",
+        "**/*_test.py",
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "tests/**/*.ts",
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ],
+      "pattern": "(?i)(parity|equivalence|equivalent output|cross[- _]?backend|cross[- _]?provider|golden[- _]?transcript|backend[- _]?matrix|provider[- _]?matrix|shadow[- _]?compare)"
+    },
+    "manual_question": "You reach the same model through more than one serving route (a cloud reseller and a direct or aggregator endpoint). What asserts that the two routes answer equivalently, and would you see it if one route silently got worse for 1 percent of requests?",
+    "rationale": "Two independent route families appearing in shipped code is good evidence of multi-backend serving, and the absence of any parity, equivalence, cross-provider or golden-transcript vocabulary in the test and eval trees is good evidence that nothing compares them. What it can get wrong: a repo may only MENTION a second provider in a comment or an unused config, and a team may run parity checks in an external harness that is not in this repo, which is why a positive result is a signature and not a verdict, and why the mitigation vocabulary is deliberately broad.",
+    "fixtures": {
+      "bad": {
+        "app/llm.py": "import boto3\nfrom openai import OpenAI\n\nbedrock = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\")\ndirect = OpenAI()\n\ndef complete(prompt: str) -> str:\n    try:\n        r = bedrock.converse(modelId=\"anthropic.claude-sonnet\", messages=[{\"role\": \"user\", \"content\": [{\"text\": prompt}]}])\n        return r[\"output\"][\"message\"][\"content\"][0][\"text\"]\n    except Exception:\n        r = direct.chat.completions.create(model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}])\n        return r.choices[0].message.content\n",
+        "tests/test_llm.py": "from app.llm import complete\n\ndef test_complete_returns_text(monkeypatch):\n    monkeypatch.setattr(\"app.llm.bedrock\", _FakeBedrock())\n    assert isinstance(complete(\"hi\"), str)\n"
+      },
+      "good": {
+        "app/llm.py": "import boto3\nfrom openai import OpenAI\n\nbedrock = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\")\ndirect = OpenAI()\n\ndef complete(prompt: str) -> str:\n    try:\n        r = bedrock.converse(modelId=\"anthropic.claude-sonnet\", messages=[{\"role\": \"user\", \"content\": [{\"text\": prompt}]}])\n        return r[\"output\"][\"message\"][\"content\"][0][\"text\"]\n    except Exception:\n        r = direct.chat.completions.create(model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}])\n        return r.choices[0].message.content\n",
+        "tests/test_llm.py": "from app.llm import complete\n\ndef test_complete_returns_text(monkeypatch):\n    monkeypatch.setattr(\"app.llm.bedrock\", _FakeBedrock())\n    assert isinstance(complete(\"hi\"), str)\n",
+        "tests/test_provider_parity.py": "\"\"\"Cross-provider parity: the same golden transcripts must hold on every backend we route to.\"\"\"\nimport pytest\nfrom app.llm import complete_on\n\nBACKENDS = [\"bedrock\", \"openai\"]\n\n@pytest.mark.parametrize(\"backend\", BACKENDS)\ndef test_golden_transcript_parity(backend, golden_transcripts):\n    \"\"\"Equivalence gate: every backend must agree on the golden set.\"\"\"\n    for case in golden_transcripts:\n        out = complete_on(backend, case.prompt)\n        assert case.assertion(out), f\"cross-backend parity broke on {backend}\"\n"
+      }
+    }
+  }
+}
