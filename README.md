@@ -27,7 +27,7 @@ uv run radar taxonomy            # the fixed vocabularies
 
 uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo have?
 uv run radar scan ../my-service --gaps gaps --json   # the same, for a CI gate
-uv run radar scan ../my-service --gaps gaps --prd    # build against its worst finding
+uv run radar scan ../my-service --gaps gaps --prd    # build against its worst finding that clears the floor
 ```
 
 ## Scanning a real target

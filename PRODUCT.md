@@ -17,13 +17,16 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 11 | Cross-record duplicate detection on normalised title tokens | open | Prevent two records describing one gap |
 | 12 | `radar diff` between two register states | open | Show what a research pass actually changed |
 | 13 | Layer coverage report: which layers have no records and are therefore unexamined | open | Absence of records is not absence of gaps |
-| 14 | `radar list` displays below-floor records, flagged; adds `--json` | iter 01 | `list` dropped them, breaking the one rule VISION.md protects by name |
+| 14 | `radar list` displays below-floor records, flagged; adds `--json` | shipped | `list` dropped them, breaking the one rule VISION.md protects by name |
 | 15 | "Strongest source" must come from the ladder rung, not the alphabet | open | `render.py` uses `min(..., key=source_class)`; wrong on GAP-013/016 above the default floor |
 | 16 | `radar list --layer L` filter | open | Deliberately split from #14: a filter is an omission mechanism and needs the never-drop semantics settled first |
+| 17 | `radar scan --prd` honours the confidence floor its twin `radar prd` already enforces | iter 02 | The report displays below-floor findings; the PRD selection must not BUILD against one |
+
+Status values are `open`, `shipped`, or `iter NN` for the iteration currently landing the row.
 
 Numbers are stable identifiers, not an ordering -- rows are appended, never renumbered, because committed docs and prior specs cite them. Ship order is the line below.
 
-**Next up:** 15 (a shipped wrong output), then 8, then 9.
+**Next up:** 15 (a shipped wrong output), then 8, then 9. Then 16, whose never-drop dependency #14 has cleared.
 
 ## Non-goals for this roadmap
 
@@ -34,3 +37,4 @@ No web fetching inside the tool. No LLM calls. No dashboard. No database. The re
 One row per shipped iteration, landed in that iteration's own ship commit. Deferring a record is how history gets permanently lost.
 
 - iter 01 `radar list` stops dropping below-floor records and gains `--json`; three false doc rows made true
+- iter 02 `radar scan --prd` no longer builds against a below-floor finding; skips announced, exit 2 when none clears

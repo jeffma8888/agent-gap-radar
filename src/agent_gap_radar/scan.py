@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from .checks import CheckOutcome, Verdict, run_check
 from .models import Gap
-from .scoring import confidence, priority
+from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 
 
 @dataclass
@@ -50,6 +50,48 @@ class ScanResult:
         rows = self.by_verdict(Verdict.PRESENT)
         rows.sort(key=lambda f: (-f.priority, f.gap.id))
         return rows
+
+
+@dataclass
+class PrdSelection:
+    """Which PRESENT finding `--prd` may build against, and what the floor cost.
+
+    `passed_over` is an audit trail, not a leftover. The register's one protected
+    rule is that a below-floor record is DISPLAYED rather than silently dropped;
+    a selection that quietly stepped past one would re-create that drop on the
+    single surface deciding what actually gets built. Empty when the floor
+    changed nothing, which is the common case.
+    """
+
+    selected: Finding | None
+    passed_over: list[Finding]
+
+
+def select_for_prd(result: ScanResult,
+                   confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
+                   ) -> PrdSelection:
+    """The worst PRESENT finding whose EVIDENCE clears `confidence_floor`.
+
+    Walks `actionable` in its own `(-priority, id)` order, so the floor changes
+    WHICH finding is built against and never what the scan found or reported.
+
+    `passed_over` collects only the below-floor findings ranked AHEAD of the
+    selection: one ranked below it cost nothing, so naming it would be noise.
+    When nothing clears the floor the walk runs off the end and collects every
+    PRESENT finding, which is exactly the list a refusal has to name -- one
+    loop, both outcomes, no second predicate to drift.
+
+    A displayed record is not an actionable one: `radar prd` already refuses to
+    auto-select below the floor, and this is the same automatic path. An
+    explicitly named `radar prd --gap X` still bypasses it, because a human
+    named it.
+    """
+    passed_over: list[Finding] = []
+    for finding in result.actionable:
+        if finding.confidence >= confidence_floor:
+            return PrdSelection(selected=finding, passed_over=passed_over)
+        passed_over.append(finding)
+    return PrdSelection(selected=None, passed_over=passed_over)
 
 
 def scan_json(result: ScanResult) -> str:

@@ -16,8 +16,9 @@ from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import gap_brief, radar_report
-from .scan import render_scan, scan, scan_json
-from .scoring import below_floor, confidence, priority, rank
+from .scan import render_scan, scan, scan_json, select_for_prd
+from .scoring import (CONFIDENCE_FLOOR_DEFAULT, below_floor, confidence,
+                      priority, rank)
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
 
@@ -140,9 +141,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="register location (default: current dir)")
     p_scan.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
+    # "confidence floor" LEADS this help text deliberately. argparse wraps
+    # help on whitespace, and a phrase the docs promise a reader will find
+    # is broken by a line split; leading it survives any width above ~33
+    # columns instead of only the default 80.
     p_scan.add_argument("--prd", action="store_true",
-                        help="emit a prd.json for the worst PRESENT finding instead "
-                             "of the report")
+                        help="confidence floor gated: emit a prd.json for the "
+                             "worst PRESENT finding that clears the floor, "
+                             "instead of the report")
 
     sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     return parser
@@ -180,7 +186,30 @@ def main(argv: list[str] | None = None) -> int:
             if not result.actionable:
                 return _fail("no PRESENT finding to build against; "
                              "run without --prd to see MANUAL questions")
-            sys.stdout.write(render_prd(result.actionable[0].gap,
+            # Read the floor ONCE and use that same value for the decision
+            # and for every message about it, so a message can never name a
+            # floor other than the one actually applied.
+            floor = CONFIDENCE_FLOOR_DEFAULT
+            selection = select_for_prd(result, floor)
+            if selection.selected is None:
+                listed = ", ".join(
+                    f"{f.gap.id} (confidence {f.confidence})"
+                    for f in selection.passed_over)
+                named = selection.passed_over[0].gap.id
+                return _fail(
+                    f"no PRESENT finding clears the confidence floor "
+                    f"{floor}: {listed}. Strengthen the evidence, or name "
+                    f"it explicitly with 'radar prd --gap {named}'.")
+            # Announced, one line each, BEFORE the document: a build loop
+            # reading stdout is unaffected, and a human reading stderr sees
+            # what the floor cost rather than a silent substitution.
+            for finding in selection.passed_over:
+                sys.stderr.write(
+                    f"Note: skipped {finding.gap.id} "
+                    f"(priority {finding.priority:.1f}, "
+                    f"confidence {finding.confidence}) -- below the "
+                    f"confidence floor {floor}.\n")
+            sys.stdout.write(render_prd(selection.selected.gap,
                                         project=result.target.name))
             return 0
         sys.stdout.write(scan_json(result) if args.json

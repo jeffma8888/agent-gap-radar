@@ -16,7 +16,7 @@ The consumer-side design lives with the consumer:
 | `radar show <ID>` | the full brief for one gap, markdown |
 | `radar report <repo>` | the whole register as a human brief |
 | `radar prd <repo> --gap <ID>` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
-| `radar scan <target> [--gaps R] [--prd]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding |
+| `radar scan <target> [--gaps R] [--prd]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding whose confidence clears the register floor, names each skipped below-floor finding on stderr, and exits 2 if none clears |
 | `radar taxonomy` | the closed vocabularies (11 layers, 8 gap types, 9 evidence classes) |
 
 Guarantees a consumer may build on: offline always (no network at runtime or in
