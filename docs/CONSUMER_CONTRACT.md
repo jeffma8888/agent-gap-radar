@@ -1,0 +1,102 @@
+# Consumer contract
+
+What a build loop, CI job, or PM tool may rely on when it consumes this
+register, and the two things it must never do with it. Written 2026-08-16, when
+the first consumer (`agent-foundry`) was specced against it.
+
+The consumer-side design lives with the consumer:
+`agent-foundry/docs/INTEGRATION_AGENT_GAP_RADAR.md`.
+
+## The stable surface
+
+| Verb | Promise |
+|---|---|
+| `radar validate <repo>` | exit 0 iff every record parses and satisfies the schema |
+| `radar list [--json] [--layer L] [--floor N]` | ranked open gaps; below-floor records are DISPLAYED, flagged, never omitted |
+| `radar show <ID>` | the full brief for one gap, markdown |
+| `radar report <repo>` | the whole register as a human brief |
+| `radar prd <repo> --gap <ID>` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
+| `radar scan <target> [--gaps R] [--prd]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding |
+| `radar taxonomy` | the closed vocabularies (11 layers, 8 gap types, 9 evidence classes) |
+
+Guarantees a consumer may build on: offline always (no network at runtime or in
+tests); deterministic, byte-stable output; stdout carries only the document,
+errors go to stderr prefixed `Error: ` with exit 2; the taxonomy is closed, so a
+consumer may switch on a layer or gap-type string.
+
+## The invariant a consumer must not launder
+
+`priority` and `confidence` are deliberately UNBLENDED. `priority` is
+severity x frequency x tractability - how much it would matter to fix.
+`confidence` is derived ONLY from the evidence ladder - how much we should
+believe the gap is real. A single composite number would hide exactly the
+distinction the register exists to preserve, so no consumer should compute one.
+
+Two consequences that bind machine consumers specifically:
+
+- **A record whose only evidence class is `model-output` carries confidence 0
+  by construction.** It may inform a discussion. It may never justify shipping
+  anything, and it may never block anything.
+- **Below-floor records are shown, not dropped.** A consumer that filters them
+  out silently reproduces the failure the ladder was built to prevent. Render
+  them with their floor status attached (GAP-010 exists in the seed register
+  specifically to keep this path exercised).
+
+## `radar scan` - the verb a gate consumes (SHIPPED), and what it still owes
+
+`scan` is what turns the register from a reading list into an instrument, and it
+is what a release gate should consume. It is already implemented: nine of the ten
+seed records carry a check, and each returns PRESENT, ABSENT, NOT_APPLICABLE,
+MANUAL or UNKNOWN rather than a bare pass/fail. MANUAL is a first-class verdict -
+where static analysis cannot honestly decide, the tool asks a question instead of
+guessing, which is the behaviour a consumer should trust it for.
+
+**First real target, 2026-08-16: `agent-foundry`** (a 200+-iteration autonomous
+loop whose defects are independently documented, so its ground truth was known
+before the scan ran). Result: 2 PRESENT, 1 ABSENT, 1 NOT_APPLICABLE, 5 MANUAL,
+0 UNKNOWN. GAP-006 PRESENT was a true positive on that repo's single worst known
+live defect - a missing verdict token parsed as a revert, which had already
+destroyed a fully-verified iteration.
+
+Two defects that same run exposed, both of which must be fixed before any
+consumer lets a check BLOCK a release:
+
+1. **CHK-009 fail-open (a proven false negative).** GAP-009 was reported ABSENT
+   with a "positively identified mitigation" citing a TEST file. The target
+   exhibits GAP-009 continuously and ships a dedicated verb to measure it. The
+   `mitigated_when` pattern (`importlib.reload|self_restart|--restart|os.execv`)
+   matched test text that merely mentions reloading. **Fix: exclude test globs
+   from every `mitigated_when`.** A mitigation must be found in code that runs,
+   never in a test that names it - otherwise thorough test suites read as
+   healthier than untested code, which inverts the signal.
+2. **Locator noise on lexical checks.** CHK-006's verdict was right while 12 of
+   its 13 locators were test files that merely spell `PUSHED|REVERTED|verdict`.
+   Report the locators as evidence-of-signature, not as a fix list, until a
+   check can rank them.
+
+Owed for machine consumption: **`scan --json`**. A gate needs a stable object
+(per-gap verdict, priority, confidence, locators) rather than the markdown brief.
+
+## `radar ingest` - the reverse direction (TO BUILD)
+
+A running agent loop is the best available source of `first-party-field`
+evidence: its own stage kills, reverts, and role lessons are primary records of
+gaps in the very stack this register describes. `ingest` reads such a corpus and
+proposes DRAFT records.
+
+The discipline that keeps ingestion from destroying the register's value: a
+drafted record enters BELOW the confidence floor and stays displayed-but-not-
+ranked until a human promotes it with a citation. The ladder is the product. An
+auto-appended record that skipped it would make every score in the register
+unbelievable, which costs more than the record adds.
+
+## What a consumer must never do
+
+- **Never gate on "gaps closed" throughput, and never score a team on it.** A
+  loop optimising against that metric will farm whatever the register makes
+  cheapest to claim, and the register decays into a scoreboard. Gate on honesty
+  (a cited gap really exists, is open, and is above the floor) and on
+  non-regression (the diff did not reintroduce a known gap).
+- **Never treat a missing gap citation as a defect.** "No register gap fits
+  this work" is a legitimate, common answer; forcing a citation manufactures
+  false ones.
