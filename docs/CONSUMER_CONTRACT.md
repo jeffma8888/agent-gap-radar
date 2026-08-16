@@ -12,7 +12,7 @@ The consumer-side design lives with the consumer:
 | Verb | Promise |
 |---|---|
 | `radar validate <repo>` | exit 0 iff every record parses and satisfies the schema |
-| `radar list [--json] [--layer L] [--floor N]` | ranked open gaps; below-floor records are DISPLAYED, flagged, never omitted |
+| `radar list [--json] [--floor N]` | every record, ranked first; below-floor records are DISPLAYED, flagged, never omitted |
 | `radar show <ID>` | the full brief for one gap, markdown |
 | `radar report <repo>` | the whole register as a human brief |
 | `radar prd <repo> --gap <ID>` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |

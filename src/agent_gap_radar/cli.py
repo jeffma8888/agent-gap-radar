@@ -7,15 +7,17 @@ Conventions (shared with sibling tools): errors go to stderr prefixed with
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import sys
 
 from . import __version__
+from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import gap_brief, radar_report
 from .scan import render_scan, scan, scan_json
-from .scoring import confidence, priority, rank
+from .scoring import below_floor, confidence, priority, rank
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
 
@@ -29,6 +31,74 @@ def _resolve(path_arg: str) -> pathlib.Path:
 def _fail(msg: str) -> int:
     sys.stderr.write(f"Error: {msg}\n")
     return 2
+
+
+#: Marker appended to a row whose record sits below the confidence floor. A
+#: SUFFIX, not a new column, so the leading `id / p= / c= / title` field order a
+#: consumer already cuts on stays byte-stable.
+BELOW_FLOOR_MARKER = "  [below-floor]"
+
+#: One row of `radar list`: the scored record plus whether it is below the floor.
+ListRow = tuple[Gap, float, int, bool]
+
+
+def _list_rows(gaps: list[Gap], confidence_floor: int) -> list[ListRow]:
+    """Every record, ranked rows first, then below-floor rows in id order.
+
+    Deliberately ONE sequence rather than a ranked list plus a below-floor list.
+    The register's single protected rule is that a below-floor record is
+    displayed and never silently dropped, and handing a caller two collections is
+    exactly how that drop gets re-created downstream: consuming only the first
+    one looks like reading the ranking and is in fact hiding the research queue.
+    Reuses `scoring.below_floor()`, so no second below-floor predicate exists.
+    """
+    return ([(g, pri, conf, False) for g, pri, conf in rank(gaps, confidence_floor)]
+            + [(g, pri, conf, True)
+               for g, pri, conf in below_floor(gaps, confidence_floor)])
+
+
+def _list_text(rows: list[ListRow]) -> str:
+    """Line-oriented form: one line per record, below-floor rows flagged."""
+    return "".join(
+        f"{gap.id}  p={pri:>4.1f}  c={conf}  {gap.title}"
+        + (BELOW_FLOOR_MARKER if is_below else "")
+        + "\n"
+        for gap, pri, conf, is_below in rows
+    )
+
+
+def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
+    """A stable record list for a machine consumer.
+
+    A flat array with a `below_floor` boolean, not two arrays: the text marker
+    can be scraped, but a boolean can be ASSERTED by a consumer's gate, which is
+    where the never-drop invariant stops being prose and becomes checkable.
+    Carries `priority` and `confidence` as distinct fields and never a blended
+    score, matching `scan_json` -- a composite would launder the one distinction
+    the register exists to preserve.
+    """
+    payload = {
+        "confidence_floor": confidence_floor,
+        "counts": {
+            "total": len(rows),
+            "ranked": sum(1 for row in rows if not row[3]),
+            "below_floor": sum(1 for row in rows if row[3]),
+        },
+        "records": [
+            {
+                "gap_id": gap.id,
+                "title": gap.title,
+                "layer": gap.layer,
+                "gap_type": gap.gap_type,
+                "status": gap.status,
+                "priority": pri,
+                "confidence": conf,
+                "below_floor": is_below,
+            }
+            for gap, pri, conf, is_below in rows
+        ],
+    }
+    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,6 +118,10 @@ def build_parser() -> argparse.ArgumentParser:
         if name in ("list", "report"):
             p.add_argument("--floor", type=int, default=2,
                            help="confidence floor for the ranking (default 2)")
+        if name == "list":
+            p.add_argument("--json", action="store_true",
+                           help="emit a stable record list for a machine "
+                                "consumer")
 
     p_show = sub.add_parser("show", help="Full brief for one gap (markdown).")
     p_show.add_argument("gap_id")
@@ -127,8 +201,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "list":
-            for gap, pri, conf in rank(gaps, args.floor):
-                sys.stdout.write(f"{gap.id}  p={pri:>4.1f}  c={conf}  {gap.title}\n")
+            rows = _list_rows(gaps, args.floor)
+            sys.stdout.write(_list_json(rows, args.floor) if args.json
+                             else _list_text(rows))
             return 0
 
         if args.command == "report":

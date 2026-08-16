@@ -126,8 +126,19 @@ def test_taxonomy_lists_layers_and_source_classes(capsys):
 
 
 def test_floor_flag_changes_the_ranking(repo, capsys):
+    """The floor changes which rows are MARKED, never how many rows exist.
+
+    This assertion used to require an EMPTY stdout at --floor 6, which encoded
+    the silent drop the register's one protected invariant forbids. The floor is
+    a visibility control over the ranking, not a delete.
+    """
+    assert main(["list", str(repo)]) == 0
+    at_default = capsys.readouterr().out.strip().split("\n")
     assert main(["list", str(repo), "--floor", "6"]) == 0
-    assert capsys.readouterr().out.strip() == ""
+    at_six = capsys.readouterr().out.strip().split("\n")
+    assert len(at_six) == len(at_default) == 1
+    assert "[below-floor]" not in at_default[0]
+    assert at_six[0] == at_default[0] + "  [below-floor]"
 
 
 # --------------------------------------------------------------------------

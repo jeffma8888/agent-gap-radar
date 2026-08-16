@@ -1,5 +1,7 @@
 # agent-gap-radar
 
+> **Layer: an instrument above the stack.** It names where in an agent stack a gap lives and ranks it by evidence class; it implements no layer itself.
+
 Evidence-first gap radar for AI agent infrastructure: find where agents actually break, rank it honestly, then hand the top gap to a build loop.
 
 Most "state of AI agents" content is a reading list. This is a register, and then an instrument: `radar scan` points the register at one of *your* repos and tells you which of these gaps that specific project actually has. Every gap in `gaps/` is a JSON record with a fixed schema, a closed taxonomy, at least one verbatim citation with a resolvable locator, and two scores that are deliberately kept apart: how much the gap matters, and how well we actually know it is real. The last command turns the top-ranked gap into a `prd.json` that an autonomous build loop consumes directly, so research changes what gets built instead of accumulating.
@@ -17,7 +19,7 @@ That distinction is the whole reason `GAP-010` is in the register: it is a widel
 ```bash
 uv sync
 uv run radar validate .          # schema-check every record, exit 2 on any problem
-uv run radar list .              # one line per ranked gap
+uv run radar list .              # one line per record, below-floor rows flagged
 uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar prd .               # emit a build-loop prd.json for the top gap
@@ -95,7 +97,7 @@ The emitted document carries the source gap's evidence forward, so the loop buil
 
 ## Current register
 
-The register grows: unattended research passes propose records and the gate above decides which land. For the current contents run `uv run radar list .`, which prints the count, the ranking, and the below-floor section separately. Counts are deliberately not restated here, because a hand-maintained summary of a machine-updated source decays silently and then misleads with authority.
+The register grows: unattended research passes propose records and the gate above decides which land. For the current contents run `uv run radar list .`, one line per record with below-floor rows flagged, or `uv run radar report .`, which prints the count, the ranking, and the below-floor section separately. Counts are deliberately not restated here, because a hand-maintained summary of a machine-updated source decays silently and then misleads with authority.
 
 It seeded with ten records spanning observability, evaluation, orchestration, context and memory, multi-agent coordination, and lifecycle. `GAP-010` is retained *below* the confidence floor as a worked example of the ladder doing its job.
 
