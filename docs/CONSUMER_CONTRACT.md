@@ -59,7 +59,8 @@ live defect - a missing verdict token parsed as a revert, which had already
 destroyed a fully-verified iteration.
 
 Two defects that same run exposed, both of which must be fixed before any
-consumer lets a check BLOCK a release:
+consumer lets a check BLOCK a release. **Both were fixed the same day; the
+diagnosis below is kept verbatim because the reasoning is the durable part.**
 
 1. **CHK-009 fail-open (a proven false negative).** GAP-009 was reported ABSENT
    with a "positively identified mitigation" citing a TEST file. The target
@@ -69,13 +70,30 @@ consumer lets a check BLOCK a release:
    from every `mitigated_when`.** A mitigation must be found in code that runs,
    never in a test that names it - otherwise thorough test suites read as
    healthier than untested code, which inverts the signal.
+   **FIXED structurally, not per-check:** `mitigated_when` is now always
+   evaluated with test paths excluded, and the flag propagates through every
+   nested combinator, so a future research candidate cannot reintroduce it. The
+   real target re-scanned from 2 PRESENT / 1 ABSENT to 3 PRESENT / 0 ABSENT.
+   Regression test: a tree whose only mention of the mitigation is in a test
+   must not report ABSENT, plus a positive control so the exclusion did not
+   simply break detection, plus word-boundary cases (`latest`, `protest`,
+   `manifest` are not test paths).
 2. **Locator noise on lexical checks.** CHK-006's verdict was right while 12 of
    its 13 locators were test files that merely spell `PUSHED|REVERTED|verdict`.
    Report the locators as evidence-of-signature, not as a fix list, until a
    check can rank them.
+   **FIXED:** locators are now ranked code-first at the point the cap is applied
+   (ranking after the cap would have been cosmetic), the heading reads
+   "Signature seen at (evidence, ranked code first)", and the suppressed
+   remainder is named rather than silently cut. On the real target GAP-003 now
+   leads with `dispatcher.py` and `watchdog.py` instead of eighteen test files.
 
-Owed for machine consumption: **`scan --json`**. A gate needs a stable object
-(per-gap verdict, priority, confidence, locators) rather than the markdown brief.
+**`scan --json` SHIPPED.** A gate gets a stable object: `target`, `counts` keyed
+by verdict, `uncheckable`, and per finding `gap_id`, `title`, `layer`,
+`gap_type`, `verdict`, `priority`, `confidence`, `reason`, `question`,
+`locations`, `build_hypothesis`. `priority` and `confidence` stay separate
+fields and no blended `score` key exists, so the invariant survives
+serialisation; a test asserts that. Output is byte-stable across runs.
 
 ## `radar ingest` - the reverse direction (TO BUILD)
 

@@ -67,6 +67,15 @@ vendored code or gitignored scratch.
   evidence is silence, not safety.
 - Both matching yields `MANUAL`, not a pass: a partial mitigation is the dangerous
   case and it needs a human to look.
+- **A `mitigated_when` rule is evaluated with test files EXCLUDED**, and you cannot
+  turn that off. A mitigation named only by a test is not a mitigation: credited
+  from test text, a thorough suite reads as healthier than untested code, which
+  inverts the signal. So write `mitigated_when` to match the code that RUNS, and
+  put the mitigation in a non-test path in your `fixtures.good` tree or your
+  candidate will be rejected for not discriminating.
+- `present_when` still sees test files. A gap signature inside a test is real.
+- Locators are ranked code-first and capped, with the suppressed remainder named.
+  They are evidence that the signature exists, not a list of places to fix.
 - If static analysis genuinely cannot decide, omit `present_when` and ship a
   `manual_question` instead. **An honest manual check is a first-class result.**
   Do not invent a brittle regex just to look automated.

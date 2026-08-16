@@ -12,7 +12,7 @@ import pathlib
 
 import pytest
 
-from agent_gap_radar.checks import Verdict, evaluate, run_check
+from agent_gap_radar.checks import Verdict, evaluate, is_test_path, run_check
 from agent_gap_radar.registry import load_all
 
 REPO_GAPS = pathlib.Path(__file__).resolve().parent.parent / "gaps"
@@ -206,3 +206,140 @@ def test_non_git_target_falls_back_to_skip_list(tmp_path):
     _TRACKED_CACHE.clear()
     assert hit.matched
     assert hit.locations == ["src/a.py:1"], hit.locations
+
+
+# --------------------------------------------------------------------------
+# A mitigation named only by a test is not a mitigation.
+#
+# Regression for a PROVEN false negative found by scanning a real target:
+# GAP-009 came back ABSENT ("mitigation positively identified") citing a TEST
+# file that merely spelled `importlib.reload`, while the target exhibited that
+# gap continuously and shipped a dedicated verb to measure it. Credited from
+# test text, a thorough suite reads as HEALTHIER than untested code, which
+# inverts the signal this tool exists to produce.
+# --------------------------------------------------------------------------
+
+_MITIGATION_CHECK = {
+    "id": "CHK-999",
+    "rationale": "r",
+    "manual_question": "q",
+    "present_when": {
+        "kind": "content_matches",
+        "globs": ["**/*.py"],
+        "pattern": r"while True",
+    },
+    "mitigated_when": {
+        "kind": "content_matches",
+        "globs": ["**/*.py"],
+        "pattern": r"importlib\.reload",
+    },
+}
+
+
+def _tree(root, files):
+    for rel, body in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(body, encoding="utf-8")
+
+
+def test_mitigation_found_only_in_a_test_is_not_credited(tmp_path):
+    """The exact false negative that shipped. Must NOT report ABSENT."""
+    _tree(tmp_path, {
+        "app/loop.py": "def main():\n    while True:\n        step()\n",
+        "tests/test_loop.py": "import importlib\n# we should importlib.reload here one day\n",
+    })
+    out = run_check(_MITIGATION_CHECK, tmp_path)
+    assert out.verdict is not Verdict.ABSENT, (
+        f"a mitigation named only by a test was credited: {out.locations}"
+    )
+    assert out.verdict is Verdict.PRESENT, out
+
+
+def test_mitigation_in_real_code_is_still_credited(tmp_path):
+    """The positive control. Excluding tests must not break real detection."""
+    _tree(tmp_path, {
+        "app/loop.py": (
+            "import importlib\nimport app.mod\n\n"
+            "def main():\n    while True:\n        importlib.reload(app.mod)\n"
+        ),
+    })
+    out = run_check(_MITIGATION_CHECK, tmp_path)
+    assert out.verdict is Verdict.MANUAL, out
+    assert "ambiguous" in out.reason, out
+
+
+def test_mitigation_only_in_code_yields_absent(tmp_path):
+    _tree(tmp_path, {
+        "app/reloader.py": "import importlib\nimportlib.reload(x)\n",
+    })
+    out = run_check(_MITIGATION_CHECK, tmp_path)
+    assert out.verdict is Verdict.ABSENT, out
+
+
+@pytest.mark.parametrize("rel", [
+    "tests/test_x.py", "test/x.py", "spec/x.rb", "__tests__/x.js",
+    "src/test_helpers.py", "src/thing_test.go", "src/a.spec.ts",
+    "conftest.py", "fixtures/sample.py",
+])
+def test_test_paths_are_recognised(tmp_path, rel):
+    assert is_test_path(tmp_path, tmp_path / rel), rel
+
+
+@pytest.mark.parametrize("rel", [
+    "src/app.py", "src/latest.py", "protest/x.py", "src/contest.py",
+    "src/attestation.py", "lib/manifest.py",
+])
+def test_ordinary_code_is_not_mistaken_for_a_test(tmp_path, rel):
+    """A substring match would eat `latest`, `protest`, `manifest`."""
+    assert not is_test_path(tmp_path, tmp_path / rel), rel
+
+
+def test_present_when_still_sees_test_files(tmp_path):
+    """Only MITIGATIONS exclude tests. A gap signature in a test is real."""
+    _tree(tmp_path, {"tests/test_loop.py": "def t():\n    while True:\n        pass\n"})
+    out = run_check(
+        {"id": "CHK-998", "rationale": "r", "manual_question": "q",
+         "present_when": {"kind": "content_matches", "globs": ["**/*.py"],
+                          "pattern": r"while True"}},
+        tmp_path,
+    )
+    assert out.verdict is Verdict.PRESENT, out
+
+
+# --------------------------------------------------------------------------
+# Locator ranking. A verdict can be right while its evidence list is useless:
+# on a repo with a large suite, test-file matches crowd out every line of code
+# that actually runs. Ranking is honest only if the reader sees what was cut.
+# --------------------------------------------------------------------------
+
+def test_locations_put_real_code_before_tests(tmp_path):
+    files = {f"tests/test_{i}.py": "import subprocess\n" for i in range(12)}
+    files["app/runner.py"] = "import subprocess\n"
+    _tree(tmp_path, files)
+    hit = evaluate(
+        {"kind": "content_matches", "globs": ["**/*.py"], "pattern": "import subprocess"},
+        tmp_path,
+    )
+    assert hit.matched
+    assert hit.locations[0].startswith("app/runner.py"), hit.locations
+
+
+def test_suppressed_locations_are_reported_not_silently_cut(tmp_path):
+    _tree(tmp_path, {f"tests/test_{i}.py": "import subprocess\n" for i in range(15)})
+    hit = evaluate(
+        {"kind": "content_matches", "globs": ["**/*.py"], "pattern": "import subprocess"},
+        tmp_path,
+    )
+    tail = hit.locations[-1]
+    assert tail.startswith("(+5 more"), hit.locations
+    assert "in test files" in tail, tail
+
+
+def test_no_suppression_note_when_everything_fits(tmp_path):
+    _tree(tmp_path, {"app/a.py": "import subprocess\n"})
+    hit = evaluate(
+        {"kind": "content_matches", "globs": ["**/*.py"], "pattern": "import subprocess"},
+        tmp_path,
+    )
+    assert hit.locations == ["app/a.py:1"], hit.locations

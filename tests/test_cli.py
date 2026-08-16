@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import json
+import pathlib
 
 import pytest
 
 from agent_gap_radar.cli import main
+
+#: The real published register. The scan tests run against it on purpose:
+#: a synthetic register would not prove the shipped checks behave.
+REGISTER = pathlib.Path(__file__).resolve().parent.parent / "gaps"
 
 RECORD = {
     "id": "GAP-001", "title": "A thing is broken", "layer": "orchestration",
@@ -123,3 +128,53 @@ def test_taxonomy_lists_layers_and_source_classes(capsys):
 def test_floor_flag_changes_the_ranking(repo, capsys):
     assert main(["list", str(repo), "--floor", "6"]) == 0
     assert capsys.readouterr().out.strip() == ""
+
+
+# --------------------------------------------------------------------------
+# `scan --json` is the surface a CI gate or build loop consumes. Prose is not a
+# contract: a gate that scrapes markdown breaks on the first reworded heading.
+# --------------------------------------------------------------------------
+
+def test_scan_json_is_parseable_and_carries_the_stable_fields(tmp_path, capsys):
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "loop.py").write_text(
+        "import subprocess\nsubprocess.run(['x'], timeout=600)\n", encoding="utf-8"
+    )
+    rc = main(["scan", str(tmp_path), "--gaps", str(REGISTER), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["target_name"] == tmp_path.name
+    assert set(payload["counts"]) == {
+        "PRESENT", "ABSENT", "NOT_APPLICABLE", "MANUAL", "UNKNOWN"
+    }
+    assert payload["findings"], "a scan with no findings tells a consumer nothing"
+    row = payload["findings"][0]
+    for field in ("gap_id", "verdict", "priority", "confidence", "locations",
+                  "layer", "gap_type", "build_hypothesis"):
+        assert field in row, field
+
+
+def test_scan_json_never_blends_priority_and_confidence(tmp_path, capsys):
+    """The register's core invariant must survive serialisation."""
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    main(["scan", str(tmp_path), "--gaps", str(REGISTER), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    for row in payload["findings"]:
+        assert isinstance(row["priority"], (int, float))
+        assert isinstance(row["confidence"], int)
+        assert "score" not in row, "a blended score would launder the invariant"
+
+
+def test_scan_json_is_byte_stable_across_runs(tmp_path, capsys):
+    (tmp_path / "a.py").write_text("import subprocess\n", encoding="utf-8")
+    main(["scan", str(tmp_path), "--gaps", str(REGISTER), "--json"])
+    first = capsys.readouterr().out
+    main(["scan", str(tmp_path), "--gaps", str(REGISTER), "--json"])
+    assert capsys.readouterr().out == first
+
+
+def test_scan_json_ends_in_exactly_one_newline(tmp_path, capsys):
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    main(["scan", str(tmp_path), "--gaps", str(REGISTER), "--json"])
+    out = capsys.readouterr().out
+    assert out.endswith("}\n") and not out.endswith("\n\n")

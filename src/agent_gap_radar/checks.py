@@ -20,6 +20,11 @@ import subprocess
 from dataclasses import dataclass, field
 
 MAX_FILE_BYTES = 512 * 1024
+#: Locations reported per rule. A lexical check on a large repo can match
+#: hundreds of times; an unranked, uncapped list is noise a reader cannot act on.
+MAX_LOCATIONS = 10
+#: Files scanned per rule before the walk stops. Bounds worst-case scan cost.
+MAX_SCAN_FILES = 4000
 SKIP_DIRS = frozenset({
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
     "dist", "build", ".mypy_cache", ".ruff_cache", ".tox", "target",
@@ -87,7 +92,29 @@ def tracked_files(target: pathlib.Path) -> frozenset[pathlib.Path] | None:
     return result
 
 
-def iter_files(target: pathlib.Path, globs: list[str]) -> list[pathlib.Path]:
+#: A mitigation found only in a test is not a mitigation. Credited from a test
+#: file, a thorough suite reads as HEALTHIER than untested code, which inverts
+#: the signal the whole tool exists to produce. Proven on a real target: GAP-009
+#: was reported ABSENT because a test merely SPELLED `importlib.reload`, while
+#: the target exhibited that gap continuously and shipped a verb to measure it.
+TEST_PATH_RE = re.compile(
+    r"(^|/)(tests?|testing|spec|specs|__tests__|fixtures?|conftest\.py)(/|$)"
+    r"|(^|/)test_[^/]*$|[^/]*_test\.[a-z]+$|[^/]*\.spec\.[a-z]+$",
+    re.IGNORECASE,
+)
+
+
+def is_test_path(target: pathlib.Path, path: pathlib.Path) -> bool:
+    """True if this path is test scaffolding rather than code that runs."""
+    try:
+        rel = path.relative_to(target).as_posix()
+    except ValueError:
+        rel = path.as_posix()
+    return bool(TEST_PATH_RE.search(rel))
+
+
+def iter_files(target: pathlib.Path, globs: list[str],
+               exclude_tests: bool = False) -> list[pathlib.Path]:
     """Resolve globs under target, restricted to what the project ships."""
     tracked = tracked_files(target)
     seen: set[pathlib.Path] = set()
@@ -99,6 +126,8 @@ def iter_files(target: pathlib.Path, globs: list[str]) -> list[pathlib.Path]:
                 if path.resolve() not in tracked:
                     continue
             elif any(part in SKIP_DIRS for part in path.relative_to(target).parts):
+                continue
+            if exclude_tests and is_test_path(target, path):
                 continue
             seen.add(path)
     return sorted(seen)
@@ -126,11 +155,38 @@ def _scope_note(globs: list[str], pattern: str | None = None) -> str:
     return f"(no files) searched {scope}"
 
 
-def evaluate(rule: dict, target: pathlib.Path) -> RuleHit:
+def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
+    """Code before tests, capped, with the suppressed remainder named.
+
+    A lexical signature match in a test file is real but rarely where a reader
+    should start, and on a repo with a large suite the test hits crowd out every
+    line of code that actually runs. Ranking is honest only if the reader can
+    see what was dropped, so the remainder is reported rather than silently cut.
+    """
+    ranked = code_hits + test_hits
+    shown = ranked[:MAX_LOCATIONS]
+    hidden = len(ranked) - len(shown)
+    if not hidden:
+        return shown
+    # Derive the test count from the boundary rather than re-guessing from the
+    # string: code_hits come first, so everything past max(shown, code) is a test.
+    in_tests = len(ranked) - max(len(shown), len(code_hits))
+    note = f"(+{hidden} more match{'es' if hidden != 1 else ''}"
+    if in_tests > 0:
+        note += f", {in_tests} in test files"
+    return shown + [note + ")"]
+
+
+def evaluate(rule: dict, target: pathlib.Path,
+             exclude_tests: bool = False) -> RuleHit:
     """Evaluate one rule against a target directory.
 
     An unknown rule kind raises: silently returning False would be the
     fail-open failure this module exists to prevent.
+
+    `exclude_tests` is set when evaluating a MITIGATION. It propagates through
+    every nested combinator, because a mitigation credited from test text is a
+    false negative and a false negative here reads as safety.
     """
     kind = rule.get("kind")
 
@@ -138,7 +194,7 @@ def evaluate(rule: dict, target: pathlib.Path) -> RuleHit:
         locations: list[str] = []
         matched = False
         for sub in rule.get("rules", []):
-            hit = evaluate(sub, target)
+            hit = evaluate(sub, target, exclude_tests)
             if hit.matched:
                 matched = True
                 locations.extend(hit.locations)
@@ -150,7 +206,7 @@ def evaluate(rule: dict, target: pathlib.Path) -> RuleHit:
             raise ValueError("all_of with no sub-rules is vacuously true; forbidden")
         locations = []
         for sub in subs:
-            hit = evaluate(sub, target)
+            hit = evaluate(sub, target, exclude_tests)
             if not hit.matched:
                 return RuleHit(False, [])
             locations.extend(hit.locations)
@@ -160,10 +216,10 @@ def evaluate(rule: dict, target: pathlib.Path) -> RuleHit:
         inner = rule.get("rule")
         if inner is None:
             raise ValueError("not requires a 'rule'")
-        return RuleHit(not evaluate(inner, target).matched, [])
+        return RuleHit(not evaluate(inner, target, exclude_tests).matched, [])
 
     if kind in ("file_exists", "file_absent"):
-        files = iter_files(target, rule["globs"])
+        files = iter_files(target, rule["globs"], exclude_tests)
         found = bool(files)
         if kind == "file_exists":
             return RuleHit(found, [str(p.relative_to(target)) for p in files[:10]])
@@ -176,18 +232,20 @@ def evaluate(rule: dict, target: pathlib.Path) -> RuleHit:
             regex = re.compile(rule["pattern"], re.MULTILINE)
         except re.error as exc:
             raise ValueError(f"invalid pattern {rule.get('pattern')!r}: {exc}") from exc
-        locations = []
-        for path in iter_files(target, rule["globs"]):
+        code_hits: list[str] = []
+        test_hits: list[str] = []
+        for path in iter_files(target, rule["globs"], exclude_tests)[:MAX_SCAN_FILES]:
             text = _read(path)
             if text is None:
                 continue
             for m in regex.finditer(text):
                 line_no = text[:m.start()].count("\n") + 1
-                locations.append(f"{path.relative_to(target)}:{line_no}")
+                loc = f"{path.relative_to(target)}:{line_no}"
+                (test_hits if is_test_path(target, path) else code_hits).append(loc)
                 break
-        found = bool(locations)
+        found = bool(code_hits or test_hits)
         if kind == "content_matches":
-            return RuleHit(found, locations[:10])
+            return RuleHit(found, _rank_locations(code_hits, test_hits))
         return RuleHit(not found,
                        [_scope_note(rule["globs"], rule["pattern"])] if not found else [])
 
@@ -221,7 +279,11 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
 
     try:
         present = evaluate(present_rule, target) if present_rule else RuleHit(False)
-        mitigated = evaluate(mitigated_rule, target) if mitigated_rule else RuleHit(False)
+        # exclude_tests=True: a mitigation named only by a test is not a
+        # mitigation. Crediting it makes a well-tested repo look safer than
+        # an untested one, which inverts the signal.
+        mitigated = (evaluate(mitigated_rule, target, exclude_tests=True)
+                     if mitigated_rule else RuleHit(False))
     except ValueError as exc:
         return CheckOutcome(Verdict.UNKNOWN, reason=str(exc))
 

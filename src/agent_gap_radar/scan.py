@@ -8,6 +8,7 @@ answer where static analysis honestly cannot decide.
 
 from __future__ import annotations
 
+import json
 import pathlib
 from dataclasses import dataclass
 
@@ -49,6 +50,42 @@ class ScanResult:
         rows = self.by_verdict(Verdict.PRESENT)
         rows.sort(key=lambda f: (-f.priority, f.gap.id))
         return rows
+
+
+def scan_json(result: ScanResult) -> str:
+    """A stable object for machine consumers (a CI gate, a build loop).
+
+    Separate from the markdown brief on purpose: a gate that regex-scrapes prose
+    breaks the first time a heading is reworded. Emits `priority` and
+    `confidence` as distinct fields and never a blended score, so a consumer
+    cannot accidentally launder a low-confidence record into a high-priority one.
+    """
+    payload = {
+        "target": str(result.target),
+        "target_name": result.target.name,
+        "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
+        "uncheckable": [g.id for g in result.uncheckable],
+        "findings": [
+            {
+                "gap_id": f.gap.id,
+                "title": f.gap.title,
+                "layer": f.gap.layer,
+                "gap_type": f.gap.gap_type,
+                "verdict": f.verdict.value,
+                "priority": f.priority,
+                "confidence": f.confidence,
+                "reason": f.outcome.reason,
+                "question": f.outcome.question,
+                # Lexical evidence of the signature, ranked code-first. NOT a
+                # fix list: a regex match is not a proof of the defect's site.
+                "locations": list(f.outcome.locations),
+                "build_hypothesis": f.gap.build_hypothesis,
+            }
+            for f in sorted(result.findings,
+                            key=lambda f: (f.verdict.value, -f.priority, f.gap.id))
+        ],
+    }
+    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
 
 
 def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
@@ -95,7 +132,10 @@ def render_scan(result: ScanResult) -> str:
                       f"- Layer: `{f.gap.layer}` | type: `{f.gap.gap_type}`",
                       f"- Why this matters: {f.gap.problem}"]
             if f.outcome.locations:
-                lines.append("- Found at:")
+                # "Signature seen at", not "fix here": these are lexical
+                # matches evidencing the pattern, ranked code-first. Calling
+                # them a fix list would overstate what a regex established.
+                lines.append("- Signature seen at (evidence, ranked code first):")
                 lines += [f"  - `{loc}`" for loc in f.outcome.locations]
             if f.gap.build_hypothesis:
                 lines.append(f"- Suggested fix: {f.gap.build_hypothesis}")

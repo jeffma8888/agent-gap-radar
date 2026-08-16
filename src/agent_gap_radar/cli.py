@@ -14,7 +14,7 @@ from . import __version__
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import gap_brief, radar_report
-from .scan import render_scan, scan
+from .scan import render_scan, scan, scan_json
 from .scoring import confidence, priority, rank
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_scan.add_argument("target", help="path to the repository/service to inspect")
     p_scan.add_argument("--gaps", default=".",
                         help="register location (default: current dir)")
+    p_scan.add_argument("--json", action="store_true",
+                        help="emit a stable object for a machine consumer")
     p_scan.add_argument("--prd", action="store_true",
                         help="emit a prd.json for the worst PRESENT finding instead "
                              "of the report")
@@ -107,7 +109,8 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(render_prd(result.actionable[0].gap,
                                         project=result.target.name))
             return 0
-        sys.stdout.write(render_scan(result))
+        sys.stdout.write(scan_json(result) if args.json
+                         else render_scan(result))
         return 0
 
     directory = _resolve(args.path)
