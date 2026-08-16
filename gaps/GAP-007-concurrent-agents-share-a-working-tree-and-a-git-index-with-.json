@@ -38,5 +38,51 @@
     "concurrency",
     "vcs",
     "shared-state"
-  ]
+  ],
+  "check": {
+    "id": "CHK-007",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "[\\\"']git[\\\"']|git\\s+(add|commit|push)"
+    },
+    "present_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "[\\\"']add[\\\"']\\s*,\\s*[\\\"']-A[\\\"']|git\\s+add\\s+-A|add_all\\(|[\\\"']add[\\\"']\\s*,\\s*[\\\"']\\.[\\\"']"
+    },
+    "mitigated_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "STOP_FILE|stop_file|lease|LEASE"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "pathspec|path_limited|\\[[\\\"']--[\\\"']\\]"
+        }
+      ]
+    },
+    "manual_question": "This code stages or commits with git. If another process or a human has uncommitted work in the same tree, what stops your commit from sweeping it, or your failure path from deleting it?",
+    "rationale": "`git add -A` stages everything in a process-shared index. The known mitigations (a lease/STOP sentinel, or a path-limited commit) are lexically detectable.",
+    "fixtures": {
+      "bad": {
+        "ship.py": "import subprocess\n\ndef ship(msg):\n    subprocess.run(['git', 'add', '-A'])\n    subprocess.run(['git', 'commit', '-m', msg])\n"
+      },
+      "good": {
+        "ship.py": "import subprocess\n\ndef ship(msg, paths):\n    if STOP_FILE.exists():\n        return\n    subprocess.run(['git', 'commit', '-m', msg, '--', *paths])\n"
+      }
+    }
+  }
 }

@@ -30,5 +30,58 @@
     "evals",
     "adoption",
     "economics"
-  ]
+  ],
+  "check": {
+    "id": "CHK-008",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "openai|anthropic|bedrock|litellm|langchain|langgraph|crewai|agent[_ ]?run"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "openai|anthropic|bedrock|litellm|langchain|langgraph|crewai|agent[_ ]?run"
+        },
+        {
+          "kind": "file_absent",
+          "globs": [
+            "evals/**",
+            "eval/**",
+            "**/test_eval*.py",
+            "**/evals/**",
+            "**/*eval*.yaml",
+            "**/*eval*.json"
+          ]
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**",
+        "eval/**",
+        "**/test_eval*.py",
+        "**/evals/**"
+      ]
+    },
+    "manual_question": "This project calls a model API. Where is the eval suite that tells you a prompt or model change did not regress behaviour?",
+    "rationale": "An agent codebase with no eval directory and no eval test has no way to distinguish a regression from noise. Directory presence is a weak but honest proxy, and a false positive here costs one MANUAL answer.",
+    "fixtures": {
+      "bad": {
+        "agent.py": "import anthropic\n\ndef run(prompt):\n    return anthropic.messages.create(prompt)\n"
+      },
+      "good": {
+        "agent.py": "import anthropic\n\ndef run(prompt):\n    return anthropic.messages.create(prompt)\n",
+        "evals/test_eval_behaviour.py": "def test_refuses_unsafe():\n    assert True\n"
+      }
+    }
+  }
 }

@@ -38,5 +38,10 @@
     "feedback-loop",
     "root-cause",
     "coding-agents"
-  ]
+  ],
+  "check": {
+    "id": "CHK-001",
+    "manual_question": "When a run produces a wrong final answer, can you identify WHICH step produced the wrong intermediate state, or only that the output is wrong? If you only have final-output signal, feedback cannot localise the bug.",
+    "rationale": "Intermediate observability cannot be detected from source: a repo can emit rich traces and still record nothing about execution STATE. Asking is honest; guessing from the presence of a tracing import is not."
+  }
 }

@@ -38,5 +38,45 @@
     "steering",
     "context-engineering",
     "silent-failure"
-  ]
+  ],
+  "check": {
+    "id": "CHK-004",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "**/steering/**",
+        "**/LEARNINGS.md"
+      ]
+    },
+    "present_when": {
+      "kind": "content_absent",
+      "globs": [
+        "tests/**/*.py",
+        "**/test_*.py"
+      ],
+      "pattern": "AGENTS\\.md|CLAUDE\\.md|steering|LEARNINGS|digest"
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "tests/**/*.py",
+        "**/test_*.py"
+      ],
+      "pattern": "AGENTS\\.md|CLAUDE\\.md|steering|LEARNINGS|digest"
+    },
+    "manual_question": "You inject a steering file into agent prompts. What asserts that it is actually DELIVERED to the model rather than truncated or dropped by the consumer's own digest?",
+    "rationale": "A steering file with no test naming it has never been proven to reach the model. This is the cheapest real check in the register: it compares the existence of a steering artifact against any test that mentions it.",
+    "fixtures": {
+      "bad": {
+        "AGENTS.md": "- always run the suite before committing\n",
+        "tests/test_math.py": "def test_add():\n    assert 1 + 1 == 2\n"
+      },
+      "good": {
+        "AGENTS.md": "- always run the suite before committing\n",
+        "tests/test_steering.py": "def test_agents_md_is_delivered():\n    assert 'AGENTS.md' in build_prompt()\n"
+      }
+    }
+  }
 }

@@ -38,5 +38,51 @@
     "timeout",
     "durability",
     "loop-engineering"
-  ]
+  ],
+  "check": {
+    "id": "CHK-003",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "subprocess\\.(run|Popen|check_output)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "subprocess\\.(run|Popen|check_output)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "timeout\\s*="
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "checkpoint|write_early|partial_output|flush_partial"
+    },
+    "manual_question": "You run subprocesses under a hard timeout. Does each long step write a minimal COMPLETE artifact before it starts refining, so a kill degrades quality instead of losing the whole step?",
+    "rationale": "A timeout on a subprocess that produces its output only at the end means a kill destroys all work. The mitigation leaves a lexical trace (a checkpoint write), so its ABSENCE is reported as MANUAL rather than as safety.",
+    "fixtures": {
+      "bad": {
+        "runner.py": "import subprocess\n\ndef step(cmd):\n    return subprocess.run(cmd, capture_output=True, timeout=600)\n"
+      },
+      "good": {
+        "runner.py": "import subprocess\n\ndef step(cmd, out):\n    out.write_text('{}')  # checkpoint: minimal complete artifact\n    return subprocess.run(cmd, capture_output=True, timeout=600)\n"
+      }
+    }
+  }
 }

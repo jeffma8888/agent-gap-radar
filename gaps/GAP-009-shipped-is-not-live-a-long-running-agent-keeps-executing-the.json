@@ -30,5 +30,51 @@
     "deployment",
     "staleness",
     "long-running"
-  ]
+  ],
+  "check": {
+    "id": "CHK-009",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "while\\s+True"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "while\\s+True"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "importlib\\.reload|self_restart|--restart|os\\.execv"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "importlib\\.reload|self_restart|--restart|os\\.execv"
+    },
+    "manual_question": "This process runs an unbounded loop. When you merge a fix to a module it imported at launch, how does the RUNNING process pick it up?",
+    "rationale": "A long-lived loop with no reload or self-restart path executes the bytecode it imported at launch, so git can report a fix as shipped while it is inert.",
+    "fixtures": {
+      "bad": {
+        "loop.py": "import worker\n\ndef main():\n    while True:\n        worker.tick()\n"
+      },
+      "good": {
+        "loop.py": "import importlib\nimport worker\n\ndef main():\n    while True:\n        importlib.reload(worker)\n        worker.tick()\n"
+      }
+    }
+  }
 }

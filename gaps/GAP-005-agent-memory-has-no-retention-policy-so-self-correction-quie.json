@@ -38,5 +38,10 @@
     "memory",
     "retention",
     "self-correction"
-  ]
+  ],
+  "check": {
+    "id": "CHK-005",
+    "manual_question": "How many lessons does your loop WRITE per iteration, and how many does its memory window DELIVER to the next one? If writes exceed the window, self-correction is already scoped to a single iteration.",
+    "rationale": "The crossover is a ratio between two runtime rates, neither of which is visible in source. It has to be measured, so the check asks for the measurement."
+  }
 }

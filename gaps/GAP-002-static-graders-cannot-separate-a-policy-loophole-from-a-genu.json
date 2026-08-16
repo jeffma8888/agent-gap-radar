@@ -38,5 +38,10 @@
     "evals",
     "goodhart",
     "reward-hacking"
-  ]
+  ],
+  "check": {
+    "id": "CHK-002",
+    "manual_question": "When a run fails your grader, do you have any path to distinguish 'the agent found a better solution than the rubric anticipated' from 'the agent gamed the rubric'? If both look like a red test, your eval score has stopped tracking quality.",
+    "rationale": "Rubric-intent divergence is a property of the grading policy, not of the code."
+  }
 }

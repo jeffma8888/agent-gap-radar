@@ -14,6 +14,7 @@ from . import __version__
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import gap_brief, radar_report
+from .scan import render_scan, scan
 from .scoring import confidence, priority, rank
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
@@ -58,6 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
                        help="gap id (default: the top-ranked gap)")
     p_prd.add_argument("--project", default="agent-gap-radar")
 
+    p_scan = sub.add_parser(
+        "scan", help="Apply the register's checks to a target repo or service.")
+    p_scan.add_argument("target", help="path to the repository/service to inspect")
+    p_scan.add_argument("--gaps", default=".",
+                        help="register location (default: current dir)")
+    p_scan.add_argument("--prd", action="store_true",
+                        help="emit a prd.json for the worst PRESENT finding instead "
+                             "of the report")
+
     sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     return parser
 
@@ -78,6 +88,26 @@ def main(argv: list[str] | None = None) -> int:
         out += ["", "## Evidence source classes (strongest first)", ""]
         out += [f"- `{c}` (weight {SOURCE_WEIGHTS[c]})" for c in SOURCE_CLASSES]
         sys.stdout.write("\n".join(out) + "\n")
+        return 0
+
+    if args.command == "scan":
+        directory = _resolve(args.gaps)
+        try:
+            gaps = load_all(directory)
+        except RegistryError as exc:
+            return _fail(str(exc))
+        try:
+            result = scan(gaps, args.target)
+        except (NotADirectoryError, OSError) as exc:
+            return _fail(f"cannot scan target: {exc}")
+        if args.prd:
+            if not result.actionable:
+                return _fail("no PRESENT finding to build against; "
+                             "run without --prd to see MANUAL questions")
+            sys.stdout.write(render_prd(result.actionable[0].gap,
+                                        project=result.target.name))
+            return 0
+        sys.stdout.write(render_scan(result))
         return 0
 
     directory = _resolve(args.path)

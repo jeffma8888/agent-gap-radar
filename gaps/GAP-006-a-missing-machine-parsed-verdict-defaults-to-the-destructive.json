@@ -30,5 +30,51 @@
     "verdict",
     "safety",
     "control-plane"
-  ]
+  ],
+  "check": {
+    "id": "CHK-006",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "PUSHED|REVERTED|verdict|VERDICT|ACTION:"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "PUSHED|REVERTED|verdict|VERDICT|ACTION:"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "reset['\\\"]?\\s*,?\\s*['\\\"]?--hard|git.{0,20}revert|rollback\\("
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "INDETERMINATE|PENDING_VERDICT|retry_on_missing|preserve_on_missing"
+    },
+    "manual_question": "Your code parses a decision token and can revert. What happens when the token is MISSING because its writer was killed mid-decision: does absence read as 'revert' (destructive) or as 'indeterminate' (retry, preserve)?",
+    "rationale": "A parsed verdict plus a destructive path is the exact combination that turns an interrupted decision into data loss. An explicit indeterminate state is the fix and it leaves a lexical trace.",
+    "fixtures": {
+      "bad": {
+        "gate.py": "def decide(text):\n    if 'PUSHED' in text:\n        return push()\n    return run(['git', 'reset', '--hard', 'origin/main'])\n"
+      },
+      "good": {
+        "gate.py": "def decide(text):\n    if 'PUSHED' in text:\n        return push()\n    if 'REVERTED' in text:\n        return run(['git', 'reset', '--hard', 'origin/main'])\n    return INDETERMINATE  # preserve the tree and retry\n"
+      }
+    }
+  }
 }
