@@ -2,7 +2,7 @@
 
 Evidence-first gap radar for AI agent infrastructure: find where agents actually break, rank it honestly, then hand the top gap to a build loop.
 
-Most "state of AI agents" content is a reading list. This is a register. Every gap in `gaps/` is a JSON record with a fixed schema, a closed taxonomy, at least one verbatim citation with a resolvable locator, and two scores that are deliberately kept apart: how much the gap matters, and how well we actually know it is real. The last command turns the top-ranked gap into a `prd.json` that an autonomous build loop consumes directly, so research changes what gets built instead of accumulating.
+Most "state of AI agents" content is a reading list. This is a register, and then an instrument: `radar scan` points the register at one of *your* repos and tells you which of these gaps that specific project actually has. Every gap in `gaps/` is a JSON record with a fixed schema, a closed taxonomy, at least one verbatim citation with a resolvable locator, and two scores that are deliberately kept apart: how much the gap matters, and how well we actually know it is real. The last command turns the top-ranked gap into a `prd.json` that an autonomous build loop consumes directly, so research changes what gets built instead of accumulating.
 
 ## Why the two scores never get blended
 
@@ -22,7 +22,47 @@ uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar prd .               # emit a build-loop prd.json for the top gap
 uv run radar taxonomy            # the fixed vocabularies
+
+uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo have?
+uv run radar scan ../my-service --gaps gaps --json   # the same, for a CI gate
+uv run radar scan ../my-service --gaps gaps --prd    # build against its worst finding
 ```
+
+## Scanning a real target
+
+A register tells you what tends to break. A scan tells you what *your* project has. Each record can carry a `check`: a declarative rule, evaluated against a target repository, that reports one of five verdicts per gap with file:line evidence.
+
+The rules are **data, not code**. A register that carried executable rules would be a remote-code-execution surface for anyone who pulled a shared one.
+
+Five verdicts, never collapsed, because collapsing them is how a tool starts lying:
+
+| Verdict | Meaning |
+|---|---|
+| `PRESENT` | the gap signature was found in this target |
+| `ABSENT` | a mitigation was **positively identified** |
+| `NOT_APPLICABLE` | the gap cannot apply here (the precondition is missing) |
+| `MANUAL` | static analysis cannot honestly decide, so it asks a question instead |
+| `UNKNOWN` | the check could not be run |
+
+Three invariants make the output trustworthy rather than merely confident:
+
+**`ABSENT` requires positive evidence of a mitigation.** The absence of a bad pattern is silence, not safety. A target where neither signature appears is reported `MANUAL`, with the question a human should answer.
+
+**Both signatures matching yields `MANUAL`, not a pass.** A partial mitigation is the genuinely dangerous case, so it escalates to a human instead of being reported as safe.
+
+**A mitigation named only by a test is not a mitigation.** `mitigated_when` is evaluated with test paths excluded. This was a real, proven false negative before it was a rule: a target that exhibits a gap continuously came back `ABSENT` because a test file merely *spelled* the mitigation. Credited from test text, a thorough suite reads as healthier than untested code, which inverts the signal.
+
+Scanning is restricted to what `git ls-files` reports, so vendored dependencies and gitignored scratch cannot manufacture findings. Locators are ranked code-first and capped, with the suppressed remainder named; they are evidence that a signature exists, not a list of places to fix.
+
+`MANUAL` is a first-class result and usually the majority verdict. A tool that answered every question would be guessing at most of them.
+
+## How a check earns its place
+
+Every automated check ships a **known-bad and a known-good fixture**, and a parametrized test asserts it fires on one, stays silent on the other, and reports a location. A detector nobody proved against a known-bad sample reports health it never measured, which is worse than no detector. A separate test fails if the register ever contains zero automated checks, so the suite cannot pass vacuously.
+
+New records arrive through a gated inbox (`tools/promote.py`), because the register is fed by unattended research passes. A candidate is refused, with a written reason, unless it parses, cites at least one non-zero-weight source with a fetchable locator and a real excerpt, proves its check two-sided against its own fixtures, and is not a restatement of a check already in the register. Ids are assigned by the gate: context-free parallel agents cannot coordinate numbering, so letting them try guarantees collisions.
+
+Quotes are then checked against the live page (`tools/verify_quotes.py`, network, out of band). A fabricated quote on a real, resolving URL is the one defect every offline signal reports as fine.
 
 ## What a gap record looks like
 
@@ -55,13 +95,15 @@ The emitted document carries the source gap's evidence forward, so the loop buil
 
 ## Current register
 
-Ten seed records spanning observability, evaluation, orchestration, context and memory, multi-agent coordination, and lifecycle. Nine clear the confidence floor; one is retained below it as a worked example of the ladder doing its job.
+The register grows: unattended research passes propose records and the gate above decides which land. For the current contents run `uv run radar list .`, which prints the count, the ranking, and the below-floor section separately. Counts are deliberately not restated here, because a hand-maintained summary of a machine-updated source decays silently and then misleads with authority.
+
+It seeded with ten records spanning observability, evaluation, orchestration, context and memory, multi-agent coordination, and lifecycle. `GAP-010` is retained *below* the confidence floor as a worked example of the ladder doing its job.
 
 The first-party records cite specific incidents in [agent-failure-modes](https://github.com/jeffma8888/agent-failure-modes), a corpus of post-mortems from running autonomous multi-agent build loops, so a reader can check the claim rather than take it on trust.
 
 ## Checking the citations
 
-Locators are verified out of band, never in the test suite: `python3 tools/check_locators.py gaps`. The suite is offline by contract, and a test that needs the network fails on a plane and in CI without egress, which teaches a team to ignore red. All 13 locators in the current register resolved when last checked.
+Locators are verified out of band, never in the test suite: `python3 tools/check_locators.py gaps` for reachability, and `python3 tools/verify_quotes.py --gaps gaps` to confirm each quote is verbatim on the page it cites. The suite is offline by contract, and a test that needs the network fails on a plane and in CI without egress, which teaches a team to ignore red. Both tools read the register at run time, so neither claim needs to be restated in prose to stay true.
 
 ## Design constraints
 
