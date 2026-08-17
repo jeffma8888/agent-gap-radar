@@ -18,7 +18,7 @@ That distinction is the whole reason `GAP-010` is in the register: it is a widel
 
 ```bash
 uv sync
-uv run radar validate .          # schema-check every record, exit 2 on any problem
+uv run radar validate .          # schema-check every record; exit 2 on any problem or on zero records
 uv run radar list .              # one line per record, below-floor rows flagged
 uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes

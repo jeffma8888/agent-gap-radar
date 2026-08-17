@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-06
+    lenses: new-capability -- iteration 06, hardening/DX (iteration 06)
+    - Candidate A1 -- the report's layer table drops every layer with zero records, so "never examined" is a thing the register cannot say
+    - Candidate A2 -- the `status` lifecycle field is inert, so a gap the register itself calls addressed still ranks and can still be handed to a build loop
+    - Candidate A3 -- a review-due axis: records whose newest citation has aged past a threshold, kept strictly out of confidence
+    - B1 -- `radar validate` must fail when it examined zero records
+    - B2 -- One ladder-order helper: "Strongest source" is currently sorted alphabetically
+    - B3 -- Offline two-sided tests for the quote verifier, the one guard nothing tests
+    winner: B1
+    ship: pending (not yet decided)
   iter-05
     lenses: narrative-and-docs, new-capability
     - A1 -- The contract a machine consumer reads still describes a ten-record register with nine checks; it is sixteen and fifteen (roadmap #20)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- name the layers the register has never examined
     - Candidate B3 -- flag records whose newest citation has aged past a threshold
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 60b2320
   iter-04
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- read each file at most once per scan
@@ -51,4 +61,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-5 scouted iterations
+6 scouted iterations

@@ -11,7 +11,7 @@ The consumer-side design lives with the consumer:
 
 | Verb | Promise |
 |---|---|
-| `radar validate <repo>` | exit 0 iff every record parses and satisfies the schema |
+| `radar validate <repo>` | exit 0 when at least one record was examined AND every record parses and satisfies the schema; a domain holding zero records is exit 2, never a green pass |
 | `radar list [--json] [--floor N]` | every record, ranked first; below-floor records are DISPLAYED, flagged, never omitted |
 | `radar show <ID>` | the full brief for one gap, markdown |
 | `radar report <repo>` | the whole register as a human brief |

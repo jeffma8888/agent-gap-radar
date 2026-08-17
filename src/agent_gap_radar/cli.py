@@ -226,6 +226,18 @@ def main(argv: list[str] | None = None) -> int:
         gaps = load_all(directory)
 
         if args.command == "validate":
+            # A verdict verb cannot show the size of the domain it examined:
+            # one exit code has no room to say "there was nothing to parse".
+            # So certifying an EMPTY register asserts the strongest available
+            # claim on no evidence at all, and an emptied register, a moved
+            # one, or a path a level too high becomes indistinguishable from a
+            # healthy one to the CI reading this exit code. Refuse instead --
+            # the same answer `tools/check_locators.py` already gives its own
+            # empty domain. Deliberately NOT pushed down into `load_all`:
+            # `list`/`report` emit a DOCUMENT, which shows its own emptiness
+            # where the reader can see it, so only the verdict verb needs this.
+            if not gaps:
+                return _fail(f"no gap records found in {directory}")
             sys.stdout.write(f"OK: {len(gaps)} gap record(s) valid.\n")
             return 0
 
