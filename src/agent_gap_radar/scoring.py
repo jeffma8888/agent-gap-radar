@@ -150,19 +150,63 @@ def promotion_options(gap: Gap, confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
                  if SOURCE_WEIGHTS[source_class] == cheapest)
 
 
+def _partition(
+    gaps: list[Gap], confidence_floor: int
+) -> tuple[list[tuple[Gap, float, int]], list[tuple[Gap, float, int]]]:
+    """Score every record ONCE and put it on exactly one side of the floor.
+
+    Returns `(at_or_above, below)` of scored rows, unsorted -- the two public
+    views order differently (priority-first vs id), so ordering belongs to the
+    caller that names it.
+
+    Why one pass and not two filters. The register has exactly one protected
+    rule: a below-floor record is DISPLAYED, never silently dropped, and
+    `rank()` / `below_floor()` are its only two views. Written as two
+    independently authored comprehensions -- one keeping `confidence(g) >=
+    floor`, one keeping `confidence(g) < floor` -- that rule held only because
+    the predicates happened to remain exact complements. Nothing asserted it, so
+    the way it breaks is an edit to one filter alone: a record falls out of one
+    view and appears in neither, which is precisely the drop this product already
+    had to fix once. Deciding each side exactly once here makes "every record
+    lands in exactly one view" a property of the code instead of a coincidence
+    between two functions.
+
+    A side effect worth naming because a test pins it: the old form evaluated
+    `confidence()` once per record in the filter and again per survivor when
+    building the row, so one call cost N + kept. Here it is exactly N. Fresh
+    lists are returned on every call -- there is deliberately no cache, so two
+    calls cost 2N and no caller can observe a stale score.
+    """
+    at_or_above: list[tuple[Gap, float, int]] = []
+    below: list[tuple[Gap, float, int]] = []
+    for gap in gaps:
+        score = confidence(gap)
+        row = (gap, priority(gap), score)
+        if score >= confidence_floor:
+            at_or_above.append(row)
+        else:
+            below.append(row)
+    return at_or_above, below
+
+
 def rank(gaps: list[Gap], confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
          ) -> list[tuple[Gap, float, int]]:
-    """Sorted best-first. Ties break on id so the order is total and stable."""
-    rows = [(g, priority(g), confidence(g)) for g in gaps
-            if confidence(g) >= confidence_floor]
+    """Sorted best-first. Ties break on id so the order is total and stable.
+
+    The complement of this view is `below_floor()`; both read the same single
+    `_partition()` pass, so no second below-floor predicate exists.
+    """
+    rows, _ = _partition(gaps, confidence_floor)
     rows.sort(key=lambda r: (-r[1], -r[2], r[0].id))
     return rows
 
 
 def below_floor(gaps: list[Gap], confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
                 ) -> list[tuple[Gap, float, int]]:
-    """Records excluded from the ranking. Shown, never silently dropped."""
-    rows = [(g, priority(g), confidence(g)) for g in gaps
-            if confidence(g) < confidence_floor]
+    """Records excluded from the ranking. Shown, never silently dropped.
+
+    The complement of `rank()`, from the same single `_partition()` pass.
+    """
+    _, rows = _partition(gaps, confidence_floor)
     rows.sort(key=lambda r: r[0].id)
     return rows

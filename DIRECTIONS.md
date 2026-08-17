@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-08
+    lenses: integration-and-adoption (iteration 08), simplification-and-deletion (iteration 08)
+    - Candidate A1 -- `radar scan` states the size of the register it applied, so a zero-record domain stops reading as a clean target
+    - Candidate A2 -- `radar scan --gaps` stops defaulting to the current directory, the one verb whose register and target are different paths
+    - Candidate A3 -- `radar list --json` carries the below-floor prescription and the strongest source class a gate can assert
+    - B1 -- delete `taxonomy.layer_names()` and `taxonomy.gap_type_names()`, which nothing has ever called
+    - B2 -- collapse `rank()` and `below_floor()` into one partition, so never-dropping a record stops being a coincidence
+    - B3 -- delete `RuleHit.__bool__`, the dormant second way to ask the question the fail-open boundary turns on
+    winner: B2
+    ship: pending (not yet decided)
   iter-07
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `strongest_source()` derived from the ladder, killing the alphabetical `min()`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan` gains an opt-in, floor-gated non-zero exit code
     - Candidate B3 -- `radar taxonomy` publishes the status vocabulary, and gains `--json`
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED a181ae8
   iter-06
     lenses: new-capability -- iteration 06, hardening/DX (iteration 06)
     - Candidate A1 -- the report's layer table drops every layer with zero records, so "never examined" is a thing the register cannot say
@@ -71,4 +81,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-7 scouted iterations
+8 scouted iterations
