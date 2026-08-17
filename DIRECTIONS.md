@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-09
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- delete the live-register twin of a synthetic test that already proves the same thing
+    - Candidate A2 -- one confidence-floor default, not three spellings; delete cli.py's two dead imports
+    - Candidate A3 -- one document-terminator contract, not five implementations
+    - Candidate B1 -- one read per file per scan: 173 MB decoded to cover a 2 MB repo
+    - Candidate B2 -- the tracked set is re-projected to relative paths on every rule
+    - Candidate B3 -- placeholder, being measured
+    winner: A1
+    ship: pending (not yet decided)
   iter-08
     lenses: integration-and-adoption (iteration 08), simplification-and-deletion (iteration 08)
     - Candidate A1 -- `radar scan` states the size of the register it applied, so a zero-record domain stops reading as a clean target
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - B2 -- collapse `rank()` and `below_floor()` into one partition, so never-dropping a record stops being a coincidence
     - B3 -- delete `RuleHit.__bool__`, the dormant second way to ask the question the fail-open boundary turns on
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 04b81e0
   iter-07
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `strongest_source()` derived from the ladder, killing the alphabetical `min()`
@@ -81,4 +91,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-8 scouted iterations
+9 scouted iterations

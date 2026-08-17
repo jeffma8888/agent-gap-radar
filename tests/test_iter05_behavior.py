@@ -18,6 +18,15 @@ test asserts its PREMISE about that record's evidence first, because promoting a
 below-floor record is the entire point of this feature: when GAP-010 finally gains a
 primary source, these tests must fail with a message that says so, not with an
 unexplained string mismatch.
+
+WHICH records the below-floor table holds is a different question from WHAT their
+cells say, and it is deliberately not stated here as a closed list of ids. The
+register grows on a schedule, so an id census fails on newly added data while the
+renderer it claims to test is untouched -- and it fails naming a data file, which
+reads as a broken register rather than as a fragile test. A named record's presence
+is asserted by MEMBERSHIP; the full set is DERIVED from `confidence()` -- at the
+product's own default floor below, and exhaustively at every floor in
+`test_iter09_behavior.py`.
 """
 
 from __future__ import annotations
@@ -33,7 +42,8 @@ import pytest
 from agent_gap_radar.cli import main
 from agent_gap_radar.models import Gap
 from agent_gap_radar.registry import load_all
-from agent_gap_radar.scoring import confidence, promotion_options
+from agent_gap_radar.scoring import (CONFIDENCE_FLOOR_DEFAULT, confidence,
+                                     promotion_options)
 
 #: Repo root, found relative to this file so no absolute machine path appears here.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -279,10 +289,29 @@ def _record(gap_id: str):
     return matched[0]
 
 
+def _ids_below_floor(floor: int) -> set[str]:
+    """The register's own answer to which of its records sit under `floor`.
+
+    An ORACLE, not a restatement: it reads `confidence()`, the one rule the
+    vision protects, so the claim under test stays "a record is rendered on the
+    correct side of the floor" while staying independent of how many records the
+    register happens to hold today.
+    """
+    return {gap.id for gap in load_all(GAPS_DIR) if confidence(gap) < floor}
+
+
 def test_b2_default_floor_names_the_cheapest_lifting_classes_for_gap_010(capsys):
     assert _classes_of(_record("GAP-010")) == ("secondary-summary",), GAP_010_PREMISE
     cells = _needs_cells(_report(capsys))
-    assert list(cells) == ["GAP-010"], cells
+    # Derived, and read at the product's NAMED default rather than at a fourth
+    # literal 2. That makes this a PARTIAL guard on the three separate spellings
+    # of the default floor, not a complete one: it bites only when the rendered
+    # floor and the constant partition the register differently, and adjacent
+    # floors routinely partition it identically (measured -- see the iteration's
+    # engineer notes). The complete check is to read the floor the document
+    # itself echoes; that is a separate bite and is not made here.
+    assert set(cells) == _ids_below_floor(CONFIDENCE_FLOOR_DEFAULT), cells
+    assert "GAP-010" in cells, cells
     assert cells["GAP-010"] == "weight >= 3: practitioner-report, survey-aggregate"
 
 
@@ -291,7 +320,11 @@ def test_b3_two_below_floor_records_get_DIFFERENT_prescriptions(capsys):
     assert _classes_of(_record("GAP-008")) == ("vendor-primary",)
     assert _classes_of(_record("GAP-010")) == ("secondary-summary",), GAP_010_PREMISE
     cells = _needs_cells(_report(capsys, "--floor", "5"))
-    assert sorted(cells) == ["GAP-008", "GAP-010"], cells
+    # Membership, not a closed set: this test's subject is that two records get
+    # DIFFERENT cells, and a third below-floor record arriving is not evidence
+    # against that. The exhaustive set claim lives in test_iter09_behavior.py.
+    assert "GAP-008" in cells, cells
+    assert "GAP-010" in cells, cells
     assert cells["GAP-008"] == "weight >= 1: secondary-summary"
     assert cells["GAP-010"] == "weight >= 4: peer-reviewed, maintainer-primary, vendor-primary"
     assert cells["GAP-008"] != cells["GAP-010"]
