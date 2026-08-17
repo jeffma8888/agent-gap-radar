@@ -58,6 +58,44 @@ def confidence(gap: Gap) -> int:
     return min(5, best + corroborated)
 
 
+def _ladder_rank(source_class: str) -> int:
+    """Position on the evidence ladder, strongest rung first.
+
+    A class absent from `SOURCE_CLASSES` ranks AFTER every known one instead of
+    raising. The loader validates `source_class`, so nothing loaded from
+    `gaps/` can reach that branch; keeping the function total means a renderer
+    never has to guard a lookup it did not perform.
+    """
+    try:
+        return SOURCE_CLASSES.index(source_class)
+    except ValueError:
+        return len(SOURCE_CLASSES)
+
+
+def strongest_source(gap: Gap) -> str:
+    """The `source_class` of the record's best citation, chosen by ladder rung.
+
+    Read alphabetically -- which is what a bare `min()` over the class NAME
+    does -- `model-output` beats `secondary-summary` and `maintainer-primary`
+    beats `peer-reviewed`. So a report could name, as a record's strongest
+    evidence, the one class `taxonomy` annotates "NEVER sufficient on its own"
+    and that `confidence()` scores 0. Ranking on `SOURCE_CLASSES` makes the
+    displayed source and the derived confidence read the same ordering, which
+    is the register's core invariant rather than a presentation detail.
+
+    Ranks on the RUNG, not the weight: `peer-reviewed` and `maintainer-primary`
+    both weigh 4 and the ladder still orders them, so the answer cannot depend
+    on the order citations happen to sit in a record.
+
+    Total: a record with no evidence returns `""`. The loader requires at least
+    one citation, so that input is unreachable through `registry` -- this
+    mirrors the totality `promotion_options` already documents.
+    """
+    if not gap.evidence:
+        return ""
+    return min(gap.evidence, key=lambda e: _ladder_rank(e.source_class)).source_class
+
+
 @dataclass(frozen=True, slots=True)
 class _ClassOnly:
     """Minimal stand-in for a citation, carrying the one field scoring reads.

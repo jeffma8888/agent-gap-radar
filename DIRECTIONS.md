@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-07
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- `strongest_source()` derived from the ladder, killing the alphabetical `min()`
+    - Candidate A2 -- `radar scan` reports the size of the register it applied
+    - Candidate A3 -- the CLI contract test derives its verb list from `build_parser()`
+    - Candidate B1 -- commit the derived index as a file, so a consumer needs no install to read the register honestly
+    - Candidate B2 -- `radar scan` gains an opt-in, floor-gated non-zero exit code
+    - Candidate B3 -- `radar taxonomy` publishes the status vocabulary, and gains `--json`
+    winner: A1
+    ship: pending (not yet decided)
   iter-06
     lenses: new-capability -- iteration 06, hardening/DX (iteration 06)
     - Candidate A1 -- the report's layer table drops every layer with zero records, so "never examined" is a thing the register cannot say
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - B2 -- One ladder-order helper: "Strongest source" is currently sorted alphabetically
     - B3 -- Offline two-sided tests for the quote verifier, the one guard nothing tests
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED dc737f9
   iter-05
     lenses: narrative-and-docs, new-capability
     - A1 -- The contract a machine consumer reads still describes a ten-record register with nine checks; it is sixteen and fifteen (roadmap #20)
@@ -61,4 +71,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-6 scouted iterations
+7 scouted iterations

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from agent_gap_radar.models import Gap
-from agent_gap_radar.scoring import (below_floor, confidence, priority, rank)
+from agent_gap_radar.scoring import (_ladder_rank, below_floor, confidence,
+                                    priority, rank)
 
 
 def _gap(gid="GAP-001", sev=3, freq=3, tract=3, classes=("first-party-field",)):
@@ -86,3 +87,17 @@ def test_a_weakly_sourced_big_problem_still_outranks_nothing():
                         classes=("first-party-field", "peer-reviewed"))
     assert priority(weak_big) > priority(strong_small)
     assert [g.id for g, _, _ in rank([strong_small, weak_big])][0] == "GAP-060"
+
+
+def test_ladder_rank_orders_by_rung_and_sinks_an_unknown_class():
+    """The private key `strongest_source` sorts on.
+
+    Unit-tested rather than left to the public behavior tests because the
+    unknown-class branch is unreachable through the loader -- `models.Gap`
+    validates `source_class` -- so nothing else can pin that it sorts LAST
+    instead of raising.
+    """
+    assert _ladder_rank("incident-postmortem") == 0
+    assert _ladder_rank("peer-reviewed") < _ladder_rank("maintainer-primary")
+    assert _ladder_rank("secondary-summary") < _ladder_rank("model-output")
+    assert _ladder_rank("not-a-source-class") > _ladder_rank("model-output")

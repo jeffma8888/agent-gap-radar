@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .models import Gap
 from .scoring import (below_floor, confidence, priority,
-                      promotion_options, rank)
+                      promotion_options, rank, strongest_source)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
@@ -76,7 +76,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
         lines += _table(["ID", "Priority", "Confidence", "Title",
                          "Strongest source", "Needs"],
                         [[g.id, f"{p:.1f}", str(c), g.title,
-                          min(g.evidence, key=lambda e: e.source_class).source_class,
+                          strongest_source(g),
                           _needs_cell(g, confidence_floor)]
                          for g, p, c in excluded])
     else:
