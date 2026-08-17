@@ -196,6 +196,46 @@ def test_tracked_files_are_scanned(tmp_path):
     assert hit.matched and hit.locations == ["src/real.py:1"]
 
 
+def test_tracked_symlink_escaping_the_target_is_not_scanned(tmp_path):
+    """A tracked symlink may not drag content in from OUTSIDE the target.
+
+    Regression. Driving the walk from the tracked set dropped the old
+    `path.resolve() in tracked` containment test, and `is_file()` follows links.
+    Measured on the pre-fix tree: a tracked `escape.py -> <outside>/x.py` was
+    both listed and READ, so a published brief could quote a `file:line` from a
+    file the scanned commit does not contain. `radar scan` output is a claim
+    about one commit, so "which files count" must stay inside the target.
+
+    Two controls in the same fixture, because this is containment and NOT
+    "symlinks are excluded": a plain tracked file and an IN-repo symlink must
+    both survive.
+    """
+    import subprocess
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.py").write_text("BADMARK\n", encoding="utf-8")
+    root = _materialise(tmp_path, {"kept.py": "clean\n"})
+    (root / "escape.py").symlink_to(outside / "x.py")
+    (root / "inside.py").symlink_to("kept.py")
+    _git_init(root)
+    subprocess.run(["git", "add", "-A"], cwd=root, capture_output=True, check=True)
+    tracked = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True,
+                             text=True, check=True).stdout.split()
+    assert "escape.py" in tracked, "premise: git must be tracking the symlink"
+
+    from agent_gap_radar.checks import _TRACKED_CACHE, iter_files
+    _TRACKED_CACHE.clear()
+    names = sorted(p.name for p in iter_files(root, ["**/*.py"]))
+    hit = evaluate({"kind": "content_matches", "globs": ["**/*.py"],
+                    "pattern": "BADMARK"}, root)
+    _TRACKED_CACHE.clear()
+
+    assert "escape.py" not in names, f"scanned outside the target: {names}"
+    assert not hit.matched, f"quoted evidence from outside: {hit.locations}"
+    assert "kept.py" in names, f"control: plain tracked file dropped: {names}"
+    assert "inside.py" in names, f"control: in-repo symlink dropped: {names}"
+
+
 def test_non_git_target_falls_back_to_skip_list(tmp_path):
     root = _materialise(tmp_path, {"src/a.py": "BADMARK\n",
                                    "node_modules/x.py": "BADMARK\n"})

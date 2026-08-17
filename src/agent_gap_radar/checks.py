@@ -14,6 +14,7 @@ Design constraints that are not negotiable:
 from __future__ import annotations
 
 import enum
+import functools
 import pathlib
 import re
 import subprocess
@@ -113,24 +114,185 @@ def is_test_path(target: pathlib.Path, path: pathlib.Path) -> bool:
     return bool(TEST_PATH_RE.search(rel))
 
 
-def iter_files(target: pathlib.Path, globs: list[str],
-               exclude_tests: bool = False) -> list[pathlib.Path]:
-    """Resolve globs under target, restricted to what the project ships."""
-    tracked = tracked_files(target)
+#: Regex metacharacters that carry no glob meaning and must be escaped.
+_GLOB_META = ".^$+{}()|[]\\"
+
+
+def _class_body_regex(body: str) -> str:
+    """Escape a glob character-class body, keeping `-` as the range operator.
+
+    The body cannot be spliced in raw. `[[]x` splices to `[[]` and emits
+    `FutureWarning: Possible nested set` -- and this tool contracts that stderr
+    carries `Error: ` lines only, so a warning there is itself a defect. A `^`
+    from the body is escaped rather than passed through, because glob spells
+    negation `!`: `[^a]` is the class containing `^` and `a`, which the raw
+    splice silently inverted into "not a".
+    """
+    return "".join(c if c == "-" else re.escape(c) for c in body)
+
+
+def _component_regex(part: str) -> str:
+    """Translate ONE path component; `*` and `?` must NOT cross a separator.
+
+    `fnmatch.translate` is the wrong tool here. It renders `*` as `.*`, and `.`
+    matches `/`, so `**/*eval*.json` would match `evals/basic.json` whose own
+    FILENAME contains no "eval". Measured against the committed register: that
+    over-match hit 2 of its 41 patterns, so the sloppy version is not merely
+    theoretically wrong.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(part):
+        char = part[i]
+        if char == "*":
+            out.append("[^/]*")
+        elif char == "?":
+            out.append("[^/]")
+        elif char == "[":
+            negated = part[i + 1:i + 2] == "!"
+            start = i + 2 if negated else i + 1
+            # POSIX: a `]` in the FIRST body position is a literal member of the
+            # class rather than the terminator, so `[]]` is the class containing
+            # `]`. Searching from `start` would find that `]` and build the empty
+            # class `[]`, which is not valid regex at all.
+            first_is_bracket = part[start:start + 1] == "]"
+            close = part.find("]", start + 1 if first_is_bracket else start)
+            if close == -1:
+                out.append("\\[")          # unterminated class: a literal bracket
+            else:
+                body = _class_body_regex(part[start:close])
+                out.append("[" + ("^" if negated else "") + body + "]")
+                i = close + 1
+                continue
+        elif char in _GLOB_META:
+            out.append("\\" + char)
+        else:
+            out.append(char)
+        i += 1
+    return "".join(out)
+
+
+@functools.lru_cache(maxsize=512)
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    """Full-match regex for one glob over a relative POSIX path.
+
+    Glob semantics are defined HERE rather than inherited from `Path.glob`,
+    because `Path.glob` disagrees with itself across supported interpreters: a
+    trailing `**` yields directories only on 3.12 and files as well on 3.13, so
+    every register pattern ending in `/**` silently matched NOTHING on 3.12.
+    A scan of one commit must return one answer, so `/**` means "everything at
+    or below here" by construction.
+
+    Case-SENSITIVE on purpose: the tracked path is what git recorded, so the
+    same commit scans identically on a case-insensitive macOS filesystem and on
+    Linux. Matching case-insensitively would make a verdict depend on which
+    laptop ran it. Cached because the register holds ~41 distinct patterns and
+    a scan evaluates each many times.
+    """
+    parts = pattern.split("/")
+    out: list[str] = []
+    for index, part in enumerate(parts):
+        last = index == len(parts) - 1
+        if part == "**":
+            out.append(".*" if last else "(?:[^/]+/)*")
+        else:
+            out.append(_component_regex(part) + ("" if last else "/"))
+    try:
+        return re.compile("^" + "".join(out) + "$")
+    except re.error:
+        # A malformed glob must MATCH NOTHING, never abort the scan. A register
+        # is data that consumers write and share, so a bad class body such as
+        # `[a-\]` is reachable input; letting `re.error` escape gives rc=1 with
+        # a traceback and zero bytes of document, which is the one outcome the
+        # CLI contract forbids. Falling back to the literal pattern text is the
+        # same lenient reading `a[b.py` already gets: no tracked path is spelled
+        # like a broken glob, so in practice it matches nothing. NOTE `re.error`
+        # is not a `ValueError`, so no upstream `except ValueError` catches it.
+        return re.compile("^" + re.escape(pattern) + "$")
+
+
+def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
+                  globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
+    """Match globs against the tracked paths instead of walking the filesystem.
+
+    Same answer, a fraction of the work. The old order globbed the whole tree
+    and only afterwards filtered against the tracked set, so on a git target
+    `SKIP_DIRS` was never consulted and the walk descended `.git`, `.venv` and
+    every gitignored loop state dir: measured 181,440 yielded paths and 181,477
+    `Path.resolve()` calls to arrive at 222 files on a real 229-file target.
+    The tracked set is loaded before the first glob, so the information needed
+    to skip that walk was already in hand and thrown away.
+    """
+    root = target.resolve()
+    relatives: list[str] = []
+    for path in tracked:
+        try:
+            relatives.append(path.relative_to(root).as_posix())
+        except ValueError:
+            continue  # a tracked path outside the target cannot match a glob
+    seen: set[pathlib.Path] = set()
+    for pattern in globs:
+        regex = _glob_regex(pattern)
+        for rel in relatives:
+            if not regex.match(rel):
+                continue
+            path = target / rel
+            # `git ls-files` also names staged-but-deleted files and submodule
+            # gitlinks, so the existence check stays. It is now one stat per
+            # MATCH rather than one per walked path.
+            if not path.is_file():
+                continue
+            # A tracked SYMLINK may not drag content in from outside the target.
+            # `is_file()` follows links, so without this a tracked
+            # `escape.py -> ../outside.py` is scanned and its lines are quoted as
+            # evidence about a commit that does not contain them. The old walk
+            # excluded it by construction via `path.resolve() in tracked`.
+            # Resolved-vs-resolved, so the macOS `/var` -> `/private/var` link
+            # does not reject the whole target. One `resolve()` per MATCH.
+            try:
+                if not path.resolve().is_relative_to(root):
+                    continue
+            except OSError:
+                continue  # unreadable link chain: not a file we can judge
+            if exclude_tests and is_test_path(target, path):
+                continue
+            seen.add(path)
+    return sorted(seen)
+
+
+def _iter_walked(target: pathlib.Path, globs: list[str],
+                 exclude_tests: bool) -> list[pathlib.Path]:
+    """Fallback for a non-git target: walk the tree and apply the skip list.
+
+    Unchanged behaviour. There is no authoritative "what does this project
+    ship" answer without git, so the hand-maintained `SKIP_DIRS` is the best
+    available approximation.
+    """
     seen: set[pathlib.Path] = set()
     for pattern in globs:
         for path in target.glob(pattern):
             if not path.is_file():
                 continue
-            if tracked is not None:
-                if path.resolve() not in tracked:
-                    continue
-            elif any(part in SKIP_DIRS for part in path.relative_to(target).parts):
+            if any(part in SKIP_DIRS for part in path.relative_to(target).parts):
                 continue
             if exclude_tests and is_test_path(target, path):
                 continue
             seen.add(path)
     return sorted(seen)
+
+
+def iter_files(target: pathlib.Path, globs: list[str],
+               exclude_tests: bool = False) -> list[pathlib.Path]:
+    """Resolve globs under target, restricted to what the project ships.
+
+    Two paths, chosen by whether the target is a git repo, because the two
+    cases have different authoritative answers to "which files count" -- not
+    because one is an optimisation of the other.
+    """
+    tracked = tracked_files(target)
+    if tracked is not None:
+        return _iter_tracked(target, tracked, globs, exclude_tests)
+    return _iter_walked(target, globs, exclude_tests)
 
 
 def _read(path: pathlib.Path) -> str | None:
