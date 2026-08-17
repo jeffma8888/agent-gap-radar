@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from .models import Gap
-from .scoring import below_floor, confidence, priority, rank
-from .taxonomy import LAYERS
+from .scoring import (below_floor, confidence, priority,
+                      promotion_options, rank)
+from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
 def _document(lines: list[str]) -> str:
@@ -24,6 +25,21 @@ def _table(headers: list[str], rows: list[list[str]]) -> list[str]:
            "| " + " | ".join("---" for _ in headers) + " |"]
     out += ["| " + " | ".join(r) + " |" for r in rows]
     return out
+
+
+def _needs_cell(gap: Gap, confidence_floor: int) -> str:
+    """One below-floor row's research prescription: what to go and find.
+
+    Leads with the ladder weight so the reader can see WHY those classes are the
+    cheapest option rather than taking the list on trust. Every option shares one
+    weight by construction, so the first one's weight speaks for the group. An
+    unreachable floor says so instead of rendering an empty cell, which would
+    read as "nothing needed".
+    """
+    options = promotion_options(gap, confidence_floor)
+    if not options:
+        return f"no single citation reaches floor {confidence_floor}"
+    return f"weight >= {SOURCE_WEIGHTS[options[0]]}: " + ", ".join(options)
 
 
 def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
@@ -57,9 +73,11 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
               "Kept visible on purpose: a weakly-sourced gap is a research task, "
               "not a deletion.", ""]
     if excluded:
-        lines += _table(["ID", "Priority", "Confidence", "Title", "Strongest source"],
+        lines += _table(["ID", "Priority", "Confidence", "Title",
+                         "Strongest source", "Needs"],
                         [[g.id, f"{p:.1f}", str(c), g.title,
-                          min(g.evidence, key=lambda e: e.source_class).source_class]
+                          min(g.evidence, key=lambda e: e.source_class).source_class,
+                          _needs_cell(g, confidence_floor)]
                          for g, p, c in excluded])
     else:
         lines.append("None found.")

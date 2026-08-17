@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-05
+    lenses: narrative-and-docs, new-capability
+    - A1 -- The contract a machine consumer reads still describes a ten-record register with nine checks; it is sixteen and fifteen (roadmap #20)
+    - A2 -- The published verb table omits the exact flag the same document tells a CI gate to consume
+    - A3 -- The README's coverage sentence is three layers stale, and the two layers that have never had a record are the fact worth stating
+    - Candidate B1 -- the below-floor queue names the exact citation that would lift each record
+    - Candidate B2 -- name the layers the register has never examined
+    - Candidate B3 -- flag records whose newest citation has aged past a threshold
+    winner: B1
+    ship: pending (not yet decided)
   iter-04
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- read each file at most once per scan
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- PRODUCT.md lost iteration 03, and still marks a shipped row as "currently landing"
     - Candidate B3 -- three documents rest on GAP-010 scoring confidence 1, and no test defends it
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED b91ceef
   iter-03
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- retire `tools/check_locators.py`: one out-of-band network checker, not two
@@ -41,4 +51,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-4 scouted iterations
+5 scouted iterations
