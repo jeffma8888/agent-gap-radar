@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""Roadmap-ledger integrity checks over `PRODUCT.md`.
+
+WHY this is a suite brake and not a convention: `PRODUCT.md` is the input every planning
+stage derives its next pick from, and its own ledger preamble says deferring a record is
+how history gets permanently lost. It has now lost one -- iteration 03 shipped (its commit
+subject carries `(foundry iter 03)`) with a row in neither the roadmap table nor the Done
+ledger, and nothing looked wrong. The loss was invisible because the Status column carried
+three vocabularies (`open`, `shipped`, `iter NN`), so a cell reading `iter 02` meant either
+"currently landing" or "shipped by iter 02" depending on the reader. An ambiguous state
+cannot be checked, so the third value is DELETED from the document and the remaining
+two-value column is asserted here.
+
+Every check below is a pure function over text, which is what makes it provable two-sided:
+a known-bad string must make it fire and a known-good string must keep it silent. Git is
+touched by exactly one function, and that function returns a SKIP REASON instead of
+raising, because a check that could not run must say so rather than report clean.
+
+Offline by contract: the only subprocess is a local `git log` inside this checkout.
+
+Usage:
+    python3 tools/roadmap_integrity.py [ROADMAP]
+
+Exit codes: 0 no violations, 1 at least one violation, 2 bad usage.
+"""
+
+from __future__ import annotations
+
+import pathlib
+import re
+import subprocess
+import sys
+from collections.abc import Sequence
+from typing import NamedTuple
+
+#: The only two status values a roadmap row may carry. There is deliberately no third:
+#: the retired `iter NN` value was ambiguous, and an ambiguous state cannot be checked.
+ALLOWED_STATUSES: tuple[str, ...] = ("open", "shipped")
+
+#: The three ways a Done-ledger iteration sequence can be wrong. `duplicate` and
+#: `not-ascending` overlap, so a fixture proving one must not also trip the other.
+SEQUENCE_VIOLATION_KINDS: tuple[str, ...] = ("not-two-digit", "duplicate", "not-ascending")
+
+#: A table row opens with a numeric id cell, which excludes both the header row and the
+#: `|---|` rule without needing to know where the table starts.
+_TABLE_ROW = re.compile(r"^\|\s*(\d+)\s*\|")
+
+#: A Done-ledger row. Collected only while inside the ledger section, so an `- iter NN`
+#: line elsewhere in the document is not mistaken for a record.
+_LEDGER_ROW = re.compile(r"^-\s+iter\s+(\d+)\b")
+
+#: The iteration a commit subject claims to have shipped.
+_SHIP_SUBJECT = re.compile(r"\(foundry iter (\d+)\)")
+
+#: Compared against a lower-cased, stripped heading line.
+_LEDGER_HEADING = "## done ledger"
+
+#: The legend sentence that pins the vocabulary. Matched on whitespace-normalised text so
+#: the paragraph may be re-wrapped without breaking the check.
+LEGEND_SENTENCE = (
+    "Status values are exactly `open` or `shipped` -- there is no third value."
+)
+
+#: 0-based index of the Status cell in a roadmap table row: `| # | Item | Status | Notes |`.
+_STATUS_CELL = 2
+
+_GIT_LOG_TIMEOUT_S = 30
+
+
+class StatusViolation(NamedTuple):
+    """A roadmap row whose Status cell falls outside the two-value vocabulary.
+
+    A plain tuple of `(row, status)`, both verbatim from the document, so a violation can
+    be compared literally in a test and still carry a human-readable message.
+    """
+
+    row: str
+    status: str
+
+    @property
+    def message(self) -> str:
+        allowed = " or ".join(ALLOWED_STATUSES)
+        return f"roadmap row {self.row}: status '{self.status}' is not {allowed}"
+
+
+class SequenceViolation(NamedTuple):
+    """A Done-ledger iteration number that is malformed, repeated, or out of order."""
+
+    kind: str
+    iteration: str
+
+    @property
+    def message(self) -> str:
+        return f"done ledger iteration '{self.iteration}': {self.kind}"
+
+
+class GitShips(NamedTuple):
+    """What git reports as shipped, or why it could not be asked.
+
+    Exactly one field is populated. `iterations is None` means SKIP, never "nothing
+    shipped": conflating the two is how a check that cannot run reports clean.
+    """
+
+    iterations: tuple[int, ...] | None
+    skip_reason: str | None
+
+
+def normalise_whitespace(text: str) -> str:
+    """Collapse every run of whitespace to one space.
+
+    Committed prose is hard-wrapped, so a claim that spans two source lines is invisible
+    to a substring match on the raw text -- a check written the obvious way is fail-open
+    on exactly the drift it was written to catch.
+    """
+    return " ".join(text.split())
+
+
+def table_rows(text: str) -> list[tuple[str, list[str]]]:
+    """`(row id, stripped cells)` for every numbered roadmap table row, in file order."""
+    rows: list[tuple[str, list[str]]] = []
+    for line in text.splitlines():
+        match = _TABLE_ROW.match(line)
+        if match is None:
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        rows.append((match.group(1), cells))
+    return rows
+
+
+def row_status_violations(text: str) -> list[StatusViolation]:
+    """Rows whose Status cell is not exactly `open` or `shipped`.
+
+    Cell-scoped on purpose. A file-wide search for the retired `iter NN` phrase is
+    fail-CLOSED on the corrected document, because the row that RETIRES a vocabulary has
+    to name it -- the phrase legitimately appears in an Item cell and a ledger row.
+    """
+    violations: list[StatusViolation] = []
+    for row_id, cells in table_rows(text):
+        if len(cells) <= _STATUS_CELL:
+            continue
+        status = normalise_whitespace(cells[_STATUS_CELL])
+        if status not in ALLOWED_STATUSES:
+            violations.append(StatusViolation(row_id, status))
+    return violations
+
+
+def ledger_iterations(text: str) -> list[tuple[str, int]]:
+    """`(raw digits, value)` per Done-ledger row, in file order.
+
+    The raw digits are kept because the two-digit rule is about the text, not the value:
+    `2` and `02` parse to the same integer and only one of them is a valid record.
+    """
+    found: list[tuple[str, int]] = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip().lower() == _LEDGER_HEADING
+            continue
+        if not inside:
+            continue
+        match = _LEDGER_ROW.match(line)
+        if match is not None:
+            found.append((match.group(1), int(match.group(1))))
+    return found
+
+
+def ledger_sequence_violations(text: str) -> list[SequenceViolation]:
+    """Ledger iteration numbers that are not two-digit, unique and strictly ascending."""
+    violations: list[SequenceViolation] = []
+    seen: list[int] = []
+    for raw, value in ledger_iterations(text):
+        if len(raw) != 2:
+            violations.append(SequenceViolation("not-two-digit", raw))
+        if value in seen:
+            violations.append(SequenceViolation("duplicate", raw))
+        elif seen and value <= seen[-1]:
+            violations.append(SequenceViolation("not-ascending", raw))
+        seen.append(value)
+    return violations
+
+
+def unrecorded_ships(text: str, shipped: Sequence[int]) -> list[int]:
+    """Iterations git calls shipped that do not have exactly one Done-ledger row.
+
+    ONE-DIRECTIONAL by design, and that is what makes it safe in the suite: the iteration
+    currently landing has a ledger row and no ship commit yet, and a REVERTED iteration
+    produces a ship commit for nothing, so asserting the reverse direction would fail on
+    the product's own bookkeeping and need carve-outs for both cases.
+    """
+    recorded = [value for _, value in ledger_iterations(text)]
+    return [n for n in shipped if recorded.count(n) != 1]
+
+
+def unrecorded_ship_messages(iterations: Sequence[int]) -> list[str]:
+    """One message per unrecorded ship, naming the iteration as the ledger writes it."""
+    return [
+        f"iteration {n:02d} ships in git but has no single done-ledger row"
+        for n in iterations
+    ]
+
+
+def legend_declares_two_values(text: str) -> bool:
+    """True when the document itself states the vocabulary, re-wrapping tolerated."""
+    return normalise_whitespace(LEGEND_SENTENCE) in normalise_whitespace(text)
+
+
+def vacuity_violations(text: str) -> list[str]:
+    """Reasons this document cannot be checked at all.
+
+    A parser that matched nothing makes every check above trivially clean, so an empty
+    parse is itself the finding. Without this a renamed heading turns the brake off and
+    the suite stays green.
+    """
+    reasons: list[str] = []
+    if not table_rows(text):
+        reasons.append("no numbered roadmap table rows found: the status check is vacuous")
+    if not ledger_iterations(text):
+        reasons.append("no done-ledger rows found: the ledger checks are vacuous")
+    return reasons
+
+
+def shipped_iterations_from_git(repo: pathlib.Path) -> GitShips:
+    """Iterations whose ship commit exists in `repo`'s history, or a stated skip reason.
+
+    Every failure mode -- no checkout, no `git`, a broken repository, a timeout -- becomes
+    a reason string. Raising would make the suite red on a tarball, and returning an empty
+    tuple would make it green while measuring nothing.
+    """
+    if not (repo / ".git").exists():
+        return GitShips(None, f"no git checkout: {repo.name}/.git does not exist")
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), "log", "--format=%s"],
+            capture_output=True,
+            text=True,
+            timeout=_GIT_LOG_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return GitShips(None, f"git log could not be run: {type(exc).__name__}: {exc}")
+    if completed.returncode != 0:
+        first_line = completed.stderr.strip().splitlines()[:1]
+        detail = first_line[0] if first_line else "no stderr"
+        return GitShips(None, f"git log exited {completed.returncode}: {detail}")
+    found = {int(match.group(1)) for match in _SHIP_SUBJECT.finditer(completed.stdout)}
+    return GitShips(tuple(sorted(found)), None)
+
+
+def default_roadmap() -> pathlib.Path:
+    """`PRODUCT.md` beside this checkout, found relative to this file."""
+    return pathlib.Path(__file__).resolve().parent.parent / "PRODUCT.md"
+
+
+def main(argv: list[str]) -> int:
+    roadmap = pathlib.Path(argv[1]) if len(argv) > 1 else default_roadmap()
+    if not roadmap.is_file():
+        sys.stderr.write(f"Error: not a file: {roadmap}\n")
+        return 2
+
+    text = roadmap.read_text(encoding="utf-8")
+    findings: list[str] = list(vacuity_violations(text))
+    findings += [violation.message for violation in row_status_violations(text)]
+    findings += [violation.message for violation in ledger_sequence_violations(text)]
+    if not legend_declares_two_values(text):
+        findings.append("status legend does not state the two-value vocabulary verbatim")
+
+    ships = shipped_iterations_from_git(roadmap.resolve().parent)
+    if ships.iterations is None:
+        print(f"  SKIP  shipped-iteration cross-check: {ships.skip_reason}")
+    else:
+        print(f"  git reports shipped: {list(ships.iterations)}")
+        findings += unrecorded_ship_messages(unrecorded_ships(text, ships.iterations))
+
+    rows, ledger = len(table_rows(text)), len(ledger_iterations(text))
+    print(f"  {rows} table row(s), {ledger} ledger row(s)")
+    for finding in findings:
+        print(f"  VIOLATION  {finding}")
+    print(f"\n{len(findings)} violation(s)")
+    return 1 if findings else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

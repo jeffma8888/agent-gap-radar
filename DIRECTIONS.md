@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-04
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A -- read each file at most once per scan
+    - Candidate B -- resolve each distinct globset once per scan
+    - Candidate C -- being measured
+    - Candidate B1 -- the consumer contract tells a release gate the register has ten records; it has sixteen
+    - Candidate B2 -- PRODUCT.md lost iteration 03, and still marks a shipped row as "currently landing"
+    - Candidate B3 -- three documents rest on GAP-010 scoring confidence 1, and no test defends it
+    winner: B2
+    ship: pending (not yet decided)
   iter-03
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- retire `tools/check_locators.py`: one out-of-band network checker, not two
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the same glob is re-walked 32 times in one scan; memoise per scan
     - Candidate B3 -- MAX_SCAN_FILES documents a bound the code does not enforce
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED f2ad079
   iter-02
     lenses: integration-and-adoption (iteration 02), simplification-and-deletion
     - Candidate A1 -- `radar scan --prd` hands a build loop a below-floor gap that `radar prd` refuses
@@ -31,4 +41,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-3 scouted iterations
+4 scouted iterations
