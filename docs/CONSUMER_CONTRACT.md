@@ -102,18 +102,38 @@ side of the boundary. Every key the tool emits must appear in this list: the
 drift this paragraph already suffered was omission, so the list is the contract
 and not a summary of it. Output is byte-stable across runs.
 
-## `radar ingest` - the reverse direction (TO BUILD)
+## `radar ingest` - the reverse direction (NOT PLANNED)
 
-A running agent loop is the best available source of `first-party-field`
-evidence: its own stage kills, reverts, and role lessons are primary records of
-gaps in the very stack this register describes. `ingest` reads such a corpus and
-proposes DRAFT records.
+**Decided in iteration 16: not planned, and not built.** When that decision was
+taken there was no parser entry, no roadmap row and no code, and this document
+was the only tracked file that named the verb - so a consumer could plan against
+a verb that was never going to arrive. The roadmap row added alongside this
+edit records the decision; it does not re-promise the verb. The design note below is KEPT rather than deleted, because its
+argument is the invariant `VISION.md` names as the one this register exists to
+protect.
 
-The discipline that keeps ingestion from destroying the register's value: a
-drafted record enters BELOW the confidence floor and stays displayed-but-not-
-ranked until a human promotes it with a citation. The ladder is the product. An
-auto-appended record that skipped it would make every score in the register
-unbelievable, which costs more than the record adds.
+The idea. A running agent loop is the best available source of
+`first-party-field` evidence: its own stage kills, reverts and role lessons are
+primary records of gaps in the very stack this register describes, so a verb
+could read such a corpus and propose DRAFT records.
+
+The discipline that would have to come with it: a drafted record enters BELOW
+the confidence floor and stays displayed-but-not-ranked until a human promotes
+it with a citation. The ladder is the product. A record appended without a
+citation would make every score in the register unbelievable, which costs more
+than the record adds.
+
+Why no verb is needed. That job is already done, OUTSIDE the byte-stable CLI, by
+`tools/promote.py` reading candidates written against
+`research/CANDIDATE_CONTRACT.md`. That gate enforces this section's own value
+more strictly than the section proposed: it REFUSES a candidate whose evidence
+is entirely zero-weight source classes, whose locator is not a fetchable URL,
+whose quote runs under six words, or whose check was never proven to fire on its
+own bad fixture and stay silent on its good one - instead of admitting an
+unciteable record below the floor and trusting that a human comes back for it.
+It stays out of `radar` deliberately: promotion WRITES to the register and runs
+a candidate's fixtures in a temporary directory, and neither belongs behind a
+verb sold to consumers as read-only and byte-stable.
 
 ## What a consumer must never do
 

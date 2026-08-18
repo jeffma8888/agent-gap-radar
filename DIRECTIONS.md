@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-16
+    lenses: performance-and-throughput (iter 16), narrative-and-docs (iter 16)
+    - Candidate A1 -- one register pattern is 39% of all regex time, and 7.4x of it is provably free
+    - Candidate A2 -- the per-scan memo covers file CONTENT but not the PATH FACTS around it
+    - Candidate A3 -- the register cannot see the cost of its own patterns
+    - Candidate B1 -- the consumer contract advertises a ninth verb that has no roadmap row, no owner and no code
+    - Candidate B2 -- the contract's two restated register counts go, and the brake distinguishes the two kinds of restated number
+    - Candidate B3 -- the pydantic-free import surface gets written down BEFORE row 33 gets a line of code
+    winner: B1
+    ship: pending (not yet decided)
   iter-15
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate B1 -- one JSON document contract, not three
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- memoise the (pattern, file) decision, not just the file
     - Candidate B3 -- pending suite measurement
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 62ab326
   iter-14
     lenses: integration-and-adoption (iteration 14)
     - Candidate A1 -- The derived scores are unreachable without installing pydantic, so the one real consumer re-implements the ranking and inverts it
@@ -151,4 +161,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-15 scouted iterations
+16 scouted iterations
