@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-15
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate B1 -- one JSON document contract, not three
+    - Candidate B2 -- one way to ask whether a rule matched, and `RuleHit.__bool__` goes
+    - Candidate B3 -- the confidence floor default stops being declared four times
+    - Candidate B1 -- scan-scoped read cache (roadmap row 29), with its ceiling corrected to 23%
+    - Candidate B2 -- memoise the (pattern, file) decision, not just the file
+    - Candidate B3 -- pending suite measurement
+    winner: B1
+    ship: pending (not yet decided)
   iter-14
     lenses: integration-and-adoption (iteration 14)
     - Candidate A1 -- The derived scores are unreachable without installing pydantic, so the one real consumer re-implements the ranking and inverts it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the confidence floor default stops being spelled as an unnamed `2`
     - Candidate B3 -- `tools/check_locators.py` stops carrying a second register loader
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 4c5968b
   iter-13
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- Derive the confidence-floor default from the scoring constant instead of hand-copying it
@@ -141,4 +151,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-14 scouted iterations
+15 scouted iterations

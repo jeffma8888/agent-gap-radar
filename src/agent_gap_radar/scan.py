@@ -12,7 +12,7 @@ import json
 import pathlib
 from dataclasses import dataclass
 
-from .checks import CheckOutcome, Verdict, run_check
+from .checks import CheckOutcome, Verdict, read_cache_scope, run_check
 from .models import Gap
 from .render import document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
@@ -170,12 +170,17 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
     findings: list[Finding] = []
     uncheckable: list[Gap] = []
 
-    for gap in sorted(gaps, key=lambda g: g.id):
-        if gap.check is None:
-            uncheckable.append(gap)
-            continue
-        outcome = run_check(gap.check.model_dump(exclude_none=True), target)
-        findings.append(Finding(gap=gap, outcome=outcome))
+    # One read snapshot per scan. Every gap's rules read the target through this
+    # scope, so a file reached by several rules is decoded once and every rule in
+    # THIS scan sees the same bytes; the scope closes before the result is
+    # returned, so no later scan can be answered from it.
+    with read_cache_scope():
+        for gap in sorted(gaps, key=lambda g: g.id):
+            if gap.check is None:
+                uncheckable.append(gap)
+                continue
+            outcome = run_check(gap.check.model_dump(exclude_none=True), target)
+            findings.append(Finding(gap=gap, outcome=outcome))
 
     return ScanResult(target=target, findings=findings, uncheckable=uncheckable)
 
