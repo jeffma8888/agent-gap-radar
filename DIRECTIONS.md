@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-10
+    lenses: performance-and-throughput (iteration 10), narrative-and-docs (iteration 10)
+    - Candidate A -- `radar scan` reads each file once per scan (roadmap row 29)
+    - Candidate B -- glob resolution is recomputed per rule
+    - Candidate C -- the suite re-loads and re-validates the live register per test
+    - Candidate B1 -- the consumer contract's record count decays by scope, not by arithmetic (roadmap row 20)
+    - Candidate B2 -- the "stable surface" table is hand-copied, and 5 of its 7 rows omit a real flag
+    - Candidate B3 -- two repos agree on `radar ingest`; neither roadmap has a row for it
+    winner: B2
+    ship: pending (not yet decided)
   iter-09
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- delete the live-register twin of a synthetic test that already proves the same thing
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the tracked set is re-projected to relative paths on every rule
     - Candidate B3 -- placeholder, being measured
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 1e00bfe
   iter-08
     lenses: integration-and-adoption (iteration 08), simplification-and-deletion (iteration 08)
     - Candidate A1 -- `radar scan` states the size of the register it applied, so a zero-record domain stops reading as a clean target
@@ -91,4 +101,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-9 scouted iterations
+10 scouted iterations

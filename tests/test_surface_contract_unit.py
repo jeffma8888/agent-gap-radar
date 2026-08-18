@@ -1,0 +1,208 @@
+"""Unit tests for the seams of `tests/_surface_contract.py`.
+
+SCOPE. This file tests the ORACLE's helpers: the parser introspector, the table
+parser, and the invocation tokenizer. The six specified behaviors of iteration 10 --
+including the four planted known-bads and the per-verb message assertions -- belong to
+`tests/test_iter10_behavior.py`, which is the test engineer's file. This one exists so
+that no helper ships unproven: a guard nobody watches fire is decoration, and a
+document-oracle that has only ever been run against a passing document has never
+demonstrated it can say no.
+
+Every test builds its input in memory. Nothing here edits a file, runs a subprocess,
+touches the network, or reads anything under `gaps/`, so a research pass writing
+records cannot redden it.
+"""
+
+from __future__ import annotations
+
+import argparse
+
+import pytest
+
+from _surface_contract import (STABLE_SURFACE_HEADING, DocumentedInvocation,
+                               SurfaceContractError, contract_text,
+                               documented_invocation, invocation_verb,
+                               parser_surface, surface_table_cells,
+                               surface_violations)
+
+#: A minimal well-formed stable-surface section, used to plant structural defects.
+_MINIMAL = "\n".join([
+    "# Doc",
+    "",
+    STABLE_SURFACE_HEADING,
+    "",
+    "| Verb | Promise |",
+    "|---|---|",
+    "| `radar taxonomy` | the closed vocabularies |",
+    "",
+    "trailing prose",
+    "",
+])
+
+
+def _replace_once(text: str, old: str, new: str) -> str:
+    """Mutate in memory, asserting the target is unambiguous.
+
+    A silent zero-replacement is how a known-bad becomes a second copy of the
+    known-good, and then a test that proves nothing still passes.
+    """
+    assert text.count(old) == 1, f"{old!r} occurs {text.count(old)} time(s)"
+    return text.replace(old, new)
+
+
+# --- the parser introspector -------------------------------------------------
+
+def test_parser_surface_fails_closed_when_no_subcommands_are_registered():
+    """An empty surface would make every comparison two empty sets agreeing."""
+    with pytest.raises(SurfaceContractError) as exc:
+        parser_surface(argparse.ArgumentParser(prog="radar"))
+    assert "no subcommands" in str(exc.value)
+
+
+def test_parser_surface_omits_the_help_option_argparse_adds_for_itself():
+    surface = parser_surface()
+    assert surface, "the real CLI registers no verbs"
+    for verb, verb_surface in surface.items():
+        assert not verb_surface.options & {"-h", "--help"}, verb
+
+
+def test_takes_value_is_read_from_the_action_not_from_the_flag_name():
+    """`--floor N` is one option and `[--json]` is none; only the parser knows."""
+    surface = parser_surface()
+    assert surface["list"].takes_value["--floor"] is True
+    assert surface["list"].takes_value["--json"] is False
+    assert surface["scan"].takes_value["--prd"] is False
+
+
+# --- the invocation tokenizer -------------------------------------------------
+
+def test_an_option_value_is_not_counted_as_a_positional():
+    surface = parser_surface()
+    claimed = documented_invocation("`radar report <repo> [--floor N]`",
+                                    surface["report"].takes_value)
+    assert claimed == DocumentedInvocation("report", frozenset({"--floor"}), 1)
+
+
+def test_without_parser_metadata_the_same_cell_miscounts_its_positionals():
+    """The control that arms the test above.
+
+    Tokenized with an empty map, `N` stops being `--floor`'s value and becomes a second
+    positional. That is precisely the wrong answer the parser metadata prevents, so the
+    passing assertion above is load-bearing rather than incidental.
+    """
+    claimed = documented_invocation("`radar report <repo> [--floor N]`", {})
+    assert claimed.positionals == 2
+
+
+def test_zero_argument_flags_consume_nothing_that_follows_them():
+    surface = parser_surface()
+    claimed = documented_invocation(
+        "`radar scan <target> [--gaps R] [--json] [--prd]`",
+        surface["scan"].takes_value)
+    assert claimed.positionals == 1
+    assert claimed.options == frozenset({"--gaps", "--json", "--prd"})
+
+
+def test_invocation_verb_rejects_a_cell_that_is_not_a_radar_invocation():
+    with pytest.raises(SurfaceContractError) as exc:
+        invocation_verb("see the section below")
+    assert "not a `radar <verb> ...` invocation" in str(exc.value)
+
+
+# --- the table parser --------------------------------------------------------
+
+def test_only_the_first_cell_of_a_row_is_read():
+    """The Promise cell names flags in prose; reading it would be fail-open.
+
+    Measured on the real document: the `scan` row's Promise names `--prd` twice. With
+    `--prd` deleted from the INVOCATION the flag is still present in the row, so a
+    whole-row checker would find it and pass. This must still report the difference.
+    """
+    document = _replace_once(
+        contract_text(),
+        "`radar scan <target> [--gaps R] [--json] [--prd]`",
+        "`radar scan <target> [--gaps R] [--json]`")
+    scan_row = next(line for line in document.splitlines()
+                    if line.startswith("| `radar scan"))
+    assert "--prd" in scan_row, "the fail-open this test guards is not set up"
+    assert "--prd" not in "".join(surface_table_cells(document))
+    assert surface_violations(document) == ["scan: missing ['--prd'], unexpected []"]
+
+
+def test_a_duplicated_heading_is_refused():
+    document = _replace_once(
+        _MINIMAL, STABLE_SURFACE_HEADING,
+        f"{STABLE_SURFACE_HEADING}\n\n{STABLE_SURFACE_HEADING}")
+    with pytest.raises(SurfaceContractError) as exc:
+        surface_table_cells(document)
+    assert "occurs 2 time(s)" in str(exc.value)
+
+
+def test_a_missing_heading_is_refused():
+    with pytest.raises(SurfaceContractError) as exc:
+        surface_table_cells("# Doc\n\nno surface section here\n")
+    assert "occurs 0 time(s)" in str(exc.value)
+
+
+def test_a_heading_with_no_table_under_it_is_refused():
+    with pytest.raises(SurfaceContractError) as exc:
+        surface_table_cells(f"# Doc\n\n{STABLE_SURFACE_HEADING}\n\nprose only\n")
+    assert "no table follows" in str(exc.value)
+
+
+def test_a_table_with_no_data_rows_is_refused():
+    document = _replace_once(
+        _MINIMAL, "| `radar taxonomy` | the closed vocabularies |\n", "")
+    with pytest.raises(SurfaceContractError) as exc:
+        surface_table_cells(document)
+    assert "at least one data row" in str(exc.value)
+
+
+def test_a_row_narrower_than_the_header_is_refused():
+    """A stray pipe must fail loudly, not silently shift which cell is read."""
+    document = _replace_once(
+        _MINIMAL, "| `radar taxonomy` | the closed vocabularies |",
+        "| `radar taxonomy` |")
+    with pytest.raises(SurfaceContractError) as exc:
+        surface_table_cells(document)
+    assert "has 1 cell(s), but the header row has 2" in str(exc.value)
+
+
+def test_an_unreadable_document_is_reported_rather_than_read_as_agreement():
+    """`surface_violations` must never turn a failed parse into an empty list."""
+    assert surface_violations("# Doc\n\nnothing here\n") != []
+
+
+# --- the comparison, both directions ----------------------------------------
+
+def test_the_shipped_document_agrees_with_the_parser():
+    assert surface_violations(contract_text()) == []
+
+
+def test_an_omitted_flag_is_reported():
+    document = _replace_once(contract_text(), "`radar report <repo> [--floor N]`",
+                             "`radar report <repo>`")
+    assert surface_violations(document) == ["report: missing ['--floor'], unexpected []"]
+
+
+def test_an_invented_flag_is_reported():
+    document = _replace_once(contract_text(), "`radar report <repo> [--floor N]`",
+                             "`radar report <repo> [--floor N] [--strict]`")
+    assert surface_violations(document) == [
+        "report: missing [], unexpected ['--strict']"]
+
+
+def test_a_missing_verb_row_is_reported():
+    document = _replace_once(
+        contract_text(), "| `radar taxonomy` | the closed vocabularies "
+                         "(11 layers, 8 gap types, 9 evidence classes) |\n", "")
+    assert surface_violations(document) == [
+        "verb set: missing ['taxonomy'], unexpected []"]
+
+
+def test_a_duplicated_verb_row_is_reported_because_set_equality_cannot_see_it():
+    row = "| `radar taxonomy` | the closed vocabularies " \
+          "(11 layers, 8 gap types, 9 evidence classes) |"
+    document = _replace_once(contract_text(), row + "\n", row + "\n" + row + "\n")
+    assert surface_violations(document) == [
+        "verb set: 8 row(s) for 7 verb(s); duplicated ['taxonomy']"]
