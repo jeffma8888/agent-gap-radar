@@ -8,12 +8,19 @@ from .scoring import (below_floor, confidence, priority,
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
-def _document(lines: list[str]) -> str:
+def document(lines: list[str]) -> str:
     """Join to a document ending in exactly one newline.
 
     Section builders append a trailing "" as a separator, which would otherwise
     render as a blank final line. Normalising here keeps every renderer's
     contract identical instead of making each one remember.
+
+    PUBLIC, and deliberately so: the one-newline rule is a published guarantee, so
+    a renderer living in another module has to reach the same implementation rather
+    than carry a second copy of it. Two independently written copies of one
+    invariant is the shape this product has already had to fix twice -- the
+    below-floor predicate and the strongest-source ordering -- where the rule held
+    only while the copies happened to agree.
     """
     while lines and lines[-1] == "":
         lines.pop()
@@ -82,7 +89,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     else:
         lines.append("None found.")
     lines.append("")
-    return _document(lines)
+    return document(lines)
 
 
 def gap_brief(gap: Gap) -> str:
@@ -117,4 +124,4 @@ def gap_brief(gap: Gap) -> str:
                   "", f"> {ev.quote}", ""]
         if ev.note:
             lines += [ev.note, ""]
-    return _document(lines)
+    return document(lines)

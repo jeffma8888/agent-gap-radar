@@ -24,6 +24,7 @@ uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar prd .               # emit a build-loop prd.json for the top gap
 uv run radar taxonomy            # the fixed vocabularies
+uv run radar diff OLD NEW        # what changed between two register states (two directories you materialise)
 
 uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo have?
 uv run radar scan ../my-service --gaps gaps --json   # the same, for a CI gate
@@ -98,6 +99,8 @@ The emitted document carries the source gap's evidence forward, so the loop buil
 ## Current register
 
 The register grows: unattended research passes propose records and the gate above decides which land. For the current contents run `uv run radar list .`, one line per record with below-floor rows flagged, or `uv run radar report .`, which prints the count, the ranking, and the below-floor section separately. Counts are deliberately not restated here, because a hand-maintained summary of a machine-updated source decays silently and then misleads with authority.
+
+To review what a pass actually changed, `radar diff OLD NEW` compares two register states you materialise yourself: records added, records removed, and for records on both sides the changes in a closed set of nine fields -- `status`, `layer`, `gap_type`, the three `priority` inputs, the two derived scores, and the citation count. Free prose is never compared, so a rewording is not a change, and the two derived scores are printed as separate lines, never blended. There is deliberately no git integration: it takes two directories, so the tool has no opinion about how you produced them.
 
 It seeded with ten records spanning observability, evaluation, orchestration, context and memory, multi-agent coordination, and lifecycle. `GAP-010` is retained *below* the confidence floor as a worked example of the ladder doing its job.
 

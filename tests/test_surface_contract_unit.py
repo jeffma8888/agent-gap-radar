@@ -204,5 +204,12 @@ def test_a_duplicated_verb_row_is_reported_because_set_equality_cannot_see_it():
     row = "| `radar taxonomy` | the closed vocabularies " \
           "(11 layers, 8 gap types, 9 evidence classes) |"
     document = _replace_once(contract_text(), row + "\n", row + "\n" + row + "\n")
+    # The two counts are DERIVED from the parser, not restated. Written as literals
+    # ("8 row(s) for 7 verb(s)") this assertion was a closed-set census over the live
+    # document, so shipping any new verb reddened it while the check under test was
+    # working perfectly -- the same shape as the live-register id censuses iteration 09
+    # had to convert, one level up. The discriminating clause stays literal: if
+    # duplication went undetected the list would be empty and this still fails.
+    verbs = len(parser_surface())
     assert surface_violations(document) == [
-        "verb set: 8 row(s) for 7 verb(s); duplicated ['taxonomy']"]
+        f"verb set: {verbs + 1} row(s) for {verbs} verb(s); duplicated ['taxonomy']"]

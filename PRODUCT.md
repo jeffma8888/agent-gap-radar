@@ -15,7 +15,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 9 | Below-floor rows name the cheapest source class that would lift them to the floor | shipped | `scoring.promotion_options` + a derived `Needs` column; no verb, so `tools/promote.py` keeps the word |
 | 10 | Evidence staleness: flag records whose newest citation is older than N months | open | A gap can be closed by the industry without anyone noticing |
 | 11 | Cross-record duplicate detection on normalised title tokens | open | Prevent two records describing one gap |
-| 12 | `radar diff` between two register states | open | Show what a research pass actually changed |
+| 12 | `radar diff` between two register states | shipped | `diff.py`. Nine CLOSED fields are compared (`status`, `layer`, `gap_type`, `severity`, `frequency`, `tractability`, `priority`, `confidence`, citation count) and free prose never is, so a rewording cannot bury a score move. `priority` and `confidence` are CALLED from `scoring`, never re-derived here, so this report cannot disagree with the ranking. Both domain sizes are stated and both paths are REQUIRED, so an emptied, moved or one-level-too-high side cannot read as "everything was added" |
 | 13 | Layer coverage report: which layers have no records and are therefore unexamined | open | Absence of records is not absence of gaps |
 | 14 | `radar list` displays below-floor records, flagged; adds `--json` | shipped | `list` dropped them, breaking the one rule VISION.md protects by name |
 | 15 | "Strongest source" must come from the ladder rung, not the alphabet | shipped | `scoring.strongest_source`, keyed on the `SOURCE_CLASSES` index so equal weights resolve by rung. The alphabetical `min()` was wrong for GAP-013 and GAP-016 at `--floor 6`, and worse at the DEFAULT floor: `confidence() < 2` restricts every below-floor row to `{secondary-summary, model-output}`, the one pair that mis-sorts, so the table could name `model-output` as a record's best evidence |
@@ -39,7 +39,7 @@ Status values are exactly `open` or `shipped` -- there is no third value. A row 
 
 Numbers are stable identifiers, not an ordering -- rows are appended, never renumbered, because committed docs and prior specs cite them. Ship order is the line below.
 
-**Next up:** 29 -- measured this iteration on three real targets, small, and the only cost on the board that grows as records x target size while the register is grown by a schedule; `radar scan` is also the verb `docs/CONSUMER_CONTRACT.md` points a CI gate at, so the waste is per-commit for every consumer. Then 24, a scan over a moved, emptied or one-level-too-high register reporting all-zero counts and reading as a clean target, which is also the precondition for 25. Then 20, long unclaimed (the count of iterations it has waited is deliberately not restated here -- it decays) and which no rotated lens will ever claim (it is docs drift, and every lens rules it out) -- a planning role should take it directly instead of waiting for a slate to nominate it. Then 8 (goldens had to land after 15, which has cleared), then 16, whose never-drop dependency #14 has cleared and whose omission semantics row 26 made checkable, then 21, then 23, then 25 behind 24, and 28 the next time a simplification lens comes round.
+**Next up:** 29 -- measured this iteration on three real targets, small, and the only cost on the board that grows as records x target size while the register is grown by a schedule; `radar scan` is also the verb `docs/CONSUMER_CONTRACT.md` points a CI gate at, so the waste is per-commit for every consumer. Then 24, a scan over a moved, emptied or one-level-too-high register reporting all-zero counts and reading as a clean target, which is also the precondition for 25. Then 20, which is repeatedly NOMINATED and repeatedly loses triage: rotated narrative lenses named it in iters 04, 05 and 10, and a scout slate named it again in iter 11, so the claim previously made here -- that no rotated lens would ever claim it -- was false. Nomination is not the bottleneck, so a planning role should take it directly rather than wait for another slate. Then 8 (goldens had to land after 15, which has cleared), then 16, whose never-drop dependency #14 has cleared and whose omission semantics row 26 made checkable, then 21, then 23, then 25 behind 24, and 28 the next time a simplification lens comes round.
 
 ## Non-goals for this roadmap
 
@@ -47,7 +47,7 @@ No web fetching inside the tool. No LLM calls. No dashboard. No database. The re
 
 ## Done ledger
 
-One row per shipped iteration, landed in that iteration's own ship commit. Deferring a record is how history gets permanently lost.
+One row per iteration, landed in that iteration's own ship commit. Deferring a record is how history gets permanently lost. An iteration whose ship commit never landed says so in its own row -- `unrecorded_ships` is one-directional by design, so the ledger is the only place a failed iteration can be explained.
 
 - iter 01 `radar list` stops dropping below-floor records and gains `--json`; three false doc rows made true
 - iter 02 `radar scan --prd` no longer builds against a below-floor finding; skips announced, exit 2 when none clears
@@ -59,3 +59,5 @@ One row per shipped iteration, landed in that iteration's own ship commit. Defer
 - iter 08 `rank()` + `below_floor()` become one single-pass partition; never-drop is asserted, not coincidental
 - iter 09 two live-register id censuses become `confidence()` oracles; the report's SECTION membership is now asserted
 - iter 10 the contract's stable-surface table becomes a parser-derived assertion; 5 rows named less than the CLI accepts
+- iter 11 `radar diff OLD NEW` built, reviewed APPROVE and tested green, but its ship commit was orphaned by the stage cap; re-landed unchanged by iter 12
+- iter 12 re-lands iteration 11's orphaned `radar diff` commit unchanged; zero new behaviour, and the ledger now explains the gap in git history

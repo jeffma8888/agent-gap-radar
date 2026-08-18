@@ -12,6 +12,7 @@ import pathlib
 import sys
 
 from . import __version__
+from .diff import diff_registers, render_diff
 from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
@@ -150,6 +151,16 @@ def build_parser() -> argparse.ArgumentParser:
                              "worst PRESENT finding that clears the floor, "
                              "instead of the report")
 
+    p_diff = sub.add_parser(
+        "diff", help="Report what changed between two register states.")
+    # Two REQUIRED positionals. Deliberately unlike `list`/`show`/`report`, whose
+    # `nargs="?" default="."` lets a consumer copying a documented invocation read
+    # whichever register sits in its own working directory -- a silent wrong answer,
+    # not an error. A diff with a defaulted side is that shape twice, and it would
+    # compare a register against itself and report "nothing changed".
+    p_diff.add_argument("old", help="register state to compare FROM")
+    p_diff.add_argument("new", help="register state to compare TO")
+
     sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     return parser
 
@@ -214,6 +225,17 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         sys.stdout.write(scan_json(result) if args.json
                          else render_scan(result))
+        return 0
+
+    if args.command == "diff":
+        # Both sides load BEFORE anything is written, so a failure on either side
+        # leaves stdout empty rather than half a document.
+        try:
+            old_gaps = load_all(_resolve(args.old))
+            new_gaps = load_all(_resolve(args.new))
+        except RegistryError as exc:
+            return _fail(str(exc))
+        sys.stdout.write(render_diff(diff_registers(old_gaps, new_gaps)))
         return 0
 
     directory = _resolve(args.path)

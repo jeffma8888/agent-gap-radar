@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-12
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- `radar coverage`: name the layers the register has never examined
+    - Candidate B1 -- `radar list --layer L`, the product's first omission mechanism
+    - Candidate C1 -- evidence staleness, flagged against an explicit `--as-of` date
+    - Candidate A2 -- the quote verifier passes an unbounded fabricated tail and exits 0
+    - Candidate B2 -- `radar scan` states how many records it applied, and the count is asserted as an identity
+    - Candidate C2 -- `radar list` writes zero bytes over an empty register while its own `--json` twin writes a document
+    winner: A2
+    ship: pending (not yet decided)
+  iter-11
+    lenses: narrative-and-docs, new-capability
+    - Candidate A -- roadmap row 20, reframed: the contract's Promise cells are structurally unchecked
+    - Candidate B -- the published surface's third axis: four measured optionality disagreements, and two tracked docs contradicting each other
+    - Candidate C -- the contract never says what `radar scan`'s exit code means, and a gate author's default guess is wrong
+    - Candidate A1 -- `radar diff OLD NEW`: make an unattended research pass reviewable (roadmap row 12)
+    - Candidate A2 -- the two AUTOMATIC prd paths stop building against a record the register itself calls addressed
+    - Candidate A3 -- evidence staleness as a third axis, computed from an explicit `--as-of` (roadmap row 10)
+    winner: A1
+    ship: unknown
   iter-10
     lenses: performance-and-throughput (iteration 10), narrative-and-docs (iteration 10)
     - Candidate A -- `radar scan` reads each file once per scan (roadmap row 29)
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the "stable surface" table is hand-copied, and 5 of its 7 rows omit a real flag
     - Candidate B3 -- two repos agree on `radar ingest`; neither roadmap has a row for it
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 108bc65
   iter-09
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- delete the live-register twin of a synthetic test that already proves the same thing
@@ -101,4 +121,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-10 scouted iterations
+12 scouted iterations
