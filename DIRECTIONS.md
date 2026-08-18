@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-13
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- Derive the confidence-floor default from the scoring constant instead of hand-copying it
+    - Candidate A2 -- One renderer contract test, enumerated from the module surface, that reds the suite when a new renderer arrives uncovered
+    - Candidate A3 -- Settle the vacuous edge of the one-newline contract: `radar list` over a zero-record register writes zero bytes
+    - Candidate B1 -- `scan --json` publishes the confidence floor it applied, and flags each finding against it
+    - Candidate B2 -- `radar diff --json`: the contract's own non-regression mechanism has no machine surface
+    - Candidate B3 -- `list --json` carries the below-floor prescription a gate can assert (roadmap row 21)
+    winner: B1
+    ship: pending (not yet decided)
   iter-12
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar coverage`: name the layers the register has never examined
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan` states how many records it applied, and the count is asserted as an identity
     - Candidate C2 -- `radar list` writes zero bytes over an empty register while its own `--json` twin writes a document
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 6d0ec8b
   iter-11
     lenses: narrative-and-docs, new-capability
     - Candidate A -- roadmap row 20, reframed: the contract's Promise cells are structurally unchecked
@@ -121,4 +131,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-12 scouted iterations
+13 scouted iterations

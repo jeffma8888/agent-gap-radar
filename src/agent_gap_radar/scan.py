@@ -94,35 +94,66 @@ def select_for_prd(result: ScanResult,
     return PrdSelection(selected=None, passed_over=passed_over)
 
 
-def scan_json(result: ScanResult) -> str:
+def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
+    """One finding as a stable object, with its floor status derived in place.
+
+    `confidence()` is evaluated exactly ONCE, into `conf`, and both the published
+    `confidence` and `below_floor` read that same local. Reading the property
+    twice would score the record twice and leave the consumer's only cross-check
+    -- the printed confidence against the published floor -- resting on two
+    evaluations agreeing rather than on one value. `below_floor` is the exact
+    complement of the `>=` that `select_for_prd` applies, so the two surfaces
+    cannot tell a caller different stories about the same record.
+    """
+    conf = finding.confidence
+    return {
+        "gap_id": finding.gap.id,
+        "title": finding.gap.title,
+        "layer": finding.gap.layer,
+        "gap_type": finding.gap.gap_type,
+        "verdict": finding.verdict.value,
+        "priority": finding.priority,
+        "confidence": conf,
+        "below_floor": conf < confidence_floor,
+        "reason": finding.outcome.reason,
+        "question": finding.outcome.question,
+        # Lexical evidence of the signature, ranked code-first. NOT a
+        # fix list: a regex match is not a proof of the defect's site.
+        "locations": list(finding.outcome.locations),
+        "build_hypothesis": finding.gap.build_hypothesis,
+    }
+
+
+def scan_json(result: ScanResult,
+              confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT) -> str:
     """A stable object for machine consumers (a CI gate, a build loop).
 
     Separate from the markdown brief on purpose: a gate that regex-scrapes prose
     breaks the first time a heading is reworded. Emits `priority` and
     `confidence` as distinct fields and never a blended score, so a consumer
     cannot accidentally launder a low-confidence record into a high-priority one.
+
+    Publishes the floor it APPLIED, and flags every finding against it. Without
+    the floor on this surface a consumer has to hard-code the threshold across a
+    repo boundary -- where no test in this repo can ever see it drift -- to obey
+    the two rules the contract binds it to: a record whose only evidence is
+    model-output may never block anything, and a below-floor finding must carry
+    its floor status. Publishing both makes the register's one protected rule
+    (below-floor records are DISPLAYED, never dropped) assertable on the surface
+    a gate actually reads, rather than only in the prose that describes it.
+
+    The floor changes no verdict and drops no finding: it is reported, never
+    applied as a filter. `counts` stays a pure verdict census for the same
+    reason -- a stray non-verdict key would break a consumer iterating it.
     """
     payload = {
         "target": str(result.target),
         "target_name": result.target.name,
+        "confidence_floor": confidence_floor,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],
         "findings": [
-            {
-                "gap_id": f.gap.id,
-                "title": f.gap.title,
-                "layer": f.gap.layer,
-                "gap_type": f.gap.gap_type,
-                "verdict": f.verdict.value,
-                "priority": f.priority,
-                "confidence": f.confidence,
-                "reason": f.outcome.reason,
-                "question": f.outcome.question,
-                # Lexical evidence of the signature, ranked code-first. NOT a
-                # fix list: a regex match is not a proof of the defect's site.
-                "locations": list(f.outcome.locations),
-                "build_hypothesis": f.gap.build_hypothesis,
-            }
+            _finding_json(f, confidence_floor)
             for f in sorted(result.findings,
                             key=lambda f: (f.verdict.value, -f.priority, f.gap.id))
         ],

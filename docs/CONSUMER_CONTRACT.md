@@ -89,12 +89,18 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
    remainder is named rather than silently cut. On the real target GAP-003 now
    leads with `dispatcher.py` and `watchdog.py` instead of eighteen test files.
 
-**`scan --json` SHIPPED.** A gate gets a stable object: `target`, `counts` keyed
-by verdict, `uncheckable`, and per finding `gap_id`, `title`, `layer`,
-`gap_type`, `verdict`, `priority`, `confidence`, `reason`, `question`,
-`locations`, `build_hypothesis`. `priority` and `confidence` stay separate
-fields and no blended `score` key exists, so the invariant survives
-serialisation; a test asserts that. Output is byte-stable across runs.
+**`scan --json` SHIPPED.** A gate gets a stable object: `target`, `target_name`,
+`confidence_floor`, `counts` keyed by verdict, `uncheckable`, `findings`, and per
+finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`, `priority`,
+`confidence`, `below_floor`, `reason`, `question`, `locations`,
+`build_hypothesis`. `priority` and `confidence` stay separate fields and no
+blended `score` key exists, so the invariant survives serialisation; a test
+asserts that. `confidence_floor` is the floor the scan APPLIED and `below_floor`
+is derived from the `confidence` printed beside it, so a gate asserts the
+never-drop rule from the payload instead of hard-coding the threshold on its own
+side of the boundary. Every key the tool emits must appear in this list: the
+drift this paragraph already suffered was omission, so the list is the contract
+and not a summary of it. Output is byte-stable across runs.
 
 ## `radar ingest` - the reverse direction (TO BUILD)
 
