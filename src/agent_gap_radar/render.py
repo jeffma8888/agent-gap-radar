@@ -27,7 +27,16 @@ def document(lines: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _table(headers: list[str], rows: list[list[str]]) -> list[str]:
+def table(headers: list[str], rows: list[list[str]]) -> list[str]:
+    """Markdown table lines: the header, the alignment rule, then one line per row.
+
+    PUBLIC for the same reason as `document`, and said here rather than left to be
+    inferred: a renderer living in another module has to reach this implementation
+    rather than carry a second copy of the pipe-and-dash formatting. `scan.py` built
+    its verdict table by hand until iteration 14 -- the same duplicated-invariant
+    shape this product has already paid to fix twice, where the two copies agreed
+    only by luck.
+    """
     out = ["| " + " | ".join(headers) + " |",
            "| " + " | ".join("---" for _ in headers) + " |"]
     out += ["| " + " | ".join(r) + " |" for r in rows]
@@ -60,7 +69,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
 
     lines += ["## Ranked gaps", ""]
     if ranked:
-        lines += _table(
+        lines += table(
             ["Rank", "ID", "Priority", "Confidence", "Layer", "Type", "Title"],
             [[str(i), g.id, f"{p:.1f}", str(c), g.layer, g.gap_type, g.title]
              for i, (g, p, c) in enumerate(ranked, start=1)])
@@ -72,20 +81,20 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     counts = {layer: 0 for layer in LAYERS}
     for g in gaps:
         counts[g.layer] += 1
-    lines += _table(["Layer", "Records"],
-                    [[layer, str(n)] for layer, n in counts.items() if n])
+    lines += table(["Layer", "Records"],
+                   [[layer, str(n)] for layer, n in counts.items() if n])
     lines.append("")
 
     lines += ["## Below confidence floor", "",
               "Kept visible on purpose: a weakly-sourced gap is a research task, "
               "not a deletion.", ""]
     if excluded:
-        lines += _table(["ID", "Priority", "Confidence", "Title",
-                         "Strongest source", "Needs"],
-                        [[g.id, f"{p:.1f}", str(c), g.title,
-                          strongest_source(g),
-                          _needs_cell(g, confidence_floor)]
-                         for g, p, c in excluded])
+        lines += table(["ID", "Priority", "Confidence", "Title",
+                        "Strongest source", "Needs"],
+                       [[g.id, f"{p:.1f}", str(c), g.title,
+                         strongest_source(g),
+                         _needs_cell(g, confidence_floor)]
+                        for g, p, c in excluded])
     else:
         lines.append("None found.")
     lines.append("")
@@ -95,7 +104,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
 def gap_brief(gap: Gap) -> str:
     """The single-gap deep view: everything a builder needs to act on it."""
     lines = [f"# {gap.id}: {gap.title}", ""]
-    lines += _table(["Field", "Value"], [
+    lines += table(["Field", "Value"], [
         ["Layer", f"{gap.layer} -- {LAYERS[gap.layer]}"],
         ["Gap type", gap.gap_type],
         ["Status", gap.status],

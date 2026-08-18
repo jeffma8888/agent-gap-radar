@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-14
+    lenses: integration-and-adoption (iteration 14)
+    - Candidate A1 -- The derived scores are unreachable without installing pydantic, so the one real consumer re-implements the ranking and inverts it
+    - Candidate A2 -- `radar scan` still reports a clean target over an empty register, and it is now the LAST verb that does (roadmap row 24)
+    - Candidate A3 -- Scan output embeds an absolute machine path, so the artifact a consumer commits is neither portable nor byte-stable across machines
+    - Candidate B1 -- `scan.py` stops carrying private copies of `render.py` document primitives
+    - Candidate B2 -- the confidence floor default stops being spelled as an unnamed `2`
+    - Candidate B3 -- `tools/check_locators.py` stops carrying a second register loader
+    winner: B1
+    ship: pending (not yet decided)
   iter-13
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- Derive the confidence-floor default from the scoring constant instead of hand-copying it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar diff --json`: the contract's own non-regression mechanism has no machine surface
     - Candidate B3 -- `list --json` carries the below-floor prescription a gate can assert (roadmap row 21)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED dc35e78
   iter-12
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar coverage`: name the layers the register has never examined
@@ -131,4 +141,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-13 scouted iterations
+14 scouted iterations

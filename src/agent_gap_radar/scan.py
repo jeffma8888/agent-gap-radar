@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from .checks import CheckOutcome, Verdict, run_check
 from .models import Gap
+from .render import document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 
 
@@ -180,12 +181,16 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
 
 
 def render_scan(result: ScanResult) -> str:
-    """Markdown scan report. Ends in exactly one newline."""
+    """Markdown scan report.
+
+    The one-newline tail and the table formatting are `render.document` and
+    `render.table`, not copies of them: an invariant with two implementations
+    holds only while the copies happen to agree.
+    """
     lines = [f"# Gap scan: {result.target.name}", "",
              f"Target: `{result.target}`", ""]
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}
-    lines += ["| Verdict | Count | Meaning |", "| --- | --- | --- |"]
     meaning = {
         Verdict.PRESENT: "gap signature found in this target",
         Verdict.ABSENT: "a mitigation was positively identified",
@@ -193,8 +198,12 @@ def render_scan(result: ScanResult) -> str:
         Verdict.NOT_APPLICABLE: "this gap cannot apply to this target",
         Verdict.UNKNOWN: "the check could not be run",
     }
-    for v in Verdict:
-        lines.append(f"| {v.value} | {counts[v]} | {meaning[v]} |")
+    # Rows follow `Verdict` declaration order -- PRESENT, ABSENT,
+    # NOT_APPLICABLE, MANUAL, UNKNOWN -- which is what the committed bytes
+    # carry; `meaning` is keyed by member so a reordering cannot silently
+    # pair a count with the wrong sentence.
+    lines += table(["Verdict", "Count", "Meaning"],
+                   [[v.value, str(counts[v]), meaning[v]] for v in Verdict])
     lines += ["", f"Gaps with no check yet: {len(result.uncheckable)}", ""]
 
     lines += ["## Actionable now (PRESENT, worst first)", ""]
@@ -247,6 +256,4 @@ def render_scan(result: ScanResult) -> str:
         lines += [f"- **{f.gap.id}** {f.outcome.reason}" for f in unknown]
         lines.append("")
 
-    while lines and lines[-1] == "":
-        lines.pop()
-    return "\n".join(lines) + "\n"
+    return document(lines)
