@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-17
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- the research pass's own spec documents the `not` combinator with the wrong key, and the register disproves it
+    - Candidate A2 -- the consumer contract's honesty gate says a cited gap must be "open"; the register's number-two record is `partially-addressed`
+    - Candidate A3 -- roadmap row 20, sixth nomination, and the defect that is NOT the stale count
+    - Candidate B1 -- `radar report` names every layer in the taxonomy, so an unexamined layer stops being invisible
+    - Candidate B2 -- evidence staleness as a derived age with an explicit `--as-of`, and no wall clock
+    - Candidate B3 -- overlap detection keyed on shared citations, because the roadmap's title-token mechanism is measurably dead
+    winner: B1
+    ship: pending (not yet decided)
   iter-16
     lenses: performance-and-throughput (iter 16), narrative-and-docs (iter 16)
     - Candidate A1 -- one register pattern is 39% of all regex time, and 7.4x of it is provably free
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the contract's two restated register counts go, and the brake distinguishes the two kinds of restated number
     - Candidate B3 -- the pydantic-free import surface gets written down BEFORE row 33 gets a line of code
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 2ddb360
   iter-15
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate B1 -- one JSON document contract, not three
@@ -161,4 +171,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-16 scouted iterations
+17 scouted iterations

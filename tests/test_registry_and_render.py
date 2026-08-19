@@ -103,12 +103,19 @@ def test_report_shows_below_floor_records_rather_than_hiding_them(tmp_path):
     assert "GAP-002" not in ranked
 
 
-def test_report_layer_table_only_lists_populated_layers(tmp_path):
+def test_report_layer_table_lists_every_layer_including_empty_ones(tmp_path):
+    """Reversed in iteration 17: this test previously asserted the OPPOSITE
+    (`"cost-governance" not in layer_block`), pinning an omission filter as intent.
+    A hidden layer makes "clean" and "unexamined" identical bytes, which is the
+    silent-drop shape VISION.md names as the one rule the register protects. One
+    test owns this contract, so the old name and assertion are gone rather than
+    left beside a contradicting new test.
+    """
     _write(tmp_path, RECORD)
     out = radar_report(load_all(tmp_path))
     layer_block = out.split("## By layer", 1)[1].split("## Below", 1)[0]
-    assert "orchestration" in layer_block
-    assert "cost-governance" not in layer_block
+    assert "| orchestration | 1 |" in layer_block
+    assert "| cost-governance | 0 |" in layer_block
 
 
 def test_gap_brief_includes_evidence_quote_and_locator():

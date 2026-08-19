@@ -77,12 +77,22 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
         lines.append("None found.")
     lines.append("")
 
-    lines += ["## By layer", ""]
+    lines += ["## By layer", "",
+              "Every layer in the closed taxonomy is listed on purpose: a zero "
+              "means the layer is unexamined, not that it is clean -- it is not "
+              "a target to fill.", ""]
     counts = {layer: 0 for layer in LAYERS}
     for g in gaps:
         counts[g.layer] += 1
+    # No `if n` filter here, and its absence is the feature: dropping zero-count
+    # layers made "this layer is clean" and "nobody has looked at this layer"
+    # render as identical bytes, which is the silent-drop shape `VISION.md` names
+    # as the one rule this register protects. Publishing the denominator is the
+    # whole point of a coverage view, so the purpose line above ships WITH the
+    # zeros -- a bare zero invites the fill-every-layer throughput reading that
+    # `docs/CONSUMER_CONTRACT.md` forbids by name.
     lines += table(["Layer", "Records"],
-                   [[layer, str(n)] for layer, n in counts.items() if n])
+                   [[layer, str(n)] for layer, n in counts.items()])
     lines.append("")
 
     lines += ["## Below confidence floor", "",
