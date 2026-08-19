@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-20
+    lenses: integration-and-adoption (iteration 20), simplification-and-deletion (iteration 20)
+    - Candidate A1 -- the only surface a live consumer reads is the record file, and the contract never mentions it
+    - Candidate A2 -- `radar scan` spends the one universal integration surface on nothing (roadmap row 25)
+    - Candidate A3 -- the derived scores are unreachable without pydantic, and the consumer has now SHIPPED the workaround (roadmap row 33)
+    - Candidate B1 -- two caps on "locations reported per rule": one named constant and one magic `10`
+    - Candidate B2 -- `taxonomy.gap_type_names()` is a dead public accessor; its sibling is called only by tests
+    - Candidate B3 -- roadmap row 20: DELETE the restated seed-record count, do not correct it
+    winner: A1
+    ship: pending (not yet decided)
   iter-19
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `Evidence.locator` has no validator, so a citation nobody can check passes `radar validate`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the below-floor promotion prescription reaches ONLY a human markdown table, so a gate must scrape prose to read it
     - Candidate B3 -- `radar scan` publishes an absolute machine path, so the same scan of the same target is not the same document on two machines
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED a152804
   iter-18
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar show` never shows the check, so the register's deep view cannot say whether a record is detectable at all
@@ -191,4 +201,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-19 scouted iterations
+20 scouted iterations

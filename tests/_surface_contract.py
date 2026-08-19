@@ -36,6 +36,15 @@ the only way to ask the question. Every use here is read-only. `parser_surface()
 CLOSED when no subparsers action is found: an empty surface would turn every comparison
 below into two empty sets agreeing with each other, which is the green that means
 nothing.
+
+WHY THE TABLE READER TAKES A HEADING
+The same document now publishes a second kind of surface: the on-disk record shape,
+under its own `###` headings. Those tables are read by COLUMN NAME rather than by
+"cell 0 of each row", so `gfm_table()` returns whole rows and `GfmTable.column()`
+resolves a named column, while `surface_table_cells()` stays the cell-0 reader the
+stable-surface comparison needs. One parser, two callers: a second GFM parser one
+directory over is the duplicated invariant this product has already paid three times
+to remove, and it would drift exactly the way the hand-copied table did.
 """
 
 from __future__ import annotations
@@ -85,6 +94,36 @@ class VerbSurface:
     #: because the documented tokenizer cannot otherwise tell `[--floor N]` (two
     #: tokens, one option) from `[--json] [--prd]` (two tokens, two options).
     takes_value: Mapping[str, bool]
+
+
+@dataclass(frozen=True)
+class GfmTable:
+    """One GFM table read out of a published document, cells stripped.
+
+    Rows are whole cell tuples rather than one chosen cell, because the record-shape
+    tables published by the contract are read by COLUMN NAME (`Required`, `Model`) and
+    a caller cannot name a column it cannot see. `heading` is carried so a message can
+    say WHICH table refused, which matters once one document publishes several.
+    """
+
+    heading: str
+    header: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+
+    def column(self, name: str) -> tuple[str, ...]:
+        """Every data row's cell under the header cell named exactly `name`.
+
+        Fails closed when the header names that column zero times OR more than once.
+        Silently taking the first of two identically-headed columns is how a stale
+        column answers for a live one with every assertion still passing -- the same
+        document-level blindness the unique-heading rule closes, one level down.
+        """
+        at = [i for i, cell in enumerate(self.header) if cell == name]
+        if len(at) != 1:
+            raise SurfaceContractError(
+                f"table under {self.heading!r} has {len(at)} column(s) headed "
+                f"{name!r}, expected exactly 1; header is {list(self.header)}")
+        return tuple(row[at[0]] for row in self.rows)
 
 
 @dataclass(frozen=True)
@@ -152,8 +191,16 @@ def _is_table_row(line: str) -> bool:
     return line.strip().startswith("|")
 
 
-def _table_lines(document: str) -> list[str]:
-    """Header, separator and data rows of the table under the stable-surface heading.
+def _table_lines(
+    document: str, heading: str = STABLE_SURFACE_HEADING
+) -> list[str]:
+    """Header, separator and data rows of the table under `heading`.
+
+    `heading` defaults to the stable-surface heading, so every existing caller and
+    every message it can raise are unchanged. It is a parameter because the contract
+    now publishes a SECOND kind of surface -- the on-disk record shape, under its own
+    `###` headings -- and a second GFM parser one directory over is the duplicated
+    invariant this product has already paid three times to remove.
 
     The heading must occur EXACTLY ONCE. A detector keyed on a heading string cannot
     otherwise see document-level duplication: a second `## The stable surface` section
@@ -161,10 +208,10 @@ def _table_lines(document: str) -> list[str]:
     """
     lines = document.splitlines()
     at = [i for i, line in enumerate(lines)
-          if line.strip() == STABLE_SURFACE_HEADING]
+          if line.strip() == heading]
     if len(at) != 1:
         raise SurfaceContractError(
-            f"heading {STABLE_SURFACE_HEADING!r} occurs {len(at)} time(s) in the "
+            f"heading {heading!r} occurs {len(at)} time(s) in the "
             f"document, expected exactly 1")
 
     cursor = at[0] + 1
@@ -172,7 +219,7 @@ def _table_lines(document: str) -> list[str]:
         cursor += 1
     if cursor >= len(lines) or not _is_table_row(lines[cursor]):
         raise SurfaceContractError(
-            f"no table follows heading {STABLE_SURFACE_HEADING!r}")
+            f"no table follows heading {heading!r}")
 
     table: list[str] = []
     while cursor < len(lines) and _is_table_row(lines[cursor]):
@@ -180,12 +227,37 @@ def _table_lines(document: str) -> list[str]:
         cursor += 1
     if len(table) < 3 or not _SEPARATOR_ROW.fullmatch(table[1].strip()):
         raise SurfaceContractError(
-            f"table under {STABLE_SURFACE_HEADING!r} is not a header row, a "
+            f"table under {heading!r} is not a header row, a "
             f"'|---|' separator and at least one data row")
     return table
 
 
-def surface_table_cells(document: str) -> list[str]:
+def gfm_table(
+    document: str, heading: str = STABLE_SURFACE_HEADING
+) -> GfmTable:
+    """The whole table under `heading`: header cells and every data row's cells.
+
+    The width check lives HERE rather than in each caller, because a stray pipe does
+    not announce itself -- it shifts every cell after it, so a reader asking for cell 1
+    silently gets cell 0's tail. Failing loudly on a ragged row is what keeps "the
+    document says X" from meaning "the document says something, one column over".
+    """
+    header_line, _separator, *data = _table_lines(document, heading)
+    header = tuple(_cells(header_line))
+    rows: list[tuple[str, ...]] = []
+    for row in data:
+        row_cells = _cells(row)
+        if len(row_cells) != len(header):
+            raise SurfaceContractError(
+                f"table row {row.strip()!r} has {len(row_cells)} cell(s), but the "
+                f"header row has {len(header)}")
+        rows.append(tuple(row_cells))
+    return GfmTable(heading, header, tuple(rows))
+
+
+def surface_table_cells(
+    document: str, heading: str = STABLE_SURFACE_HEADING
+) -> list[str]:
     """The FIRST cell of every data row of the stable-surface table, in order.
 
     Only cell 0 is returned, and that is the whole point -- see the module docstring on
@@ -194,17 +266,7 @@ def surface_table_cells(document: str) -> list[str]:
     inside a Promise cell fails loudly here instead of silently shifting which text is
     read as the invocation.
     """
-    header, _separator, *data = _table_lines(document)
-    width = len(_cells(header))
-    cells = []
-    for row in data:
-        row_cells = _cells(row)
-        if len(row_cells) != width:
-            raise SurfaceContractError(
-                f"table row {row.strip()!r} has {len(row_cells)} cell(s), but the "
-                f"header row has {width}")
-        cells.append(row_cells[0])
-    return cells
+    return [row[0] for row in gfm_table(document, heading).rows]
 
 
 def invocation_verb(cell: str) -> str:

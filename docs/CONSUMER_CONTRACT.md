@@ -25,6 +25,102 @@ tests); deterministic, byte-stable output; stdout carries only the document,
 errors go to stderr prefixed `Error: ` with exit 2; the taxonomy is closed, so a
 consumer may switch on a layer or gap-type string.
 
+## The record file surface
+
+The register is files in git, and that is the feature -- so reading a record file
+directly is a supported use of this project, not a bypass of the verbs above. It
+is also what the one declared consumer actually does: `agent-foundry` reads
+`<register>/gaps/*.json` as plain local JSON, with no subprocess, no `uv` on the
+PATH and no import of this package, and it consumes none of the verbs, none of the
+JSON payloads and no exit code. Until this section existed, every byte-stability
+promise this document made was made about surfaces nothing consumed, and nothing
+at all covered the surface that IS consumed.
+
+**The guarantee, bounded exactly.** One record is one JSON object, stored at
+`<register>/gaps/<ID>-<slug>.json`; the id is the file name's PREFIX, so a
+consumer discovers records by globbing `gaps/*.json` -- which is what the declared
+consumer does -- rather than by constructing a path from an id. The key NAMES
+listed below are not renamed and not removed without a Done-ledger row in
+`PRODUCT.md`. New fields MAY be added at any time, and that is safe for a consumer
+reading by key -- so what is frozen here is the documented subset's NAMES, not the
+schema's growth. The two derived scores are deliberately NOT stored: `priority`
+and `confidence` are computed from the stored integers and from the evidence
+ladder, so a consumer that wants them either computes them the same way or reads
+them from a verb, and the unblended invariant below binds the file exactly as it
+binds the CLI.
+
+**The shape is closed.** Both models are declared `extra="forbid"`, so a record
+carrying a key this section does not list fails `radar validate` instead of
+reaching a reader. A consumer may therefore treat an unrecognised key as a defect
+in the register rather than as data it has to tolerate.
+
+### Gap record keys
+
+| Key | Required | Type | What it holds |
+|---|---|---|---|
+| `id` | yes | string | `GAP-000`-shaped identity, unique in the register, and the PREFIX of the record's file name |
+| `title` | yes | string | one line, the gap named as a reader would refer to it |
+| `layer` | yes | string | where in an agent stack the gap lives; a closed vocabulary, so a consumer may switch on it |
+| `gap_type` | yes | string | what kind of gap it is; a closed vocabulary, so a consumer may switch on it |
+| `status` | no | string | a closed vocabulary; absent means `open` |
+| `problem` | yes | string | one sentence, in the voice of the person hurt by it |
+| `symptom` | yes | string | what an operator actually observes |
+| `why_now` | yes | string | why this is a gap today rather than a solved problem |
+| `existing` | no | list of strings | partial solutions and why each falls short; absent means none recorded |
+| `severity` | yes | integer | 1 to 5, the damage when the gap bites |
+| `frequency` | yes | integer | 1 to 5, how often it bites a real team |
+| `tractability` | yes | integer | 1 to 5, whether a small team can move it |
+| `evidence` | yes | list of objects | at least one citation, each shaped by the next table |
+| `build_hypothesis` | no | string | the one thing worth building against this gap; absent means none proposed |
+| `tags` | no | list of strings | free labels, NOT a closed vocabulary; never switch on one |
+| `check` | no | object | how to detect the gap in a target repository; absent means the gap is not checkable today |
+
+`severity`, `frequency` and `tractability` are the whole input to `priority`, and
+`priority` itself is not stored anywhere in the file.
+
+### Evidence item keys
+
+| Key | Required | Type | What it holds |
+|---|---|---|---|
+| `source_class` | yes | string | the evidence-ladder rung; a closed vocabulary, and the ceiling input to `confidence` |
+| `title` | yes | string | the source as a reader would cite it |
+| `locator` | yes | string | a URL, a DOI, or a stable local artifact path |
+| `date` | yes | string | ISO `YYYY-MM-DD`, when the source was published |
+| `quote` | yes | string | a verbatim excerpt, never a paraphrase |
+| `note` | no | string | why this source supports the gap; absent means no gloss |
+
+A consumer deriving `confidence` for itself reads `source_class` for the ceiling
+AND `locator` for independence: the corroboration point requires two citations
+differing in BOTH class and source document, so two labels on one URL earn
+nothing. A record whose only rung is `model-output` carries confidence 0 by
+construction, which is the rule the next section binds machine consumers to.
+
+### Keys the declared consumer reads
+
+| Key | Model | How the declared consumer reads it |
+|---|---|---|
+| `id` | Gap | required; a record missing it is skipped and counted as unreadable |
+| `status` | Gap | required; the consumer selects on it |
+| `layer` | Gap | required |
+| `severity` | Gap | required |
+| `frequency` | Gap | required |
+| `tractability` | Gap | required |
+| `title` | Gap | read with a default, so a rename arrives as an EMPTY STRING rather than an error |
+| `gap_type` | Gap | read with a default, so a rename arrives as an EMPTY STRING rather than an error |
+| `evidence` | Gap | read with a default, then iterated to reach each item's rung |
+| `source_class` | Evidence | read with a default per evidence item, and it fails the same silent way |
+
+**Frozen text: this table must not be edited to make a rename go green.** It
+mirrors code in another repository, which no test here can read, so it is the one
+part of this section not derived from our own schema. That is exactly its job: a
+rename that updates the two tables above in step still reds HERE, because a key
+named here that no longer exists in the schema is a cross-repo break, and the
+notice arrives before the consumer starts rendering blanks. The reverse direction
+-- asserting that our tables cover every key the consumer reads -- cannot be
+checked from this repository at all, and stating that limit is more honest than
+implying coverage: that half is a review obligation on whoever renames a
+documented key.
+
 ## The invariant a consumer must not launder
 
 `priority` and `confidence` are deliberately UNBLENDED. `priority` is

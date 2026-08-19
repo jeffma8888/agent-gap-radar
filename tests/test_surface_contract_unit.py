@@ -21,9 +21,9 @@ import pytest
 
 from _surface_contract import (STABLE_SURFACE_HEADING, DocumentedInvocation,
                                SurfaceContractError, contract_text,
-                               documented_invocation, invocation_verb,
-                               parser_surface, surface_table_cells,
-                               surface_violations)
+                               documented_invocation, gfm_table,
+                               invocation_verb, parser_surface,
+                               surface_table_cells, surface_violations)
 
 #: A minimal well-formed stable-surface section, used to plant structural defects.
 _MINIMAL = "\n".join([
@@ -213,3 +213,93 @@ def test_a_duplicated_verb_row_is_reported_because_set_equality_cannot_see_it():
     verbs = len(parser_surface())
     assert surface_violations(document) == [
         f"verb set: {verbs + 1} row(s) for {verbs} verb(s); duplicated ['taxonomy']"]
+# --- the same table reader, pointed at a second heading -----------------------
+#
+# The contract now publishes record-shape tables under `###` headings, read by COLUMN
+# NAME rather than by cell 0. These tests exist because an optional parameter is the
+# easiest thing in this file to accept and then ignore: a reader that took `heading`
+# and still resolved `STABLE_SURFACE_HEADING` internally would pass every pre-existing
+# test in this module, since every one of them uses the default.
+
+_KEYED = "\n".join([
+    "# Doc",
+    "",
+    "### Gap record keys",
+    "",
+    "| Key | Required | Type |",
+    "|---|---|---|",
+    "| `id` | yes | string |",
+    "| `tags` | no | list of strings |",
+    "",
+    "prose after the table",
+    "",
+])
+
+
+def test_the_reader_reads_the_table_under_the_heading_it_is_given():
+    table = gfm_table(_KEYED, "### Gap record keys")
+    assert table.header == ("Key", "Required", "Type")
+    assert table.column("Key") == ("`id`", "`tags`")
+    assert table.column("Required") == ("yes", "no")
+
+
+def test_the_heading_argument_is_used_rather_than_the_default():
+    """The control that arms the test above.
+
+    `_KEYED` carries no stable-surface heading, so a reader ignoring its argument
+    refuses this document instead of reading it -- and the refusal has to NAME the
+    heading it was handed, or the parameter is decoration.
+    """
+    with pytest.raises(SurfaceContractError) as exc:
+        gfm_table(_KEYED)
+    assert repr(STABLE_SURFACE_HEADING) in str(exc.value)
+    assert "occurs 0 time(s)" in str(exc.value)
+
+
+def test_a_named_column_the_header_does_not_carry_is_refused():
+    with pytest.raises(SurfaceContractError) as exc:
+        gfm_table(_KEYED, "### Gap record keys").column("Model")
+    assert "0 column(s) headed 'Model'" in str(exc.value)
+
+
+def test_two_columns_with_the_same_heading_are_refused_not_silently_resolved():
+    """A stale duplicate column would answer for the live one, undetected.
+
+    Taking the first match is the fail-open here: cell 1 and cell 2 can disagree --
+    one correct, one left behind by a half-finished edit -- with every assertion
+    about "the Required column" still passing.
+    """
+    document = _replace_once(
+        _KEYED, "| Key | Required | Type |", "| Key | Required | Required |")
+    with pytest.raises(SurfaceContractError) as exc:
+        gfm_table(document, "### Gap record keys").column("Required")
+    assert "2 column(s) headed 'Required'" in str(exc.value)
+
+
+def test_a_ragged_row_is_refused_under_a_non_default_heading_too():
+    document = _replace_once(_KEYED, "| `tags` | no | list of strings |", "| `tags` | no |")
+    with pytest.raises(SurfaceContractError) as exc:
+        gfm_table(document, "### Gap record keys")
+    assert "has 2 cell(s), but the header row has 3" in str(exc.value)
+
+
+def test_a_table_with_no_data_rows_is_refused_under_a_non_default_heading_too():
+    """Zero rows must raise, not hand back an empty set for a caller to compare."""
+    document = _KEYED
+    for row in ("| `id` | yes | string |\n", "| `tags` | no | list of strings |\n"):
+        document = _replace_once(document, row, "")
+    with pytest.raises(SurfaceContractError) as exc:
+        gfm_table(document, "### Gap record keys")
+    assert "at least one data row" in str(exc.value)
+
+
+def test_the_cell_zero_reader_delegates_to_the_one_table_parser():
+    """One parser, two callers: the point of the parameter, asserted on real bytes.
+
+    If `surface_table_cells` grew its own copy of the row walk, these two lists could
+    drift apart while both looked right in isolation -- which is the duplicated
+    invariant this repo has already paid three times to remove.
+    """
+    document = contract_text()
+    assert surface_table_cells(document) == [
+        row[0] for row in gfm_table(document).rows]
