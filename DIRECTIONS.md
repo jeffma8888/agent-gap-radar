@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-18
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- `radar show` never shows the check, so the register's deep view cannot say whether a record is detectable at all
+    - Candidate A2 -- one source cited under two class labels earns a corroboration point, so a record can lift its own confidence without new evidence
+    - Candidate A3 -- evidence staleness measured against the register's own newest citation, so the age is derived and needs no clock
+    - Candidate B1 -- four live-register content premises keep the iteration-09 landmine armed, and row 28's brake as written cannot see them
+    - Candidate B2 -- the quote verifier passes an unbounded fabricated tail and exits 0, and it has no test at all
+    - Candidate B3 -- the suite's own PASS marker is suppressible: addopts carries `-q`, so any caller adding `-q` composes to `-qq` and the summary line vanishes while the exit code stays 0
+    winner: A2
+    ship: pending (not yet decided)
   iter-17
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the research pass's own spec documents the `not` combinator with the wrong key, and the register disproves it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- evidence staleness as a derived age with an explicit `--as-of`, and no wall clock
     - Candidate B3 -- overlap detection keyed on shared citations, because the roadmap's title-token mechanism is measurably dead
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED be89396
   iter-16
     lenses: performance-and-throughput (iter 16), narrative-and-docs (iter 16)
     - Candidate A1 -- one register pattern is 39% of all regex time, and 7.4x of it is provably free
@@ -171,4 +181,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-17 scouted iterations
+18 scouted iterations

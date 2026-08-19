@@ -8,10 +8,10 @@ diff. Two independent references stand in for the source:
   own `radar taxonomy` output, so ladder order is OBSERVED rather than imported from
   the module the feature is built on;
 * `_oracle_confidence` re-implements the scoring rule from the description the existing
-  suite already pins (ceiling from the strongest class, +1 when two DISTINCT real
-  classes corroborate, capped at 5, `model-output` weighing nothing and never
-  corroborating). It earns the right to be believed by being cross-checked against the
-  shipped `confidence()` on every record in the register before any test uses it.
+  suite already pins (ceiling from the strongest class, +1 for a pair of real citations
+  differing in class AND in SOURCE, capped at 5, `model-output` weighing nothing and
+  never corroborating). It earns the right to be believed by being cross-checked against
+  the shipped `confidence()` on every record in the register before any test uses it.
 
 Expected cell strings for named records are stated literally from the spec. Each such
 test asserts its PREMISE about that record's evidence first, because promoting a
@@ -103,11 +103,28 @@ def test_the_ladder_is_a_non_empty_domain_with_the_expected_shape():
 # independent oracle for the scoring rule and the prescription
 # ---------------------------------------------------------------------------
 
-def _oracle_confidence(classes) -> int:
-    real = {c for c in classes if WEIGHT[c] > 0}
+def _source_key(locator: str) -> str:
+    """Source identity: drop `#fragment`, drop a trailing `/`, case-fold what is left."""
+    return locator.split("#", 1)[0].rstrip("/").casefold()
+
+
+def _oracle_confidence(classes, sources=None) -> int:
+    """Ceiling from the strongest real class, +1 only for a CORROBORATING PAIR, cap 5.
+
+    A pair corroborates when it differs in class AND in source (iteration 18): one
+    document cited twice under two labels is one kind of evidence, not two. `sources`
+    defaults to a distinct key per citation, which is what every synthetic call site
+    here means -- the live-register call site passes real locators, so this oracle
+    cannot red a CORRECT scorer the day a record cites one source under two labels.
+    """
+    keys = list(sources) if sources is not None else list(range(len(tuple(classes))))
+    real = [(c, k) for c, k in zip(classes, keys) if WEIGHT[c] > 0]
     if not real:
         return 0
-    return min(5, max(WEIGHT[c] for c in real) + (1 if len(real) >= 2 else 0))
+    corroborated = any(c1 != c2 and k1 != k2
+                       for i, (c1, k1) in enumerate(real)
+                       for (c2, k2) in real[i + 1:])
+    return min(5, max(WEIGHT[c] for c, _ in real) + (1 if corroborated else 0))
 
 
 def _oracle_needs(classes, floor: int) -> tuple[str, ...]:
@@ -130,8 +147,9 @@ def _gap(gid="GAP-001", classes=("first-party-field",), sev=3, freq=3, tract=3):
     return Gap.model_validate({
         **RECORD, "id": gid, "severity": sev, "frequency": freq, "tractability": tract,
         "evidence": [{"source_class": c, "title": "t",
-                      "locator": "https://example.invalid/x",
-                      "date": "2026-01-02", "quote": "q"} for c in classes],
+                      "locator": f"https://example.invalid/x{index}",
+                      "date": "2026-01-02", "quote": "q"}
+                     for index, c in enumerate(classes)],
     })
 
 
@@ -144,7 +162,9 @@ def test_the_oracle_agrees_with_the_shipped_scorer_on_every_real_record():
     assert len(records) >= 16, f"register unexpectedly small: {len(records)}"
     checked = 0
     for gap in records:
-        assert _oracle_confidence(_classes_of(gap)) == confidence(gap), gap.id
+        assert _oracle_confidence(
+            _classes_of(gap),
+            tuple(_source_key(e.locator) for e in gap.evidence)) == confidence(gap), gap.id
         checked += 1
     assert checked == len(records)
 

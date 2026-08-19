@@ -13,6 +13,7 @@ floor -- an explicit, visible choice instead of a hidden weighting.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 from .models import Gap
@@ -38,13 +39,49 @@ def priority(gap: Gap) -> float:
     return round(10.0 * weighted / _MAX_WEIGHTED, 1)
 
 
+_PROBE_LOCATOR = "urn:agent-gap-radar:promotion-probe"
+
+
+def _source_key(citation: object) -> str:
+    """Identity of the DOCUMENT a citation points at, for the independence test.
+
+    A `#fragment` names a section of the same document and a trailing `/` is the
+    same page, so both are dropped and the rest is case-folded: `.../p`, `.../p/`
+    and `.../P#s2` are ONE source, which is how one URL arrives from three
+    different readers. Nothing beyond that is merged -- two paths in one repo, or
+    two DOIs on one host, stay DISTINCT sources deliberately, because collapsing
+    a host would WITHHOLD a corroboration point that was honestly earned.
+
+    Total on purpose: a citation stand-in carrying no `locator` (see
+    `_ClassOnly`) reads as the empty key instead of raising, so `confidence()`
+    stays callable on any object with a `source_class`. That default can only
+    withhold the point, never grant one, which keeps the failure direction safe.
+    """
+    locator = getattr(citation, "locator", "")
+    return locator.split("#", 1)[0].rstrip("/").casefold()
+
+
 def confidence(gap: Gap) -> int:
     """0-5, derived ONLY from evidence quality and independence.
 
     Rules, in order:
       * the strongest single source sets the ceiling,
-      * two or more INDEPENDENT source classes add one point (corroboration),
+      * two citations differing in BOTH source class and SOURCE add one point
+        (corroboration),
       * evidence that is exclusively model-output scores 0 regardless of volume.
+
+    Independence is two SOURCES, not two labels. This rule used to key on the set
+    of `source_class` values alone, so ONE document cited twice under two labels
+    -- the same URL entered as `practitioner-report` and again as
+    `secondary-summary` -- earned the corroboration point with no second source
+    behind it, and that point is exactly what moves a record across the
+    confidence floor. Confidence is DERIVED from evidence; a point granted by
+    relabelling is that invariant failing quietly, which is worse than a visible
+    error because the number still looks derived.
+
+    The pair is tested pairwise rather than as "two classes and two sources".
+    Those two forms happen to be equivalent over any set of citations, but the
+    equivalence needs a proof, and the pairwise form simply IS the rule.
     """
     if not gap.evidence:
         return 0
@@ -52,9 +89,13 @@ def confidence(gap: Gap) -> int:
     best = max(weights)
     if best == 0:
         return 0
-    distinct_real = {e.source_class for e in gap.evidence
-                     if SOURCE_WEIGHTS[e.source_class] > 0}
-    corroborated = 1 if len(distinct_real) >= 2 else 0
+    # Weight-0 evidence scores 0 on its own, so it may supply NEITHER half of a
+    # corroborating pair -- filtering first states that once instead of twice.
+    real = [e for e in gap.evidence if SOURCE_WEIGHTS[e.source_class] > 0]
+    corroborated = 1 if any(
+        a.source_class != b.source_class and _source_key(a) != _source_key(b)
+        for a, b in itertools.combinations(real, 2)
+    ) else 0
     return min(5, best + corroborated)
 
 
@@ -100,13 +141,20 @@ def strongest_source(gap: Gap) -> str:
 class _ClassOnly:
     """Minimal stand-in for a citation, carrying the one field scoring reads.
 
-    Simulating a promotion by cloning a real `Evidence` would need a locator, a
-    quote and a date that do not exist yet, and inventing those would put
-    fictional evidence one copy away from the register. `confidence()` reads only
-    `source_class`, so that is all this carries.
+    Simulating a promotion by cloning a real `Evidence` would need a quote and a
+    date that do not exist yet, and inventing those would put fictional evidence
+    one copy away from the register. So this carries only what `confidence()`
+    reads: the class, and a source identity.
+
+    The locator is a `urn:` no citation can hold -- the promotion gate requires a
+    fetchable URL -- which is what makes the probe read as a NEW source. The
+    question being simulated is "what would one FURTHER source do", so a probe
+    that collided with a locator the record already cites would silently withhold
+    the corroboration point and understate every prescription.
     """
 
     source_class: str
+    locator: str = _PROBE_LOCATOR
 
 
 def _confidence_with(gap: Gap, extra_class: str) -> int:

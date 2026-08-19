@@ -2,20 +2,35 @@
 
 from __future__ import annotations
 
-from agent_gap_radar.models import Gap
-from agent_gap_radar.scoring import (_ladder_rank, below_floor, confidence,
-                                    priority, rank)
+from agent_gap_radar.models import Evidence, Gap
+from agent_gap_radar.scoring import (_ladder_rank, _source_key, below_floor,
+                                     confidence, priority, rank)
 
 
 def _gap(gid="GAP-001", sev=3, freq=3, tract=3, classes=("first-party-field",)):
+    """One citation per class, each at its OWN locator.
+
+    The locator is per-citation because corroboration keys on two citations
+    differing in class AND source: a fixture that spelled one locator across
+    every class would be ONE source wearing several labels, so a test naming
+    "two independent classes" would silently exercise the no-corroboration path
+    and its assertion would pin the wrong rule.
+    """
     return Gap.model_validate({
         "id": gid, "title": f"t{gid}", "layer": "orchestration",
         "gap_type": "missing-contract", "problem": "p", "symptom": "s",
         "why_now": "w", "severity": sev, "frequency": freq, "tractability": tract,
         "evidence": [{"source_class": c, "title": "t",
-                      "locator": "https://example.invalid/x",
-                      "date": "2026-01-02", "quote": "q"} for c in classes],
+                      "locator": f"https://example.invalid/x{index}",
+                      "date": "2026-01-02", "quote": "q"}
+                     for index, c in enumerate(classes)],
     })
+
+
+def _cite(locator: str) -> Evidence:
+    """A validated citation at `locator`; `_source_key` reads the citation, not a string."""
+    return Evidence(source_class="peer-reviewed", title="t", locator=locator,
+                    date="2026-01-02", quote="q")
 
 
 def test_priority_is_bounded_and_monotonic():
@@ -87,6 +102,28 @@ def test_a_weakly_sourced_big_problem_still_outranks_nothing():
                         classes=("first-party-field", "peer-reviewed"))
     assert priority(weak_big) > priority(strong_small)
     assert [g.id for g, _, _ in rank([strong_small, weak_big])][0] == "GAP-060"
+
+
+def test_source_key_merges_spellings_of_one_url_and_nothing_else():
+    """The private identity `confidence()` compares two citations' SOURCES on.
+
+    Unit-tested rather than left to the behavior tests because every interesting
+    input is a different SPELLING of one URL, and a behavior test can only
+    observe the merge through a score that is also class-gated, floored at 0 and
+    capped at 5 -- so a key that merged too MUCH (two paths on one host, say)
+    would still read as a correct confidence while quietly withholding an
+    honestly earned point.
+    """
+    one_document = {_source_key(_cite(spelling)) for spelling in (
+        "https://example.invalid/p",
+        "https://example.invalid/p/",
+        "https://EXAMPLE.invalid/P#s2",
+    )}
+    assert len(one_document) == 1, one_document
+    assert _source_key(_cite("https://example.invalid/a")) != _source_key(
+        _cite("https://example.invalid/b"))
+    assert _source_key(_cite("https://example.invalid/repo/x")) != _source_key(
+        _cite("https://example.invalid/repo/y")), "one host is not one source"
 
 
 def test_ladder_rank_orders_by_rung_and_sinks_an_unknown_class():
