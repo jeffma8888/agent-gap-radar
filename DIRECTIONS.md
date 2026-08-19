@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-21
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- the `taxonomy` verb hand-rolls the one-newline tail, and the row-32 brake is structurally blind to it
+    - Candidate A2 -- one JSON tail, not three, and `sort_keys=False` is a no-op spelled three times
+    - Candidate A3 -- the consumer contract re-enumerates the promote gate's refusal rules, so the document carries a second copy of a rule `tools/promote.py` owns
+    - Candidate B1 -- `content_absent` stops at the first hitting file
+    - Candidate B2 -- a boolean-only context stops at the first hit (`applies_when`, `not`)
+    - Candidate B3 -- resolve each `(globs, exclude_tests)` file list once per scan
+    winner: A1
+    ship: pending (not yet decided)
   iter-20
     lenses: integration-and-adoption (iteration 20), simplification-and-deletion (iteration 20)
     - Candidate A1 -- the only surface a live consumer reads is the record file, and the contract never mentions it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `taxonomy.gap_type_names()` is a dead public accessor; its sibling is called only by tests
     - Candidate B3 -- roadmap row 20: DELETE the restated seed-record count, do not correct it
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 707bdff
   iter-19
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `Evidence.locator` has no validator, so a citation nobody can check passes `radar validate`
@@ -201,4 +211,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-20 scouted iterations
+21 scouted iterations

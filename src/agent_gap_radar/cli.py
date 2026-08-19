@@ -16,10 +16,9 @@ from .diff import diff_registers, render_diff
 from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
-from .render import gap_brief, radar_report
+from .render import document, gap_brief, radar_report
 from .scan import render_scan, scan, scan_json, select_for_prd
-from .scoring import (CONFIDENCE_FLOOR_DEFAULT, below_floor, confidence,
-                      priority, rank)
+from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
 
@@ -180,7 +179,14 @@ def main(argv: list[str] | None = None) -> int:
         out += [f"- `{k}` -- {v}" for k, v in GAP_TYPES.items()]
         out += ["", "## Evidence source classes (strongest first)", ""]
         out += [f"- `{c}` (weight {SOURCE_WEIGHTS[c]})" for c in SOURCE_CLASSES]
-        sys.stdout.write("\n".join(out) + "\n")
+        # Reach the published `render.document` rather than re-spell its tail here.
+        # The one-newline rule is a published guarantee, and a second copy of it
+        # holds only while the copies agree: this branch spelled the join tail
+        # WITHOUT the trailing-blank normalisation, so it produced the right
+        # bytes only because the taxonomy list happens to end on a bullet.
+        # `document` pops trailing blanks IN PLACE; safe here because `out` is
+        # never read after this write.
+        sys.stdout.write(document(out))
         return 0
 
     if args.command == "scan":
