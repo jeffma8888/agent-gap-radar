@@ -45,8 +45,8 @@ CONTRACT_DOC = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
 MARKER_SENTENCE = "**`scan --json` SHIPPED.**"
 
 #: Spec behavior 1 / 2: the ORDER is part of the contract, not just the key set.
-TOP_KEYS = ["target", "target_name", "confidence_floor", "counts", "uncheckable",
-            "findings"]
+TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
+            "counts", "uncheckable", "findings"]
 FINDING_KEYS = ["gap_id", "title", "layer", "gap_type", "verdict", "priority",
                 "confidence", "below_floor", "reason", "question", "locations",
                 "build_hypothesis"]

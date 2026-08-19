@@ -17,6 +17,13 @@ from .models import Gap
 from .render import document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 
+#: What an all-zero verdict census means when the register itself was empty.
+#: Deliberately names NO path: `scan()` receives a list of gaps and never learns
+#: where they came from, so a claimed register path would be a guess.
+EMPTY_REGISTER_NOTE = (
+    "**No records were applied, so this scan verdicted nothing.** An all-zero "
+    "census is vacuous here, not a clean target: check the register path.")
+
 
 @dataclass
 class Finding:
@@ -44,6 +51,24 @@ class ScanResult:
 
     def by_verdict(self, verdict: Verdict) -> list[Finding]:
         return [f for f in self.findings if f.verdict is verdict]
+
+    @property
+    def records_applied(self) -> int:
+        """How many register records this scan actually reached.
+
+        DERIVED from the two collections that partition the register -- every gap
+        either got its check run (a `Finding`) or had no check to run
+        (`uncheckable`) -- so it cannot disagree with them the way a counter
+        incremented at the call site could, and neither renderer needs a second
+        source for the number.
+
+        This is the denominator the rest of both documents is relative to. An
+        all-zero verdict census over an emptied or misdirected register is
+        otherwise indistinguishable from a target that exhibits none of the
+        register's gaps, and the indistinguishable reading is the REASSURING one,
+        on the exact payload `docs/CONSUMER_CONTRACT.md` points a CI gate at.
+        """
+        return len(self.findings) + len(self.uncheckable)
 
     @property
     def actionable(self) -> list[Finding]:
@@ -146,11 +171,18 @@ def scan_json(result: ScanResult,
     The floor changes no verdict and drops no finding: it is reported, never
     applied as a filter. `counts` stays a pure verdict census for the same
     reason -- a stray non-verdict key would break a consumer iterating it.
+
+    `records_applied` sits BESIDE that census rather than inside it, for the same
+    reason: it is the denominator, not a verdict. Summing `counts` and
+    `uncheckable` already yields the number, and leaving a consumer to re-derive
+    it across the repo boundary -- where no test here can see the arithmetic drift
+    -- is precisely how a register that never loaded reads as a clean target.
     """
     payload = {
         "target": str(result.target),
         "target_name": result.target.name,
         "confidence_floor": confidence_floor,
+        "records_applied": result.records_applied,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],
         "findings": [
@@ -209,7 +241,14 @@ def render_scan(result: ScanResult) -> str:
     # pair a count with the wrong sentence.
     lines += table(["Verdict", "Count", "Meaning"],
                    [[v.value, str(counts[v]), meaning[v]] for v in Verdict])
-    lines += ["", f"Gaps with no check yet: {len(result.uncheckable)}", ""]
+    # The count LEADS the pair because it is the denominator: `Gaps with no check
+    # yet` is a share of it, and a reader who takes the second number without the
+    # first cannot tell a scan of nothing from a scan that found nothing.
+    lines += ["", f"Register records applied: {result.records_applied}",
+              f"Gaps with no check yet: {len(result.uncheckable)}"]
+    if result.records_applied == 0:
+        lines.append(EMPTY_REGISTER_NOTE)
+    lines.append("")
 
     lines += ["## Actionable now (PRESENT, worst first)", ""]
     if result.actionable:

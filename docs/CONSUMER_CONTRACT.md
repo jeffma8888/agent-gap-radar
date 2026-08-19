@@ -90,17 +90,21 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
    leads with `dispatcher.py` and `watchdog.py` instead of eighteen test files.
 
 **`scan --json` SHIPPED.** A gate gets a stable object: `target`, `target_name`,
-`confidence_floor`, `counts` keyed by verdict, `uncheckable`, `findings`, and per
-finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`, `priority`,
-`confidence`, `below_floor`, `reason`, `question`, `locations`,
+`confidence_floor`, `records_applied`, `counts` keyed by verdict, `uncheckable`,
+`findings`, and per finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`,
+`priority`, `confidence`, `below_floor`, `reason`, `question`, `locations`,
 `build_hypothesis`. `priority` and `confidence` stay separate fields and no
 blended `score` key exists, so the invariant survives serialisation; a test
 asserts that. `confidence_floor` is the floor the scan APPLIED and `below_floor`
 is derived from the `confidence` printed beside it, so a gate asserts the
 never-drop rule from the payload instead of hard-coding the threshold on its own
-side of the boundary. Every key the tool emits must appear in this list: the
-drift this paragraph already suffered was omission, so the list is the contract
-and not a summary of it. Output is byte-stable across runs.
+side of the boundary. `records_applied` is how many register records the scan
+reached -- `findings` plus `uncheckable` -- so a gate can tell an all-zero
+`counts` over a real register from one over a register that never loaded, which
+are otherwise the same payload and the wrong reading is the reassuring one.
+Every key the tool emits must appear in this list: the drift this paragraph
+already suffered was omission, so the list is the contract and not a summary of
+it. Output is byte-stable across runs.
 
 ## `radar ingest` - the reverse direction (NOT PLANNED)
 

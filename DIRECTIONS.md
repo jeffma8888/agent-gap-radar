@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-19
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- `Evidence.locator` has no validator, so a citation nobody can check passes `radar validate`
+    - Candidate A2 -- `_TRACKED_CACHE` is process-lifetime, inside the one module that argues against process-lifetime caches
+    - Candidate A3 -- bare `radar` writes 923 bytes of help to STDOUT and exits 0
+    - Candidate B1 -- `radar scan` reports a clean target when the register is EMPTY, on the one verb the consumer contract points a CI gate at
+    - Candidate B2 -- the below-floor promotion prescription reaches ONLY a human markdown table, so a gate must scrape prose to read it
+    - Candidate B3 -- `radar scan` publishes an absolute machine path, so the same scan of the same target is not the same document on two machines
+    winner: B1
+    ship: pending (not yet decided)
   iter-18
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar show` never shows the check, so the register's deep view cannot say whether a record is detectable at all
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the quote verifier passes an unbounded fabricated tail and exits 0, and it has no test at all
     - Candidate B3 -- the suite's own PASS marker is suppressible: addopts carries `-q`, so any caller adding `-q` composes to `-qq` and the summary line vanishes while the exit code stays 0
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 2ccba93
   iter-17
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the research pass's own spec documents the `not` combinator with the wrong key, and the register disproves it
@@ -181,4 +191,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-18 scouted iterations
+19 scouted iterations
