@@ -140,11 +140,18 @@ def promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool) -> int:
     seen_sigs = {_signature(g.check): g.id for g in existing if g.check}
 
     candidates = sorted(inbox.glob("*.json"))
-    if not candidates:
-        print(f"No candidates in {inbox}")
-        return 0
+    # Publish the denominator on EVERY run, the vacuous one included. This gate runs
+    # unattended, and its caller reads a MISSING summary line as proof the tool itself
+    # died -- so an early return over an empty inbox made a healthy no-op look like a
+    # crash. The empty case now FALLS THROUGH to the one summary emitter at the bottom
+    # instead of getting a second copy of it, so the two can never drift apart.
+    print(f"examined {len(candidates)} candidates in {inbox}")
 
-    accepted, refused = [], []
+    # Typed, and split across two lines rather than one tuple unpack: the compact form
+    # spells the summary line's own format substring, which would leave a source census
+    # for "exactly one summary emitter" unable to tell an accumulator from an emitter.
+    accepted: list[tuple[Path, Gap]] = []
+    refused: list[tuple[Path, str]] = []
     for path in candidates:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))

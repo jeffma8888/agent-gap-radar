@@ -130,3 +130,13 @@ cd <repo> && python3 tools/promote.py --inbox <inbox> --gaps gaps
 Dry run by default. It prints `ACCEPT` or `REJECT` with the reason for every
 candidate. **Iterate until yours says ACCEPT.** Submitting a candidate you never
 ran this against is the one failure this process cannot absorb.
+
+Every run opens with a census — `examined N candidates in <inbox>` — and closes with
+`N accepted, M rejected`, an empty inbox included. Both lines are unconditional on purpose:
+an unattended caller reads a missing summary as proof the tool died, so the census is what
+keeps "there was nothing to do" distinguishable from a crash.
+
+**Exit 0 on its own does not mean YOUR candidate was accepted.** The status is 0 whenever
+anything was accepted OR nothing was refused, so a batch that accepted another agent's file
+and rejected yours still exits 0, and so does a run that examined nothing at all. Find your
+own filename on an `ACCEPT` line; that is the only signal in the output that is about you.

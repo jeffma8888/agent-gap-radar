@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-22
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- reject a file before the regex runs, using literals the pattern itself requires
+    - Candidate B1 -- memoise the target file enumeration for the life of one scan
+    - Candidate C1 -- stop paying pydantic's import on verbs that load no records
+    - Candidate B1 -- README states the pre-iteration-18 corroboration rule, so the front door and the consumer contract now disagree about the one invariant VISION.md protects
+    - Candidate B2 -- the stable-surface table's `<>` versus `[]` notation carries no meaning, and none of the six real defaults is published
+    - Candidate B3 -- the research spec's self-verify step cannot tell "my candidate was accepted" from "the gate never saw my file"
+    winner: B3
+    ship: pending (not yet decided)
   iter-21
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- the `taxonomy` verb hand-rolls the one-newline tail, and the row-32 brake is structurally blind to it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- a boolean-only context stops at the first hit (`applies_when`, `not`)
     - Candidate B3 -- resolve each `(globs, exclude_tests)` file list once per scan
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 7c09e77
   iter-20
     lenses: integration-and-adoption (iteration 20), simplification-and-deletion (iteration 20)
     - Candidate A1 -- the only surface a live consumer reads is the record file, and the contract never mentions it
@@ -211,4 +221,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-21 scouted iterations
+22 scouted iterations
