@@ -16,6 +16,7 @@ from __future__ import annotations
 import contextlib
 import enum
 import functools
+import os
 import pathlib
 import re
 import subprocess
@@ -264,19 +265,71 @@ def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
 
 def _iter_walked(target: pathlib.Path, globs: list[str],
                  exclude_tests: bool) -> list[pathlib.Path]:
-    """Fallback for a non-git target: walk the tree and apply the skip list.
+    """Fallback for a non-git target: ENUMERATE by walking, then match as usual.
 
-    Unchanged behaviour. There is no authoritative "what does this project
-    ship" answer without git, so the hand-maintained `SKIP_DIRS` is the best
-    available approximation.
+    There is no authoritative "what does this project ship" answer without git,
+    so the hand-maintained `SKIP_DIRS` is the best available approximation and it
+    prunes the descent rather than filtering matches afterwards. That is the only
+    thing this branch decides differently from `_iter_tracked`.
+
+    Matching is `_glob_regex` and NOT `Path.glob`, because a register pattern is
+    consumer-supplied data and `Path.glob` answers it three different ways. All
+    three were measured against a git target that answered correctly on the same
+    register bytes, so the verdict depended on whether the target happened to be
+    a repository:
+
+    * a trailing `/**` yields directories only on 3.12 and files as well on 3.13
+      -- the divergence `_glob_regex` was written for, fixed on the tracked path
+      only;
+    * an absolute pattern such as `/etc/**` raises `NotImplementedError`, which
+      like `re.error` is NOT a `ValueError`, so no upstream handler catches it:
+      rc=1, zero bytes of document and a traceback on stderr, the one outcome the
+      CLI contract forbids;
+    * `""` raises `ValueError`, which the caller maps to a fabricated `UNKNOWN --
+      Unacceptable pattern: PosixPath('.')`, rendering an interpreter-internal
+      repr into a document meant to be committed and diffed.
+
+    `_glob_regex` answers match-nothing for the last two, so one matcher removes
+    both wrong answers and the interpreter divergence at once.
     """
+    # The target-relative POSIX path is accumulated during the descent, so the
+    # match loop needs no `relative_to` call per file and the string it matches is
+    # built exactly like the one `_iter_tracked` matches. MEASURED, so it is not a
+    # bug fix: the old form handled a relative target such as `.` correctly too.
+    relatives: list[str] = []
+    stack: list[tuple[pathlib.Path, str]] = [(target, "")]
+    while stack:
+        current, prefix = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                children = list(entries)
+        except OSError:
+            continue  # unreadable directory: skip it, never abort the scan
+        for entry in children:
+            # Pruned by NAME on the entry the walk already holds, so a vendored
+            # tree costs one stat instead of a full descent. The name test also
+            # catches a FILE called `build`, which the previous `parts` filter
+            # excluded too: this change is about matching, not about skipping.
+            if entry.name in SKIP_DIRS:
+                continue
+            rel = prefix + entry.name
+            if entry.is_dir(follow_symlinks=False):
+                # A directory SYMLINK is not descended, which is what the old
+                # `Path.glob("**/...")` walk did, and it also bounds a cycle.
+                stack.append((pathlib.Path(entry.path), rel + "/"))
+            elif entry.is_file():
+                # `is_file()` FOLLOWS links, as the old walk's did. Whether a
+                # symlinked file may be quoted as evidence about content the
+                # target does not hold is a containment rule, separate from
+                # matching, and deliberately not settled here.
+                relatives.append(rel)
     seen: set[pathlib.Path] = set()
     for pattern in globs:
-        for path in target.glob(pattern):
-            if not path.is_file():
+        regex = _glob_regex(pattern)
+        for rel in relatives:
+            if not regex.match(rel):
                 continue
-            if any(part in SKIP_DIRS for part in path.relative_to(target).parts):
-                continue
+            path = target / rel
             if exclude_tests and is_test_path(target, path):
                 continue
             seen.add(path)
@@ -287,9 +340,13 @@ def iter_files(target: pathlib.Path, globs: list[str],
                exclude_tests: bool = False) -> list[pathlib.Path]:
     """Resolve globs under target, restricted to what the project ships.
 
-    Two paths, chosen by whether the target is a git repo, because the two
-    cases have different authoritative answers to "which files count" -- not
-    because one is an optimisation of the other.
+    Two branches, chosen by whether the target is a git repo, because the two
+    cases have different authoritative answers to "which files COUNT": git names
+    what the project ships, and without git the walk plus `SKIP_DIRS` is the best
+    approximation of it. They differ in ENUMERATION only -- both then match the
+    same register pattern with the same `_glob_regex`, because a glob dialect
+    that depends on whether the target is a repository is a wrong answer, not a
+    deliberate split.
     """
     tracked = tracked_files(target)
     if tracked is not None:

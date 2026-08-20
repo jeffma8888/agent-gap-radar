@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-26
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar list --json` carries the below-floor prescription a gate can assert
+    - Candidate A2 -- `radar scan` gains the opt-in, floor-gated verdict exit code that iteration 25 pre-reserved
+    - Candidate A3 -- the scan document's `target` is portable, so a scan artifact can be committed and diffed
+    - Candidate B1 -- delete the second glob dialect: `_iter_walked` matches with `_glob_regex` instead of `Path.glob`
+    - Candidate B2 -- delete one of the two slug dialects, so the register has one filename convention
+    - Candidate B3 -- one membership rule for four closed vocabularies, and one way to name one
+    winner: B1
+    ship: pending (not yet decided)
   iter-25
     lenses: hardening/DX -- iteration 25, integration-and-adoption -- iteration 25
     - Candidate A1 -- the CLI's published error contract does not survive a reader that stops reading
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the `prd.json` payload is the vision's whole bridge and no document lists a single one of its keys
     - Candidate B3 -- the below-floor prescription reaches the human table and not the machine payload (roadmap row 21)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 13ed4c9
   iter-24
     lenses: new-capability, hardening/DX
     - Candidate A -- `radar show` states whether the gap is DETECTABLE, and how
@@ -251,4 +261,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-25 scouted iterations
+26 scouted iterations
