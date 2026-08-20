@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-25
+    lenses: hardening/DX -- iteration 25, integration-and-adoption -- iteration 25
+    - Candidate A1 -- the CLI's published error contract does not survive a reader that stops reading
+    - Candidate A2 -- the tracked-set cache outlives the scan it belongs to (roadmap row 43)
+    - Candidate A3 -- an UNREADABLE register is reported as an EMPTY register
+    - Candidate B1 -- a scan that finds three above-floor PRESENT gaps exits 0, so nothing but a JSON parser can consume it (roadmap row 25)
+    - Candidate B2 -- the `prd.json` payload is the vision's whole bridge and no document lists a single one of its keys
+    - Candidate B3 -- the below-floor prescription reaches the human table and not the machine payload (roadmap row 21)
+    winner: A1
+    ship: pending (not yet decided)
   iter-24
     lenses: new-capability, hardening/DX
     - Candidate A -- `radar show` states whether the gap is DETECTABLE, and how
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the tracked-file memo moves into the scan scope that already exists (row 43)
     - Candidate B3 -- the research contract's rule-kind sentence is wrong, and the brake row 38 proposes cannot see it (row 38)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 2389ba8
   iter-23
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the research contract documents a rule shape the schema gate REJECTS, and the gate still exits 0
@@ -241,4 +251,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-24 scouted iterations
+25 scouted iterations

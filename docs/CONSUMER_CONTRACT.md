@@ -23,7 +23,38 @@ The consumer-side design lives with the consumer:
 Guarantees a consumer may build on: offline always (no network at runtime or in
 tests); deterministic, byte-stable output; stdout carries only the document,
 errors go to stderr prefixed `Error: ` with exit 2; the taxonomy is closed, so a
-consumer may switch on a layer or gap-type string.
+consumer may switch on a layer or gap-type string. That `Error: ` promise covers
+a refusal the tool can explain in words, which is not the only way a run ends
+non-zero -- the complete set is published under `## Exit codes` immediately below,
+and a test asserts that table lists exactly the codes the CLI can return.
+
+## Exit codes
+
+| Code | When | What a consumer should do |
+|---|---|---|
+| `0` | the verb produced its document | read stdout |
+| `2` | the tool refuses and says why: one line on stderr beginning `Error: `, and stdout stays empty rather than half a document | read that stderr line -- it names the register, the path or the record at fault |
+| `141` | the READER went away: stdout's pipe was closed, or the reader exited before the document finished. stderr is EMPTY and stdout is truncated, because nothing was wrong with the register | treat it as the consumer's own early exit, never as a defect here. It is the shell's 128+SIGPIPE, so head, grep -q and less see the code they already expect |
+
+Every code `radar` can return is above, and nothing else. That table is the
+contract and not a summary of one: a test reads it and asserts its backticked
+integers EQUAL `cli.EXIT_CODES`, in BOTH directions, so a code the CLI gained but
+the document omits fails, and so does a row for a code the CLI cannot produce. It
+sits immediately under its heading on purpose -- the reader that checks it fails
+closed on a table it cannot find, and prose between the two is enough to hide it.
+
+Exit 1 is deliberately unused and unlisted. It is reserved for the floor-gated
+verdict code a future `scan` gate wants (roadmap row 25), so that row lands in
+this published vocabulary instead of inventing one the day it needs it.
+
+**A departing reader is never reported as this tool's error.** On 141 stderr
+carries no `Error: ` line, no `BrokenPipeError` and no traceback. Getting that
+right needed the guard to FLUSH stdout itself: a document smaller than the pipe
+buffer sits in the text layer until interpreter shutdown, where a broken pipe is
+past every handler and CPython answers with 120 plus an `Exception ignored on
+flushing sys.stdout` line -- on the stderr this document promises carries only
+`Error: `. The 141 path also points the process's stdout descriptor at the null
+device, so that shutdown flush cannot re-raise.
 
 ## The record file surface
 

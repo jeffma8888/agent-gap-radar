@@ -2,12 +2,16 @@
 
 Conventions (shared with sibling tools): errors go to stderr prefixed with
 "Error: " and exit 2; stdout carries only the document, so output is pipeable.
+"Pipeable" is the reason `EXIT_BROKEN_PIPE` exists: a reader that stops reading is
+the consumer's own decision, not a defect in the register, so it gets a code of
+its own and a silent stderr rather than this module's error vocabulary.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 
@@ -29,9 +33,27 @@ def _resolve(path_arg: str) -> pathlib.Path:
     return candidate if candidate.is_dir() else p
 
 
+#: Every exit code `main()` can return, each named so no call site spells an
+#: integer. `docs/CONSUMER_CONTRACT.md` publishes exactly this set under
+#: `## Exit codes`, and a test asserts the document's table EQUALS `EXIT_CODES` in
+#: both directions -- so a fourth code cannot ship undocumented, and a row for a
+#: code the CLI cannot produce cannot survive either.
+#:
+#: `1` is deliberately absent and unused. It is reserved for the floor-gated
+#: verdict code roadmap row 25 wants, so that row lands in a published vocabulary
+#: instead of inventing one the day it needs it.
+EXIT_OK = 0
+EXIT_ERROR = 2
+#: The shell's own 128+SIGPIPE, so `head`, `grep -q` and `less` see the code they
+#: already expect from a pipeline they closed. Chosen over `1` for that reason and
+#: to keep `1` free; see above.
+EXIT_BROKEN_PIPE = 141
+EXIT_CODES: tuple[int, ...] = (EXIT_OK, EXIT_ERROR, EXIT_BROKEN_PIPE)
+
+
 def _fail(msg: str) -> int:
     sys.stderr.write(f"Error: {msg}\n")
-    return 2
+    return EXIT_ERROR
 
 
 #: Marker appended to a row whose record sits below the confidence floor. A
@@ -164,13 +186,85 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _silence_stdout() -> None:
+    """Point the process's stdout descriptor at the null device. Never raises.
+
+    A broken pipe is answered by an exit code, but the undelivered bytes are still
+    sitting in `sys.stdout`'s buffer, and CPython flushes `sys.stdout` during
+    interpreter shutdown -- past every handler in this module. That second flush is
+    what makes an unguarded run print `Exception ignored on flushing sys.stdout`
+    and exit 120: the code below has already returned by then and cannot answer for
+    it. So the fix has to happen at the FILE DESCRIPTOR the buffer will be flushed
+    to, not at the exception, which is why this redirects rather than closes.
+
+    Silent on failure on purpose, in both directions. An in-process consumer or a
+    test double may have replaced `sys.stdout` with an object that has no real
+    descriptor -- there is then no shutdown flush that can re-raise, so the absence
+    is benign rather than something to report. And a guard that raises while
+    handling a broken pipe would replace a quiet 141 with a traceback, which is the
+    exact failure it exists to remove.
+    """
+    try:
+        fd = sys.stdout.fileno()
+    except (AttributeError, ValueError, OSError):
+        # `io.UnsupportedOperation` (a StringIO double) subclasses both ValueError
+        # and OSError, so it is covered without importing `io` for the name alone.
+        return
+    if not isinstance(fd, int):
+        # A test double is under no obligation to return an int here, and a
+        # `TypeError` out of `dup2` would escape the caller's `except
+        # BrokenPipeError` and replace a quiet 141 with a traceback -- the exact
+        # failure this guard exists to remove. No descriptor, nothing to redirect.
+        return
+    try:
+        with open(os.devnull, "wb") as null:
+            # dup2 duplicates onto `fd`, so `fd` outlives this block pointing at the
+            # null device; closing `null` closes only the source descriptor.
+            os.dup2(null.fileno(), fd)
+    except OSError:
+        return
+
+
 def main(argv: list[str] | None = None) -> int:
+    """Run one verb, absorbing a reader that stopped reading.
+
+    The FLUSH is inside the guard, and that placement is the whole fix. Writing to a
+    pipe fills the text layer's buffer and returns, so a document smaller than that
+    buffer never touches the pipe until interpreter shutdown -- where a broken pipe
+    is past every handler and CPython answers with 120 plus a line on the stderr this
+    tool promises carries only `Error: `. Flushing here moves that failure back
+    inside the `try`, where it can be answered with an exit code.
+
+    Only `BrokenPipeError` is absorbed. A wider `except OSError` would swallow a
+    genuine write failure -- a full disk, a revoked descriptor -- and report the
+    consumer's own early exit for it, so every other `OSError` propagates unchanged.
+
+    `SystemExit` from argparse (`--help`, `--version`, a usage error) is deliberately
+    NOT caught: callers assert on it today, and it carries its own code.
+    """
+    try:
+        code = _dispatch(argv)
+        sys.stdout.flush()
+        return code
+    except BrokenPipeError:
+        _silence_stdout()
+        return EXIT_BROKEN_PIPE
+
+
+def _dispatch(argv: list[str] | None = None) -> int:
+    """Parse `argv` and run the named verb. Every return value is in `EXIT_CODES`.
+
+    Split from `main()` so the broken-pipe guard wraps ALL nine `sys.stdout.write`
+    sites plus argparse's own help write at once, instead of nine copies of the same
+    `try`. A guard confined to the `if __name__` block would miss the packaged
+    console script entirely, which is what a consumer actually runs.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.command is None:
         parser.print_help()
-        return 0
+        return EXIT_OK
 
     if args.command == "taxonomy":
         out = ["# Taxonomy", "", "## Layers", ""]
@@ -187,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         # `document` pops trailing blanks IN PLACE; safe here because `out` is
         # never read after this write.
         sys.stdout.write(document(out))
-        return 0
+        return EXIT_OK
 
     if args.command == "scan":
         directory = _resolve(args.gaps)
@@ -228,10 +322,10 @@ def main(argv: list[str] | None = None) -> int:
                     f"confidence floor {floor}.\n")
             sys.stdout.write(render_prd(selection.selected.gap,
                                         project=result.target.name))
-            return 0
+            return EXIT_OK
         sys.stdout.write(scan_json(result) if args.json
                          else render_scan(result))
-        return 0
+        return EXIT_OK
 
     if args.command == "diff":
         # Both sides load BEFORE anything is written, so a failure on either side
@@ -242,14 +336,14 @@ def main(argv: list[str] | None = None) -> int:
         except RegistryError as exc:
             return _fail(str(exc))
         sys.stdout.write(render_diff(diff_registers(old_gaps, new_gaps)))
-        return 0
+        return EXIT_OK
 
     directory = _resolve(args.path)
 
     try:
         if args.command == "show":
             sys.stdout.write(gap_brief(load_one(directory, args.gap_id)))
-            return 0
+            return EXIT_OK
 
         gaps = load_all(directory)
 
@@ -267,17 +361,17 @@ def main(argv: list[str] | None = None) -> int:
             if not gaps:
                 return _fail(f"no gap records found in {directory}")
             sys.stdout.write(f"OK: {len(gaps)} gap record(s) valid.\n")
-            return 0
+            return EXIT_OK
 
         if args.command == "list":
             rows = _list_rows(gaps, args.floor)
             sys.stdout.write(_list_json(rows, args.floor) if args.json
                              else _list_text(rows))
-            return 0
+            return EXIT_OK
 
         if args.command == "report":
             sys.stdout.write(radar_report(gaps, args.floor))
-            return 0
+            return EXIT_OK
 
         if args.command == "prd":
             if args.gap_id:
@@ -288,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
                     return _fail("no gap clears the confidence floor")
                 gap = ranked[0][0]
             sys.stdout.write(render_prd(gap, args.project))
-            return 0
+            return EXIT_OK
 
     except RegistryError as exc:
         return _fail(str(exc))
