@@ -114,9 +114,21 @@ class Check(BaseModel):
             _validate_rule(v)
         return v
 
+    @property
+    def is_automated(self) -> bool:
+        """True when a static signature exists, so `scan` can decide this check alone.
+
+        One predicate, two consumers that must never disagree: the validator below
+        demands two-sided fixtures of an automated check, and `prd` tells a build
+        loop whether the register holds a reproduction sample to transcribe. A
+        second copy of this expression could let the emitted document promise a
+        sample the schema never required, or deny one it did.
+        """
+        return self.present_when is not None or self.mitigated_when is not None
+
     @model_validator(mode="after")
     def _automated_checks_need_fixtures(self) -> "Check":
-        automated = self.present_when is not None or self.mitigated_when is not None
+        automated = self.is_automated
         if automated and self.fixtures is None:
             raise ValueError(
                 f"{self.id}: an automated check MUST ship two-sided fixtures "

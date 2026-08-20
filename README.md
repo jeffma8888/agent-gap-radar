@@ -90,11 +90,13 @@ Strongest first: `incident-postmortem`, `first-party-field`, `peer-reviewed`, `m
 
 ## From gap to build
 
-`radar prd` emits the `prd.json` shape used by Ralph-style loops: ordered stories, `passes` flags, verifiable acceptance criteria. Two properties are enforced by tests:
+`radar prd` emits the `prd.json` shape used by Ralph-style loops: ordered stories, `passes` flags, verifiable acceptance criteria. Three properties are enforced by tests:
 
 The first story is always a failing reproduction of the gap, because a loop handed a specification optimises the specification. Give it a red test and the target is unambiguous.
 
 The emitted document carries the source gap's evidence forward, so the loop building the mitigation can see the citation that justified the work.
+
+The payload declares whether the gap is statically detectable at all -- and where it is, it names where the register's own two-sided sample lives, as a pattern matching the gap's record file, so the reproduction story is a transcription rather than an invention. Where the register holds no signature, it says so instead of sending a loop to hunt for one.
 
 ## Current register
 

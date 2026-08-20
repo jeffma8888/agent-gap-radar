@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-23
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- the research contract documents a rule shape the schema gate REJECTS, and the gate still exits 0
+    - Candidate A2 -- the front door still publishes the pre-iteration-18 confidence rule, and the consumer contract publishes the corrected one
+    - Candidate A3 -- the stable-surface table marks `radar prd --gap` REQUIRED, it is optional, and the row-30 oracle is provably blind to the difference
+    - Candidate B1 -- `radar prd` throws away the two-sided fixtures the register already holds, so its first story asks a build loop to invent the reproduction the register could hand it
+    - Candidate B2 -- 15 of the register's 41 citations re-use a locator already cited elsewhere, and no surface names a source that three records depend on
+    - Candidate B3 -- `radar list --layer L`, the product's first omission mechanism, with the omission counted out loud
+    winner: B1
+    ship: pending (not yet decided)
   iter-22
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- reject a file before the regex runs, using literals the pattern itself requires
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the stable-surface table's `<>` versus `[]` notation carries no meaning, and none of the six real defaults is published
     - Candidate B3 -- the research spec's self-verify step cannot tell "my candidate was accepted" from "the gate never saw my file"
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED 57c0407
   iter-21
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- the `taxonomy` verb hand-rolls the one-newline tail, and the row-32 brake is structurally blind to it
@@ -221,4 +231,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-22 scouted iterations
+23 scouted iterations
