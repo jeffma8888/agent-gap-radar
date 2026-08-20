@@ -52,9 +52,37 @@ secondary-summary 1, model-output 0
 ## Rule kinds available to a check
 
 `content_matches` / `content_absent` (`globs`, `pattern` — Python `re`),
-`file_exists` / `file_absent` (`globs`), and the combinators `any_of` / `all_of` /
-`not` (each takes `rules`). Nesting depth is capped at 8. An unknown kind raises
+`file_exists` / `file_absent` (`globs`), and the combinators `any_of` / `all_of`
+(each takes a non-empty `rules` list) and `not` (which takes a single `rule`
+object, not a `rules` list). Nesting depth is capped at 8. An unknown kind raises
 rather than returning False, because a silently-false rule is a fail-open detector.
+
+Every kind above, in one check the loader accepts. This fence is the normative
+statement of the shapes; the prose is a summary of it. The suite round-trips every
+rule object in this file through the same `Gap` validation `tools/promote.py` runs,
+so a shape documented here is a shape that loads.
+
+```json
+{
+  "applies_when": {"kind": "file_exists", "globs": ["**/pyproject.toml"]},
+  "present_when": {
+    "kind": "all_of",
+    "rules": [
+      {"kind": "content_matches", "globs": ["**/*.py"], "pattern": "run_stage\\("},
+      {"kind": "content_absent", "globs": ["**/*.py"], "pattern": "partial_result"},
+      {
+        "kind": "any_of",
+        "rules": [
+          {"kind": "file_absent", "globs": ["**/evals/**"]},
+          {"kind": "not", "rule": {"kind": "file_exists", "globs": ["**/CHECKPOINT.md"]}}
+        ]
+      }
+    ]
+  },
+  "mitigated_when": {"kind": "content_matches", "globs": ["**/*.py"],
+                     "pattern": "write_checkpoint\\("}
+}
+```
 
 Scanning is restricted to what `git ls-files` reports, so a pattern cannot match
 vendored code or gitignored scratch.

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-28
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- memoise file selection for the duration of one scan
+    - Candidate A2 -- a necessary-literal prefilter before the regex pass
+    - Candidate A3 -- stop paying a 126 ms pydantic import on invocations that never touch a model
+    - Candidate B1 -- the research contract documents a rule shape the loader REJECTS, so a candidate written exactly to spec dies at the door
+    - Candidate B2 -- the machine-consumer contract restates a register count, is wrong by six records, and the row-30 oracle is structurally blind to it
+    - Candidate B3 -- the contract's honesty rule tells a gate to require `open`, and two of the register's top four are `partially-addressed`
+    winner: B1
+    ship: pending (not yet decided)
   iter-27
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- One match stage: the two `iter_files` branches stop carrying two copies of the loop the function already documents as shared
@@ -9,7 +19,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- one register pattern is 57% of the whole scan, and its leading `[\w/.-]*` is provably free
     - Candidate B2 -- resolve each (globs, exclude_tests) file list once per scan
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 23f9405
   iter-26
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` carries the below-floor prescription a gate can assert
@@ -270,4 +280,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-27 scouted iterations
+28 scouted iterations
