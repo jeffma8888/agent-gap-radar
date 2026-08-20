@@ -95,7 +95,7 @@
             "**/*.yaml",
             "**/*.yml"
           ],
-          "pattern": "(?i)[\\w/.-]*(feature|prompt|rubric|manifest|embedding|policy|weights|index|model)[\\w/.-]*\\.(json|jsonl|ya?ml|parquet|npz|npy|pkl|toml)"
+          "pattern": "(?i)(feature|prompt|rubric|manifest|embedding|policy|weights|index|model)[\\w/.-]*\\.(json|jsonl|ya?ml|parquet|npz|npy|pkl|toml)"
         },
         {
           "kind": "content_matches",

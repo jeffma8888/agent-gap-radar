@@ -1,6 +1,15 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-27
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- One match stage: the two `iter_files` branches stop carrying two copies of the loop the function already documents as shared
+    - Candidate A2 -- One record slug, not two: `prd._slug` and `promote._slug` disagree on all 16 live titles
+    - Candidate A3 -- Delete `MAX_SCAN_FILES`: a bound applied after the work it claims to bound, which silently drops files from a sorted list
+    - Candidate B1 -- one register pattern is 57% of the whole scan, and its leading `[\w/.-]*` is provably free
+    - Candidate B2 -- resolve each (globs, exclude_tests) file list once per scan
+    winner: B1
+    ship: pending (not yet decided)
   iter-26
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` carries the below-floor prescription a gate can assert
@@ -10,7 +19,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- delete one of the two slug dialects, so the register has one filename convention
     - Candidate B3 -- one membership rule for four closed vocabularies, and one way to name one
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 7570c39
   iter-25
     lenses: hardening/DX -- iteration 25, integration-and-adoption -- iteration 25
     - Candidate A1 -- the CLI's published error contract does not survive a reader that stops reading
@@ -261,4 +270,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-26 scouted iterations
+27 scouted iterations
