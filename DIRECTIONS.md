@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-29
+    lenses: narrative-and-docs, new-capability -- iteration 29
+    - Candidate A1 -- the fence iteration 28 added says the loader accepts it as a check; measured, the loader refuses it twice
+    - Candidate A2 -- the contract tells a gate to require `open`, and two of the register's top four are `partially-addressed` (row 39)
+    - Candidate A3 -- delete the restated register count from the machine-consumer contract (row 20)
+    - Candidate B1 -- a derived review-due axis: how old is each record's newest citation, measured against the register's own clock
+    - Candidate B2 -- `radar show` states whether the gap is DETECTABLE, and how
+    - Candidate B3 -- publish the DISTINCT-SOURCE count wherever the citation count is already published
+    winner: B2
+    ship: pending (not yet decided)
   iter-28
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- memoise file selection for the duration of one scan
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the machine-consumer contract restates a register count, is wrong by six records, and the row-30 oracle is structurally blind to it
     - Candidate B3 -- the contract's honesty rule tells a gate to require `open`, and two of the register's top four are `partially-addressed`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 2cb1c2f
   iter-27
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- One match stage: the two `iter_files` branches stop carrying two copies of the loop the function already documents as shared
@@ -280,4 +290,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-28 scouted iterations
+29 scouted iterations

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .models import Gap
+from .models import Check, Gap, detectability
 from .scoring import (below_floor, confidence, priority,
                       promotion_options, rank, strongest_source)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
@@ -111,6 +111,102 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     return document(lines)
 
 
+#: One deterministic sentence per `DETECTABILITY_KINDS` value, saying what `radar
+#: scan` will DO with a record. Deliberately NOT shared with
+#: `prd.DETECTABILITY_DECLARATIONS`, which answers a different question over the same
+#: key -- what the register holds towards REPRODUCING the gap inside a build loop --
+#: so neither surface has to hedge to serve the other's reader. The CLASSIFIER is
+#: shared (`models.detectability`) and the prose is per-surface;
+#: `tests/test_detectability_unit.py` pins both dicts to the same closed vocabulary,
+#: so a fourth kind cannot be answered by only one of the two surfaces.
+DETECTION_STATEMENTS: dict[str, str] = {
+    "automated": (
+        "The register holds a static signature for this gap, so `radar scan` "
+        "evaluates this record against a target and returns a verdict for it."),
+    "manual": (
+        "The register holds no static signature for this gap, so `radar scan` "
+        "reports MANUAL by declaration rather than guessing."),
+    "none": (
+        "The register holds no check for this gap at all, so `radar scan` never "
+        "applies this record and counts it among the gaps with no check yet."),
+}
+
+#: The rule slots a check may declare, in the order `checks.run_check` reads them:
+#: `applies_when` gates the check, `present_when` can yield PRESENT, `mitigated_when`
+#: is the only thing that can yield ABSENT. Naming the slots a record actually
+#: declares is a fact about the record; what each one BUYS is the contract's job, so
+#: this renderer states neither a judgement nor a second copy of the decision table.
+_RULE_SLOTS: tuple[str, ...] = ("applies_when", "present_when", "mitigated_when")
+
+
+def _detection_section(gap: Gap) -> list[str]:
+    """The `## Detection` block: what the register holds to find this gap in a target.
+
+    WHY IT EXISTS: `radar scan` returns a verdict only for a record carrying a rule,
+    and over the live 16 records four carry none (three manual-only plus one with no
+    check at all) -- yet this brief, the deep view a reader consults BEFORE starting
+    work, rendered nothing from `gap.check`, so a record `scan` can never verdict read
+    exactly like one it can. `scan.py` already publishes the count, but only to
+    someone who already has a target to scan.
+
+    The check id is printed because it is NOT derivable from the gap id: six of the
+    sixteen live records are off by one (GAP-011 carries CHK-010), so a reader
+    cross-referencing a scan finding back to a record cannot guess it.
+
+    DECLARATION, never a judgement: the kind comes from `models.detectability`, the
+    sentence from the closed `DETECTION_STATEMENTS` vocabulary, and the rule line
+    names the slots the check declares without rating them. Nothing here can move
+    `priority` or `confidence`.
+    """
+    check = gap.check
+    kind = detectability(check)
+    lines = ["## Detection", ""]
+    if check is None:
+        lines.append(f"- Check: none declared (detectability `{kind}`)")
+    else:
+        lines.append(f"- Check: `{check.id}` (detectability `{kind}`)")
+    lines.append(f"- {DETECTION_STATEMENTS[kind]}")
+    if check is not None:
+        declared = _declared_rules(check)
+        if declared:
+            lines.append("- Rules declared: " + ", ".join(declared))
+        if kind == "manual":
+            # Keyed on the DERIVED kind, NEVER on `declared` being empty -- those are
+            # different questions. `Check.is_automated` reads only `present_when`/
+            # `mitigated_when`, so a check declaring `applies_when` alone is
+            # schema-legal, LOADS, and classifies `manual` while `_declared_rules`
+            # returns a NON-EMPTY list; an `else` here dropped the manual question,
+            # the only actionable payload such a record carries.
+            # The field is guaranteed non-empty for a manual check -- `Check`'s own
+            # `_automated_checks_need_fixtures` refuses to LOAD one without it -- so
+            # this reads an enforced invariant rather than guarding an empty string.
+            # Rendered ONLY here, matching `prd._check_payload`: on an automated
+            # check the same field is `scan`'s both-signatures escalation question,
+            # which is a different job.
+            lines.append(f"- Question a human must answer: {check.manual_question}")
+    lines.append("")
+    return lines
+
+
+def _declared_rules(check: Check) -> list[str]:
+    """Each declared rule slot as `slot` (kind), in `_RULE_SLOTS` order.
+
+    NOT a proxy for the automated/manual predicate, and the caller must not read it
+    as one. `applies_when` is a rule slot that `Check.is_automated` does NOT read,
+    so a check declaring `applies_when` alone is schema-legal, loads, classifies
+    `manual`, and returns a NON-EMPTY list here -- measured through
+    `Gap.model_validate`, which accepts that shape. The caller therefore keys the
+    manual question on `models.detectability`; an earlier revision keyed it on this
+    list being empty and silently dropped the question for exactly that record.
+    """
+    out: list[str] = []
+    for slot in _RULE_SLOTS:
+        rule = getattr(check, slot)
+        if rule is not None:
+            out.append(f"`{slot}` ({rule['kind']})")
+    return out
+
+
 def gap_brief(gap: Gap) -> str:
     """The single-gap deep view: everything a builder needs to act on it."""
     lines = [f"# {gap.id}: {gap.title}", ""]
@@ -133,6 +229,8 @@ def gap_brief(gap: Gap) -> str:
 
     if gap.build_hypothesis:
         lines += ["## Build hypothesis", "", gap.build_hypothesis, ""]
+
+    lines += _detection_section(gap)
 
     lines += ["## Evidence", ""]
     for i, ev in enumerate(gap.evidence, start=1):

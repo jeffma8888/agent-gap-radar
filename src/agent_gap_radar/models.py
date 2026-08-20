@@ -165,6 +165,33 @@ class Check(BaseModel):
         return self
 
 
+#: The three things a register can hold towards detecting one gap, strongest first.
+#: Closed on purpose: every surface that reports detectability answers with one of
+#: these, so a consumer switching on the value cannot be handed a fourth word.
+DETECTABILITY_KINDS: tuple[str, ...] = ("automated", "manual", "none")
+
+
+def detectability(check: Check | None) -> str:
+    """Which of `DETECTABILITY_KINDS` the register holds for one record.
+
+    Keyed on `Check.is_automated` rather than on the presence of `fixtures`: a
+    manual check MAY carry fixtures, and it is the absence of a RULE that makes a
+    gap undetectable by `scan`.
+
+    Lives beside that predicate because it now has TWO consumers that must never
+    disagree -- `prd` tells a build loop what it may transcribe, `render.gap_brief`
+    tells a reader whether `radar scan` can ever verdict this record -- and a
+    two-line mapping is exactly the kind of derivation that gets re-typed into a
+    second surface and then drifts. PRODUCT.md row 53 already names
+    `Check.is_automated` as the single copy of the automated/manual predicate; this
+    is the same commitment one level up, covering the `none` limb that no property
+    on `Check` can express, because a record with no check has nothing to read.
+    """
+    if check is None:
+        return "none"
+    return "automated" if check.is_automated else "manual"
+
+
 def _validate_rule(rule: dict, depth: int = 0) -> None:
     """Reject malformed rules at load time rather than at scan time."""
     if depth > 8:

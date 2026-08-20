@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from .models import Check, Gap
+from .models import Gap, detectability
 from .scoring import confidence, priority
 
 #: Where a register keeps its records, relative to the register root. The emitted
@@ -46,18 +46,6 @@ def _slug(text: str) -> str:
     return slug.strip("-")[:48]
 
 
-def _detectability(check: Check | None) -> str:
-    """Which of the three things the register holds, as a closed vocabulary value.
-
-    Keyed on `Check.is_automated` rather than on the presence of `fixtures`: a
-    manual check MAY carry fixtures, and it is the absence of a RULE that makes a
-    gap undetectable by `scan`.
-    """
-    if check is None:
-        return "none"
-    return "automated" if check.is_automated else "manual"
-
-
 def _check_payload(gap: Gap) -> dict:
     """What the register holds towards reproducing this gap.
 
@@ -67,7 +55,7 @@ def _check_payload(gap: Gap) -> dict:
     never has to infer which one it got.
     """
     check = gap.check
-    kind = _detectability(check)
+    kind = detectability(check)
     payload: dict = {
         "id": None if check is None else check.id,
         "detectability": kind,
