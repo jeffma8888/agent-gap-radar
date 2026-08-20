@@ -347,18 +347,28 @@ def test_promotion_options_is_unchanged_at_every_floor(floor):
 
 
 def test_the_simulated_citation_counts_as_a_distinct_source():
-    """The probe must not collide with a real locator, even an EMPTY one.
+    """The probe must not collide with a real citation whose SOURCE KEY is empty.
 
-    A record whose sole citation carries an empty locator is schema-valid. If the probe
-    were keyed on an empty locator too, the two would read as ONE source, corroboration
-    would be refused, and the prescription would jump a whole rung -- from the cheapest
-    class to a weight-5 one -- for a record that in truth needs only a second kind of
-    evidence. That is a wrong answer published in the below-floor `Needs` column.
+    AMENDED IN ITERATION 24, which retired this test's original premise rather than its
+    property. When this file was written, a sole citation with `locator=""` was
+    schema-valid; iteration 24 gave `Evidence.locator` the non-empty validator its twin
+    `quote` already had, so that record can no longer be loaded at all and the first
+    assertion below now pins the refusal instead of building on it.
+
+    The property is untouched and still reachable, because a collision needs an empty
+    SOURCE KEY and not an empty string: `_key("#s1")` is `""` under behavior 3's own
+    fragment rule, and `"#s1"` is schema-valid. If the probe were keyed on an empty
+    locator too, the two would read as ONE source, corroboration would be refused, and
+    the prescription would jump a whole rung -- from the cheapest class to a weight-5
+    one -- for a record that in truth needs only a second kind of evidence. That is a
+    wrong answer published in the below-floor `Needs` column.
     """
-    empty_locator = _gap((("peer-reviewed", ""),))
-    assert promotion_options(empty_locator, 5) == _pre_change_promotion_options(
-        empty_locator, 5)
-    assert promotion_options(empty_locator, 5) == ("secondary-summary",)
+    with pytest.raises(ValueError):  # pydantic's ValidationError IS a ValueError
+        _gap((("peer-reviewed", ""),))
+    assert _key("#s1") == "", "control: the empty-source-key case must still be reachable"
+    empty_key = _gap((("peer-reviewed", "#s1"),))
+    assert promotion_options(empty_key, 5) == _pre_change_promotion_options(empty_key, 5)
+    assert promotion_options(empty_key, 5) == ("secondary-summary",)
 
 
 def test_promotion_options_never_raises_on_a_live_record():

@@ -53,6 +53,31 @@ class Evidence(BaseModel):
                              "cannot be checked by a reader")
         return v
 
+    @field_validator("locator")
+    @classmethod
+    def _nonempty_locator(cls, v: str) -> str:
+        """Reject a blank locator, the other half of a checkable citation.
+
+        The quality bar names a resolvable locator AND a verbatim quote in one
+        sentence; only the quote half was enforced, so a citation nobody could
+        resolve still passed `radar validate`. Blank is load-bearing past
+        readability too: `scoring._source_key` keys corroboration on this
+        string, so two blank locators normalise to ONE source and silently
+        withhold a corroboration point from the DERIVED confidence the whole
+        ranking rests on.
+
+        Non-blank and NOTHING stronger, deliberately -- see PRODUCT.md row 57.
+        The three doors a locator passes through disagree on its SHAPE (the
+        ingest gate demands `https?://`, the out-of-band resolver skips a
+        non-URL and still exits 0, and this field's own docstring promises a
+        DOI or a stable local path), so a shape rule here would make two of
+        them wrong: that is a new product promise, not a hardening bite.
+        """
+        if not v.strip():
+            raise ValueError("locator must not be empty: a citation without a locator "
+                             "cannot be resolved or checked by a reader")
+        return v
+
 
 class Fixtures(BaseModel):
     """Two-sided proof that a check actually discriminates.

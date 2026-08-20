@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-24
+    lenses: new-capability, hardening/DX
+    - Candidate A -- `radar show` states whether the gap is DETECTABLE, and how
+    - Candidate B -- evidence staleness: surface how old a record's newest citation is
+    - Candidate C -- publish the DISTINCT-SOURCE count, not just the citation count
+    - Candidate B1 -- `Evidence.locator` gains the validator its twin `quote` already has (row 44)
+    - Candidate B2 -- the tracked-file memo moves into the scan scope that already exists (row 43)
+    - Candidate B3 -- the research contract's rule-kind sentence is wrong, and the brake row 38 proposes cannot see it (row 38)
+    winner: B1
+    ship: pending (not yet decided)
   iter-23
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the research contract documents a rule shape the schema gate REJECTS, and the gate still exits 0
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- 15 of the register's 41 citations re-use a locator already cited elsewhere, and no surface names a source that three records depend on
     - Candidate B3 -- `radar list --layer L`, the product's first omission mechanism, with the omission counted out loud
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 6a9e175
   iter-22
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- reject a file before the regex runs, using literals the pattern itself requires
@@ -231,4 +241,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-23 scouted iterations
+24 scouted iterations
