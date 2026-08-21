@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-31
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- The roadmap-ledger brake cannot fire until the commit it judges exists, so a forgotten row destroys an iteration instead of failing a check
+    - Candidate A2 -- A brake against a closed-set live-register id census (row 28), plus the measurement showing both cheap versions of it are wrong
+    - Candidate A3 -- `checks._TRACKED_CACHE` is process-lifetime in the one module that argues against process-lifetime caches (row 43)
+    - Candidate B1 -- `radar prd` output is `valid=False` to the declared consumer's prd reader, over one wrapper key
+    - Candidate B2 -- `radar scan` exits 0 while reporting PRESENT findings, and exit 1 is already reserved for it
+    - Candidate B3 -- the one wired consumer cannot reach `priority` at all, and its ordering agrees with ours only because of its layer filter
+    winner: B1
+    ship: pending (not yet decided)
+  iter-30
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- `radar report --as-of DATE` flags a record whose newest citation is older than N months
+    - Candidate A2 -- a source-independence view: publish the distinct-source count the corroboration rule already keys on
+    - Candidate A3 -- `radar scan` gains an opt-in, floor-gated non-zero exit code
+    - Candidate B1 -- `_iter_walked` gains the escaping-symlink containment `_iter_tracked` already has
+    - Candidate B2 -- the public-repo safety bar becomes one derived brake instead of 19 prose claims
+    - Candidate B3 -- a suite brake against a closed-set live-register id census
+    winner: B1
+    ship: REVERTED
   iter-29
     lenses: narrative-and-docs, new-capability -- iteration 29
     - Candidate A1 -- the fence iteration 28 added says the loader accepts it as a check; measured, the loader refuses it twice
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar show` states whether the gap is DETECTABLE, and how
     - Candidate B3 -- publish the DISTINCT-SOURCE count wherever the citation count is already published
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 813038f
   iter-28
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- memoise file selection for the duration of one scan
@@ -290,4 +310,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-29 scouted iterations
+31 scouted iterations
