@@ -8,7 +8,7 @@ Most "state of AI agents" content is a reading list. This is a register, and the
 
 ## Why the two scores never get blended
 
-`priority` is severity x frequency x tractability. `confidence` is derived only from evidence quality: the strongest source class sets the ceiling, two independent classes add a point, and anything sourced solely from model output scores zero no matter how much of it there is.
+`priority` is severity x frequency x tractability. `confidence` is derived only from evidence quality: the strongest source class sets the ceiling, two citations differing in both class and source document add a point (two labels on one URL earn nothing), and anything sourced solely from model output scores zero no matter how much of it there is.
 
 Blend them and a well-cited small problem outranks a poorly-cited large one, with no way to see which input moved. So the ranking sorts on `priority` and applies a visible `confidence` floor instead. Records below the floor are printed in their own section rather than deleted, because a weakly-sourced gap is a research task, not a mistake.
 

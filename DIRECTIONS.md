@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-64
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A -- memoise the file ENUMERATION for the life of a scan, and correct row 67's headline figure
+    - Candidate B -- stop the content scan once its boolean is already decided (row 47, first bite only)
+    - Candidate C -- a verb that needs no records still pays the full pydantic import: 100.7 ms of fixed startup, on every invocation
+    - Candidate B1 -- the consumer contract restates a record count it does not derive, and it is now wrong by 60% (roadmap row 20)
+    - Candidate B2 -- the README's confidence rule describes the pre-iteration-18 behaviour (roadmap row 49)
+    - Candidate B3 -- iteration 63 changed what ABSENT and UNKNOWN MEAN, and no published document says so (no roadmap row yet)
+    winner: B2
+    ship: pending (not yet decided)
   iter-63
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- delete `MAX_SCAN_FILES`: a cap applied after the walk it claims to bound, which silently shrinks the scan domain
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B -- memoise the enumeration per scan, like the read cache already does
     - Candidate C -- charge the register for its own scan cost (`scan --timing`)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED bee84a0
   iter-62
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- make the derived scores reachable without pydantic, so the one real consumer can read the ranking (roadmap row 33)
@@ -350,4 +360,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-35 scouted iterations
+36 scouted iterations
