@@ -61,6 +61,25 @@ def _source_key(citation: object) -> str:
     return locator.split("#", 1)[0].rstrip("/").casefold()
 
 
+def distinct_sources(gap: Gap) -> int:
+    """How many DISTINCT DOCUMENTS a record's citations rest on.
+
+    The denominator `confidence()`'s corroboration rule already keys on, exposed
+    so a surface can print it. It CALLS `_source_key` instead of repeating that
+    normalisation, so a published count cannot disagree with the point the
+    scorer grants or withholds: two fragments of one page, or one URL entered
+    with and without a trailing slash, count ONCE in both places by construction.
+
+    Total for the same reason `_source_key` is total -- an empty `evidence` list
+    returns 0 rather than raising -- so a renderer may print the number without
+    first asking whether the record carries any citations at all.
+
+    Feeds no score and enters no ordering: it is a denominator, and a source
+    count read as a target is the Goodhart shape this register forbids by name.
+    """
+    return len({_source_key(e) for e in gap.evidence})
+
+
 def confidence(gap: Gap) -> int:
     """0-5, derived ONLY from evidence quality and independence.
 

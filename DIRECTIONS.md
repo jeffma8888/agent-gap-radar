@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-65
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- UNKNOWN acquired a second meaning in iteration 63 and no published document says so
+    - Candidate A2 -- the contract's honesty rule requires `is open`, and the register's #2 record fails it
+    - Candidate A3 -- the contract restates two counts it does not derive, both now wrong, and contradicts itself twenty lines later
+    - Candidate B1 -- publish the distinct-SOURCE denominator that the corroboration rule already keys on
+    - Candidate B2 -- evidence staleness, with the as-of input made explicit
+    - Candidate B3 -- `radar list --layer L`, the filter row 16 deliberately deferred
+    winner: B1
+    ship: pending (not yet decided)
   iter-64
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- memoise the file ENUMERATION for the life of a scan, and correct row 67's headline figure
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the README's confidence rule describes the pre-iteration-18 behaviour (roadmap row 49)
     - Candidate B3 -- iteration 63 changed what ABSENT and UNKNOWN MEAN, and no published document says so (no roadmap row yet)
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED c591b7e
   iter-63
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- delete `MAX_SCAN_FILES`: a cap applied after the walk it claims to bound, which silently shrinks the scan domain
@@ -360,4 +370,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-36 scouted iterations
+37 scouted iterations

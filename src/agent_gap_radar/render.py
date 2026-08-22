@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .models import Check, Gap, detectability
-from .scoring import (below_floor, confidence, priority,
+from .scoring import (below_floor, confidence, distinct_sources, priority,
                       promotion_options, rank, strongest_source)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
@@ -207,6 +207,17 @@ def _declared_rules(check: Check) -> list[str]:
     return out
 
 
+def _plural(count: int, noun: str) -> str:
+    """`<count> <noun>`, the noun pluralised against THAT count and no other.
+
+    A function over one number so the two nouns in the evidence denominator
+    cannot share a flag: GAP-015's live shape is `3 citations across 1 distinct
+    source document`, and a single `if n == 1` covering both halves renders it
+    wrong in precisely the case the line exists to expose.
+    """
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
 def gap_brief(gap: Gap) -> str:
     """The single-gap deep view: everything a builder needs to act on it."""
     lines = [f"# {gap.id}: {gap.title}", ""]
@@ -233,6 +244,13 @@ def gap_brief(gap: Gap) -> str:
     lines += _detection_section(gap)
 
     lines += ["## Evidence", ""]
+    # The count the corroboration rule keys on, beside the count a reader can
+    # already see. Three excerpts of one postmortem render as three `###` blocks
+    # whose class, date and locator are identical, so without this denominator
+    # the page overstates its own independence in the scorer's own terms.
+    lines += [f"{_plural(len(gap.evidence), 'citation')} across "
+              f"{_plural(distinct_sources(gap), 'distinct source document')}. "
+              "Independence is counted by document, not by citation.", ""]
     for i, ev in enumerate(gap.evidence, start=1):
         lines += [f"### {i}. {ev.title}", "",
                   f"- Source class: `{ev.source_class}`",
