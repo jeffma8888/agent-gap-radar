@@ -1,6 +1,36 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-62
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- make the derived scores reachable without pydantic, so the one real consumer can read the ranking (roadmap row 33)
+    - Candidate A2 -- an opt-in, floor-gated verdict exit code for `radar scan` (roadmap row 25)
+    - Candidate A3 -- the scan document names an absolute machine path, so a committed scan is not portable (roadmap row 34)
+    - Candidate B1 -- delete `taxonomy.layer_names()` and `gap_type_names()`, two public aliases nothing in production calls
+    - Candidate B2 -- collapse FOUR locator predicates into one shared definition (roadmap row 57)
+    - Candidate B3 -- `PRODUCT.md` is 8,705 chars past the roadmap wall and the breach grows every iteration (roadmap row 64)
+    winner: A1
+    ship: pending (not yet decided)
+  iter-61
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- three literal iteration-number pins red the next ship commit, and the product's own tool says the document is CLEAN
+    - Candidate A2 -- the ingest door admits the one pattern shape the suite forbids, so a research pass can red an unrelated future iteration
+    - Candidate A3 -- the public-repo safety bar is prose in 19 files and an executable check over 2
+    - Candidate B1 -- `radar prd` wraps its stories in `userStories`; the one declared consumer reads `stories`, so the hand-off answers `valid=False, total=0`
+    - Candidate B2 -- `radar scan` finds three above-floor PRESENT gaps and exits 0, so a CI gate learns nothing from the exit code (roadmap row 25)
+    - Candidate B3 -- `status` is OPTIONAL in our schema and REQUIRED by the declared consumer, so a schema-valid record can vanish from the only surface anything consumes
+    winner: A1
+    ship: REVERTED
+  iter-60
+    lenses: new-capability, hardening/DX -- iteration 60
+    - A1 -- Evidence staleness: a record publishes the age of its newest citation
+    - A2 -- The report publishes distinct SOURCE DOCUMENTS, not just a citation count
+    - A3 -- `radar list --layer L`, with the count it excluded stated in the output
+    - Candidate B1 -- `radar list` answers a zero-record register with zero bytes, while every sibling surface answers
+    - Candidate B2 -- the ingest door admits the check-pattern shape the suite brakes, so bad data detonates later as a RED suite
+    - Candidate B3 -- the locator resolver reports `0 broken` and exits 0 over locators it never checked
+    winner: B1
+    ship: REVERTED
   iter-31
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- The roadmap-ledger brake cannot fire until the commit it judges exists, so a forgotten row destroys an iteration instead of failing a check
@@ -10,7 +40,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan` exits 0 while reporting PRESENT findings, and exit 1 is already reserved for it
     - Candidate B3 -- the one wired consumer cannot reach `priority` at all, and its ordering agrees with ours only because of its layer filter
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 60a0fce
   iter-30
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar report --as-of DATE` flags a record whose newest citation is older than N months
@@ -310,4 +340,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-31 scouted iterations
+34 scouted iterations

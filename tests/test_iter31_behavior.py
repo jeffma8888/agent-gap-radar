@@ -24,15 +24,21 @@ Structural notes, so this file cannot lie later:
   assertion is paired with a known-bad fixture MUTATED FROM THE LIVE TEXT ITSELF, and every
   mutation asserts its own premise -- a silently no-op `replace` would turn a known-bad
   fixture into a copy of the good document and the test would pass measuring nothing.
-* **Behavior 9 is deliberately asserted against a SIMULATED ship list.** The real
-  cross-check reads `git log`, where the iteration-31 subject cannot exist before the ship
-  commit is made, so a pre-commit assertion against real git is green by construction.
-  `[1..31]` is the only pre-commit form that CAN fail, and `test_b9_...can_fail...` proves
-  it can by extending the same list to `[1..32]` and demanding a finding.
-* **Nothing here is true only before the commit.** These tests must also pass from a clean
-  clone of iteration 31's own ship commit -- that gate is what reverted iteration 30 -- so
-  no assertion pins the real git ship list to a maximum, only to being a SUBSET of the
-  simulated one, which holds on both sides of the commit.
+* **Behavior 9 is asserted BOTH ways: against a SIMULATED ship list and against real git.**
+  The simulated list `[1..31]` is the only form that can fail BEFORE this iteration's ship
+  commit exists, and `test_b9_...can_fail...` proves it fires by extending the same list to
+  `[1..32]`. The real `git log` cross-check asks the product's own one-directional judge,
+  `unrecorded_ships`, so its verdict is IDENTICAL before and after any ship commit -- it is
+  no longer a subset-of-a-literal-range claim, which was green by construction pre-commit
+  and red from every later iteration's clean clone.
+* **Nothing here is true only before the commit, and nothing here bounds the ledger ABOVE.**
+  These tests must also pass from a clean clone of a LATER iteration's ship commit -- that
+  gate reverted iteration 30, and iteration 60 died on these very pins -- so no assertion
+  compares a ledger row count, a ledger value list or the real git ship list to a literal
+  iteration number as an equality or a maximum. The historical run `1..31` is asserted as an
+  ordered PREFIX over a floor that can only grow; values above it are governed solely by
+  `ledger_sequence_violations`, which permits GAPS because an iteration that ships nothing
+  writes no row.
 * **No absolute machine path and no personal identifier appears here.** The repo root is
   derived from `__file__` and every fixture lives under pytest's `tmp_path`.
 """
@@ -55,9 +61,16 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 import roadmap_integrity as ri  # noqa: E402
 
-#: The iteration this file is named for, and its immediate predecessor.
+#: The iteration this file is named for, and its immediate predecessor. These remain the
+#: file's SUBJECT -- the row-30 and row-31 witnesses below are keyed on them -- and they no
+#: longer bound the ledger as a whole.
 THIS_ITER = 31
 PRIOR_ITER = 30
+
+#: The ledger's HISTORICAL RUN: the iterations already recorded when this file was written.
+#: A FLOOR and a PREFIX, never a ceiling. Later iterations append rows, and an iteration
+#: that ships nothing appends none, so the live ledger may be both LONGER and SPARSE.
+HISTORICAL_RUN: tuple[int, ...] = tuple(range(1, THIS_ITER + 1))
 
 
 def _roadmap_text() -> str:
@@ -88,6 +101,27 @@ def _ledger_row_line(text: str, iteration: int) -> str:
         f"found {len(matches)}"
     )
     return matches[0]
+
+
+def _ledger_values(text: str) -> list[int]:
+    """Done-ledger iteration values in file order."""
+    return [value for _, value in ri.ledger_iterations(text)]
+
+
+def _historical_shortfall(text: str) -> list[int]:
+    """Historical iterations the ledger no longer records exactly once -- the SIZE claim.
+
+    Stated as a floor over `HISTORICAL_RUN` rather than as a row COUNT so that it can only
+    grow: a longer ledger is correct by construction, while a ledger that has LOST one of
+    these rows names the loss. A pure function so a known-bad fixture can arm it.
+    """
+    values = _ledger_values(text)
+    return [n for n in HISTORICAL_RUN if values.count(n) != 1]
+
+
+def _historical_prefix(text: str) -> list[int]:
+    """The first `len(HISTORICAL_RUN)` ledger values -- the ORDER claim, returned as data."""
+    return _ledger_values(text)[: len(HISTORICAL_RUN)]
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +167,9 @@ def test_b7_row_status_check_fires_on_a_third_vocabulary_in_row_60() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Behavior 8 -- exactly one ledger row for 30 and one for 31; 31 rows, two-digit,
-# unique, strictly ascending; and the row for 30 explains itself
+# Behavior 8 -- exactly one ledger row for 30 and one for 31; the historical run 1..31
+# is an ordered prefix over a growing floor, two-digit, unique and strictly ascending;
+# and the row for 30 explains itself
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("iteration", [PRIOR_ITER, THIS_ITER])
@@ -151,19 +186,91 @@ def test_b8_ledger_holds_exactly_one_row_for_each_of_30_and_31(iteration: int) -
     )
 
 
-def test_b8_ledger_reports_31_rows_two_digit_unique_and_strictly_ascending() -> None:
-    """Behavior 8. 31 rows, and the sequence check is silent over them."""
+def test_b8_ledger_keeps_the_historical_run_as_an_ordered_prefix_over_a_growing_floor() -> None:
+    """Behavior 8. The run 1..31 is intact and in order at the FRONT of the ledger, the
+    ledger is allowed to be longer, and the sequence check is silent over the whole of it.
+
+    Why the row count is now a floor and the order claim now covers only the historical run:
+    an equality on the row count and a contiguity claim over the WHOLE ledger both bound the
+    document by this file's own iteration number, so every LATER iteration's ship commit made
+    its own clean clone RED. Floor and prefix are derived from the run this file WITNESSED,
+    so they can only grow, and values above the run are governed by
+    `ledger_sequence_violations` alone -- which permits gaps, because an iteration that ships
+    nothing writes no row.
+    """
     text = _roadmap_text()
     entries = ri.ledger_iterations(text)
-    assert len(entries) == THIS_ITER, (
-        f"expected {THIS_ITER} ledger rows, found {len(entries)}: "
+    assert entries, "anti-vacuity: no ledger rows parsed, so every assertion below is empty"
+
+    shortfall = _historical_shortfall(text)
+    assert shortfall == [], (
+        f"the ledger has lost historical rows {shortfall}: it may grow, never shrink"
+    )
+    assert len(entries) >= len(HISTORICAL_RUN), (
+        f"expected at least {len(HISTORICAL_RUN)} ledger rows, found {len(entries)}: "
         f"{[it for it, _ in entries]}"
     )
-    assert [value for _, value in entries] == list(range(1, THIS_ITER + 1)), (
-        "ledger values are not the contiguous run 1..31"
+    assert _historical_prefix(text) == list(HISTORICAL_RUN), (
+        f"the historical run {HISTORICAL_RUN[0]}..{HISTORICAL_RUN[-1]} is not the ledger's "
+        f"ordered prefix: {_historical_prefix(text)}"
     )
+
     violations = ri.ledger_sequence_violations(text)
     assert violations == [], "; ".join(v.message for v in violations)
+
+
+def test_b8_the_floor_fires_when_a_historical_ledger_row_is_deleted() -> None:
+    """Two-sided control for the SIZE claim, built by deleting a LIVE historical row.
+
+    `_historical_shortfall() == []` over the real document is otherwise compatible with a
+    helper that reads nothing at all.
+    """
+    text = _roadmap_text()
+    victim = HISTORICAL_RUN[len(HISTORICAL_RUN) // 2]
+    good_line = _ledger_row_line(text, victim)
+    bad_text = _mutate(text, good_line + "\n", "")
+
+    assert _historical_shortfall(bad_text) == [victim], (
+        f"deleting the row for {victim:02d} produced {_historical_shortfall(bad_text)!r}"
+    )
+    assert len(ri.ledger_iterations(bad_text)) == len(ri.ledger_iterations(text)) - 1
+
+
+def test_b8_the_floor_admits_a_later_well_formed_row() -> None:
+    """The PASS side of the SIZE claim: a further row for a HIGHER iteration is accepted.
+
+    This is the case the retired row-count equality rejected, and rejecting it is what
+    reverted a green iteration from its own clean clone.
+    """
+    text = _roadmap_text()
+    values = _ledger_values(text)
+    later = max(values) + 1
+    last_line = _ledger_row_line(text, max(values))
+    grown = _mutate(text, last_line, f"{last_line}\n- iter {later:02d} a later row")
+
+    assert _historical_shortfall(grown) == []
+    assert _historical_prefix(grown) == list(HISTORICAL_RUN)
+    assert ri.ledger_sequence_violations(grown) == []
+    assert len(ri.ledger_iterations(grown)) == len(values) + 1
+
+
+def test_b8_the_prefix_claim_fires_when_two_historical_rows_are_transposed() -> None:
+    """Two-sided control for the ORDER claim, built by transposing two LIVE historical rows.
+
+    Order is what survives of the retired contiguity pin, so it needs its own armed control.
+    `ledger_sequence_violations` would also catch this transposition; the point here is that
+    the PREFIX check catches it independently.
+    """
+    text = _roadmap_text()
+    first, second = HISTORICAL_RUN[6], HISTORICAL_RUN[7]
+    line_a = _ledger_row_line(text, first)
+    line_b = _ledger_row_line(text, second)
+    bad_text = _mutate(text, f"{line_a}\n{line_b}", f"{line_b}\n{line_a}")
+
+    prefix = _historical_prefix(bad_text)
+    assert prefix != list(HISTORICAL_RUN), "transposition left the prefix unchanged"
+    assert prefix.index(second) < prefix.index(first)
+    assert _historical_shortfall(bad_text) == [], "premise: no row was lost, only reordered"
 
 
 def test_b8_sequence_check_fires_on_a_duplicated_live_iteration_31_row() -> None:
@@ -209,8 +316,8 @@ def test_b8_the_iteration_30_row_explains_a_ship_commit_that_never_landed() -> N
 
 
 # ---------------------------------------------------------------------------
-# Behavior 9 -- no shipped iteration lacks a ledger row, asserted against a
-# SIMULATED ship list because the real one cannot yet contain 31
+# Behavior 9 -- no shipped iteration lacks a ledger row, asserted against BOTH a
+# simulated ship list and the real `git log`, via `unrecorded_ships`
 # ---------------------------------------------------------------------------
 
 def test_b9_simulated_full_ship_list_reports_no_unrecorded_ship() -> None:
@@ -228,22 +335,43 @@ def test_b9_the_simulated_check_can_fail_over_this_very_document() -> None:
     assert f"{beyond:02d}" in ri.unrecorded_ship_messages([beyond])[0]
 
 
-def test_b9_the_simulated_list_dominates_the_real_git_probe() -> None:
-    """Behavior 9's honesty claim, measured: the simulated list is a SUPERSET of what git
-    reports, so passing it is strictly harder than the real cross-check.
+def test_b9_every_iteration_git_calls_shipped_has_exactly_one_ledger_row() -> None:
+    """Behavior 9 against REAL git, asked through the product's own one-directional judge.
 
-    Asserted as a subset relation on purpose -- never as a maximum -- because this test
-    must also pass from a clean clone of iteration 31's own ship commit, where `git log`
-    DOES name iteration 31.
+    The retired form subtracted the real ship set from a literal range, which is a MAXIMUM:
+    it could not fail before iteration 31's ship commit existed and it went RED from the
+    clean clone of every later iteration that shipped. `unrecorded_ships` asks the only
+    question the ledger owes an answer to -- does each shipped iteration have exactly one
+    row -- so its verdict is IDENTICAL on both sides of any ship commit, including this
+    iteration's own. It still SKIPs, with a stated reason, when git cannot be asked.
     """
     ships = ri.shipped_iterations_from_git(REPO_ROOT)
     if ships.iterations is None:
         pytest.skip(f"cannot ask git: {ships.skip_reason}")
     if not ships.iterations:
         pytest.skip("no ship commits in this history: the comparison has nothing to say")
-    simulated = set(range(1, THIS_ITER + 1))
-    extra = sorted(set(ships.iterations) - simulated)
-    assert extra == [], f"git reports ships outside the simulated range: {extra}"
+    missing = ri.unrecorded_ships(_roadmap_text(), ships.iterations)
+    assert missing == [], "; ".join(ri.unrecorded_ship_messages(missing))
+
+
+def test_b9_the_real_git_cross_check_can_fail_over_this_very_document() -> None:
+    """Two-sided control for the derived cross-check: the REAL ship list plus one synthetic
+    iteration that has no ledger row must name exactly that iteration.
+
+    Without this, a silent `unrecorded_ships(text, real_ships)` is compatible with a ledger
+    reader that returns nothing, and the relaxation would have traded a landmine for a check
+    that cannot fail at all.
+    """
+    ships = ri.shipped_iterations_from_git(REPO_ROOT)
+    if ships.iterations is None:
+        pytest.skip(f"cannot ask git: {ships.skip_reason}")
+    text = _roadmap_text()
+    synthetic = max([*ships.iterations, *_ledger_values(text)]) + 1
+    assert ri.unrecorded_ships(text, [synthetic]) == [synthetic], (
+        f"premise: iteration {synthetic:02d} must have no ledger row"
+    )
+    assert ri.unrecorded_ships(text, [*ships.iterations, synthetic]) == [synthetic]
+    assert f"{synthetic:02d}" in ri.unrecorded_ship_messages([synthetic])[0]
 
 
 # ---------------------------------------------------------------------------

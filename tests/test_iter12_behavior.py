@@ -342,14 +342,24 @@ def test_b8_every_required_token_is_swept_as_a_known_bad(iteration, tokens):
 
 
 def test_b8_ledger_numbers_are_two_digit_unique_and_strictly_ascending():
+    """The ledger's numbering rules, plus the historical run as an ordered PREFIX.
+
+    Contiguity over the WHOLE ledger used to be asserted here. That was a second landmine of
+    the same family as the one roadmap row 27 removed: it is derived from `len(numbers)`, so
+    it looks self-updating, but it demands that the ledger be GAPLESS -- and an iteration
+    that ships nothing writes no row, so the first sparse ledger reds this file from a clean
+    clone of a ship commit it knows nothing about. What is actually a rule: every number is
+    two-digit, unique and ascending (`_sequence_findings`, armed below), the ledger only
+    grows, and the run up to this file's own iteration is contiguous and in order.
+    """
     rows = _ledger_rows(_roadmap())
     assert len(rows) >= int(THIS_ITERATION), f"only {len(rows)} ledger rows"
     assert _sequence_findings(rows) == []
     numbers = [number for number, _ in rows]
     assert THIS_ITERATION in numbers, numbers
-    # Contiguous 01..N, never "the last row is iteration 12": the ledger GROWS, and an
-    # expectation keyed on today's final row is the landmine roadmap row 27 removed.
-    assert numbers == [f"{index:02d}" for index in range(1, len(numbers) + 1)], numbers
+    historical = numbers[:int(THIS_ITERATION)]
+    expected = [f"{index:02d}" for index in range(1, int(THIS_ITERATION) + 1)]
+    assert historical == expected, historical
 
 
 @pytest.mark.parametrize("kind,replacement", [
