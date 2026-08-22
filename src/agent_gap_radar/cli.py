@@ -81,13 +81,28 @@ def _list_rows(gaps: list[Gap], confidence_floor: int) -> list[ListRow]:
 
 
 def _list_text(rows: list[ListRow]) -> str:
-    """Line-oriented form: one line per record, below-floor rows flagged."""
-    return "".join(
+    """Line-oriented form: one line per record, below-floor rows flagged.
+
+    Builds the row lines and hands them to the PUBLISHED `render.document()` rather
+    than appending a newline per row. The per-row append was a THIRD private
+    construction of the one-newline tail this product has already collapsed twice,
+    and unlike the other two it was WRONG in the vacuous case: over zero rows it
+    returned the empty string, so `list` was the single verb that could exit 0
+    having written no bytes at all, against a guarantee `VISION.md` publishes for
+    every renderer. Routing here does not DECIDE that question -- `document([])`
+    decided it long ago -- it stops this call site from answering it privately.
+
+    Byte-identical on any non-empty register: no row can equal "" (every row opens
+    with a GAP-NNN id, which the schema requires), so `document`'s trailing-blank
+    normalisation has nothing to strip, and joining on one newline plus a tail is
+    the same string as appending one newline per row. The list is built fresh here
+    because `document` pops from the sequence it is handed.
+    """
+    return document([
         f"{gap.id}  p={pri:>4.1f}  c={conf}  {gap.title}"
         + (BELOW_FLOOR_MARKER if is_below else "")
-        + "\n"
         for gap, pri, conf, is_below in rows
-    )
+    ])
 
 
 def _list_json(rows: list[ListRow], confidence_floor: int) -> str:

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-66
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- `radar sources`: a register-wide source inventory, so one document carrying three records becomes visible
+    - Candidate B1 -- deterministic evidence staleness (roadmap row 10), anchored to a supplied date and never to the wall clock
+    - Candidate C1 -- `radar list --layer <L>` (roadmap row 16), publishing the denominator it omits
+    - Candidate B1 -- `radar list` reaches the published `document()` renderer, closing the last zero-byte verb (roadmap row 23)
+    - Candidate B2 -- one `live_ids()` test helper, then a census brake scoped to its callers (roadmap row 28)
+    - Candidate B3 -- the roadmap index/archive split, sized from where the bytes actually are (roadmap rows 64 and 70)
+    winner: B1
+    ship: pending (not yet decided)
   iter-65
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- UNKNOWN acquired a second meaning in iteration 63 and no published document says so
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- evidence staleness, with the as-of input made explicit
     - Candidate B3 -- `radar list --layer L`, the filter row 16 deliberately deferred
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED fe59e55
   iter-64
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- memoise the file ENUMERATION for the life of a scan, and correct row 67's headline figure
@@ -370,4 +380,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-37 scouted iterations
+38 scouted iterations
