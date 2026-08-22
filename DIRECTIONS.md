@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-63
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- delete `MAX_SCAN_FILES`: a cap applied after the walk it claims to bound, which silently shrinks the scan domain
+    - Candidate A2 -- delete `_TRACKED_CACHE`, so `checks.py` has ONE cache lifetime instead of two (roadmap row 43)
+    - Candidate A3 -- retire `tools/check_locators.py`: one out-of-band network checker, not two
+    - Candidate A -- one alternation pass per file instead of one pass per pattern
+    - Candidate B -- memoise the enumeration per scan, like the read cache already does
+    - Candidate C -- charge the register for its own scan cost (`scan --timing`)
+    winner: A1
+    ship: pending (not yet decided)
   iter-62
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- make the derived scores reachable without pydantic, so the one real consumer can read the ranking (roadmap row 33)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- collapse FOUR locator predicates into one shared definition (roadmap row 57)
     - Candidate B3 -- `PRODUCT.md` is 8,705 chars past the roadmap wall and the breach grows every iteration (roadmap row 64)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 98be130
   iter-61
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- three literal iteration-number pins red the next ship commit, and the product's own tool says the document is CLEAN
@@ -340,4 +350,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-34 scouted iterations
+35 scouted iterations

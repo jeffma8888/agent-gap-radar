@@ -27,7 +27,14 @@ MAX_FILE_BYTES = 512 * 1024
 #: Locations reported per rule. A lexical check on a large repo can match
 #: hundreds of times; an unranked, uncapped list is noise a reader cannot act on.
 MAX_LOCATIONS = 10
-#: Files scanned per rule before the walk stops. Bounds worst-case scan cost.
+#: Files a content rule READS per evaluation. It bounds the `_read` and regex
+#: passes below -- independently measured at 80-95% of a scan's wall clock, so
+#: it bounds the dominant cost. It does NOT bound the walk, the sort or the
+#: tracked-set intersection: those have all finished by the time it applies. The
+#: earlier wording ("before the walk stops") named the one thing it does not
+#: bound, and led a reader to conclude it bounds nothing. Where it DOES cut, the
+#: cut is reported through `RuleHit.truncated_files` and never applied in
+#: silence, because a search that stopped early cannot support a safety verdict.
 MAX_SCAN_FILES = 4000
 SKIP_DIRS = frozenset({
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
@@ -49,6 +56,12 @@ class Verdict(str, enum.Enum):
 class RuleHit:
     matched: bool
     locations: list[str] = field(default_factory=list)
+    #: Total files the rule's domain held when `MAX_SCAN_FILES` cut it, else 0.
+    #: A NEGATIVE result over a cut domain is INCOMPLETE, not clean, and this
+    #: field is how that incompleteness survives the slice and reaches
+    #: `run_check`. It is deliberately the domain TOTAL rather than a boolean:
+    #: a reader deciding whether to widen the cap needs the size it was cut to.
+    truncated_files: int = 0
 
     def __bool__(self) -> bool:
         return self.matched
@@ -494,36 +507,54 @@ def evaluate(rule: dict, target: pathlib.Path,
     `exclude_tests` is set when evaluating a MITIGATION. It propagates through
     every nested combinator, because a mitigation credited from test text is a
     false negative and a false negative here reads as safety.
+
+    `RuleHit.truncated_files` propagates the same way and for the same reason: a
+    content rule whose domain `MAX_SCAN_FILES` cut answers over a PREFIX of that
+    domain, and a combinator that dropped the fact would let the composite claim
+    a completeness none of its parts had.
     """
     kind = rule.get("kind")
 
     if kind == "any_of":
         locations: list[str] = []
         matched = False
+        # `max` over the sub-rules ACTUALLY evaluated. A combinator that dropped
+        # this would let a capped sub-rule launder its incompleteness into a
+        # clean-looking composite answer, which is the same fail-open one level up.
+        truncated = 0
         for sub in rule.get("rules", []):
             hit = evaluate(sub, target, exclude_tests)
+            truncated = max(truncated, hit.truncated_files)
             if hit.matched:
                 matched = True
                 locations.extend(hit.locations)
-        return RuleHit(matched, locations)
+        return RuleHit(matched, locations, truncated)
 
     if kind == "all_of":
         subs = rule.get("rules", [])
         if not subs:
             raise ValueError("all_of with no sub-rules is vacuously true; forbidden")
         locations = []
+        truncated = 0
         for sub in subs:
             hit = evaluate(sub, target, exclude_tests)
+            # Accumulated BEFORE the short circuit: the sub-rule that failed was
+            # evaluated, so if the cap cut its domain the composite `False` rests
+            # on an incomplete search and must say so.
+            truncated = max(truncated, hit.truncated_files)
             if not hit.matched:
-                return RuleHit(False, [])
+                return RuleHit(False, [], truncated)
             locations.extend(hit.locations)
-        return RuleHit(True, locations)
+        return RuleHit(True, locations, truncated)
 
     if kind == "not":
         inner = rule.get("rule")
         if inner is None:
             raise ValueError("not requires a 'rule'")
-        return RuleHit(not evaluate(inner, target, exclude_tests).matched, [])
+        hit = evaluate(inner, target, exclude_tests)
+        # Negation flips the BOOLEAN, never the completeness: a search that read
+        # part of its domain is equally partial whichever way its answer is read.
+        return RuleHit(not hit.matched, [], hit.truncated_files)
 
     if kind in ("file_exists", "file_absent"):
         files = iter_files(target, rule["globs"], exclude_tests)
@@ -541,7 +572,25 @@ def evaluate(rule: dict, target: pathlib.Path,
             raise ValueError(f"invalid pattern {rule.get('pattern')!r}: {exc}") from exc
         code_hits: list[str] = []
         test_hits: list[str] = []
-        for path in iter_files(target, rule["globs"], exclude_tests)[:MAX_SCAN_FILES]:
+        files = iter_files(target, rule["globs"], exclude_tests)
+        # The slice below is the iterable of the read/regex loop, so the cap bounds
+        # the dominant cost of a scan. What it does not do is stay quiet about it:
+        # the files past the cap go UNREAD, so a non-match here is a fact about a
+        # PREFIX of the domain, and the total is carried out for `run_check` to
+        # weigh. Reads stay the first `MAX_SCAN_FILES` in the existing order, so
+        # no file that is read today becomes unread.
+        #
+        # The size is NAMED rather than compared inline as a length call against
+        # an upper-case constant, and that is not style. This tool scans ITSELF,
+        # and that exact shape is a token in GAP-014's mitigation vocabulary, so
+        # the inline form credits this tree with artifact-shape validation it
+        # does not implement and turns its own GAP-014 verdict from MANUAL into
+        # ABSENT -- a false safety claim of precisely the class the truncation
+        # branch below exists to prevent. Measured: the inline form moves
+        # `radar scan .` by two verdicts. Keep it named.
+        domain_size = len(files)
+        truncated = domain_size if domain_size > MAX_SCAN_FILES else 0
+        for path in files[:MAX_SCAN_FILES]:
             text = _read(path)
             if text is None:
                 continue
@@ -552,9 +601,10 @@ def evaluate(rule: dict, target: pathlib.Path,
                 break
         found = bool(code_hits or test_hits)
         if kind == "content_matches":
-            return RuleHit(found, _rank_locations(code_hits, test_hits))
+            return RuleHit(found, _rank_locations(code_hits, test_hits), truncated)
         return RuleHit(not found,
-                       [_scope_note(rule["globs"], rule["pattern"])] if not found else [])
+                       [_scope_note(rule["globs"], rule["pattern"])] if not found else [],
+                       truncated)
 
     raise ValueError(f"unknown rule kind: {kind!r}")
 
@@ -566,6 +616,15 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     `present_when` hit: a target exhibiting BOTH signatures is the genuinely
     dangerous case (a partial mitigation), so it escalates to MANUAL rather
     than being reported as safe.
+
+    Truncation is weighed on ONE transition, `ABSENT` to `UNKNOWN`, and the
+    asymmetry is the point. Positive evidence is unaffected by an unread tail --
+    a signature that WAS found is found whatever went unread -- so `PRESENT`,
+    `MANUAL` and `NOT_APPLICABLE` are decided without consulting it. `MANUAL`
+    for "neither signature detected" already tells the reader that absence of a
+    pattern is not evidence of safety, so downgrading it would cost the reader
+    its `manual_question` and buy nothing. `ABSENT` is the only verdict that
+    asserts safety, so it is the only one a cut domain can lie with.
     """
     applies = check.get("applies_when")
     if applies is not None:
@@ -607,6 +666,20 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
                             reason="gap signature found")
 
     if mitigated.matched:
+        if present.truncated_files:
+            # `ABSENT` is the only one of the five verdicts that CLAIMS safety,
+            # and a claim is only as wide as the search behind it. `present_when`
+            # found nothing over a domain `MAX_SCAN_FILES` cut, so the signature
+            # may sit in the tail that was never read: that is UNKNOWN. The
+            # mitigation hit is real but cannot carry the claim on its own, and
+            # its locations are dropped deliberately -- publishing them beside a
+            # verdict that says "could not run" would read as evidence of safety.
+            return CheckOutcome(
+                Verdict.UNKNOWN,
+                reason=("present_when read only the first "
+                        f"{MAX_SCAN_FILES} of {present.truncated_files} files "
+                        "(MAX_SCAN_FILES), so its non-match cannot support "
+                        "ABSENT over the unread remainder"))
         return CheckOutcome(Verdict.ABSENT, locations=mitigated.locations,
                             reason="mitigation positively identified")
 
