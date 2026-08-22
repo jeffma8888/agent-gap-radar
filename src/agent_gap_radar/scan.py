@@ -120,6 +120,33 @@ def select_for_prd(result: ScanResult,
     return PrdSelection(selected=None, passed_over=passed_over)
 
 
+def gate_verdict(result: ScanResult,
+                 confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT) -> bool | None:
+    """Does this target exhibit a PRESENT gap whose EVIDENCE clears the floor?
+
+    THREE-valued on purpose, because "no" has two meanings a gate must not be
+    handed as one. `None` says the scan applied ZERO register records, so there is
+    no verdict to report at all: an all-zero verdict census over an emptied,
+    moved, or one-level-too-high register is otherwise indistinguishable from a
+    target that exhibits none of the register's gaps, and the indistinguishable
+    reading is the REASSURING one. `radar validate` already refuses that exact
+    input rather than certifying it, and a caller asking for a verdict code is
+    asking the same kind of question, so it gets the same answer.
+
+    DERIVED from `select_for_prd`, never from a second floor comparison. That walk
+    already answers "is there a PRESENT finding at or above the floor" -- its
+    `selected` is precisely that finding -- so reusing it means the exit code and
+    `--prd` cannot tell a consumer two different stories about one target, and the
+    floor rule keeps exactly one spelling. A below-floor PRESENT finding therefore
+    reports False here for the same reason `--prd` refuses to build against it: it
+    is a research task, not a verdict. It is still DISPLAYED, because this
+    function changes no document -- only the code the process exits with.
+    """
+    if result.records_applied == 0:
+        return None
+    return select_for_prd(result, confidence_floor).selected is not None
+
+
 def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
     """One finding as a stable object, with its floor status derived in place.
 

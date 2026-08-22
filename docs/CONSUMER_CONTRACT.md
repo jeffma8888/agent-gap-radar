@@ -16,7 +16,7 @@ The consumer-side design lives with the consumer:
 | `radar show <ID> [<repo>]` | the full brief for one gap, markdown |
 | `radar report <repo> [--floor N]` | the whole register as a human brief |
 | `radar prd <repo> --gap <ID> [--project NAME]` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
-| `radar scan <target> [--gaps R] [--json] [--prd]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding whose confidence clears the register floor, names each skipped below-floor finding on stderr, and exits 2 if none clears |
+| `radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding whose confidence clears the register floor, names each skipped below-floor finding on stderr, and exits 2 if none clears; `--exit-code` leaves the document byte-identical whenever it verdicts and moves the ANSWER into the exit status instead -- 1 when this target has at least one PRESENT finding that clears the floor, 0 when it has none, 2 when the scan applied zero records and so verdicted nothing. The two flags are mutually exclusive: both are floor-gated verdict surfaces, and they answer the same question with opposite codes |
 | `radar diff <old> <new>` | what changed between two register states: records added, records removed, and per-record changes across a CLOSED set of nine fields (`status`, `layer`, `gap_type`, `severity`, `frequency`, `tractability`, `priority`, `confidence`, citation count). Free prose is never compared, so a rewording is not a change; both domain sizes are stated, so an emptied, moved or one-level-too-high side cannot read as "everything was added"; both paths are REQUIRED, so neither side can silently default to the caller's working directory; `priority` and `confidence` are reported as two separate lines and never blended |
 | `radar taxonomy` | the closed vocabularies (11 layers, 8 gap types, 9 evidence classes) |
 
@@ -33,6 +33,7 @@ and a test asserts that table lists exactly the codes the CLI can return.
 | Code | When | What a consumer should do |
 |---|---|---|
 | `0` | the verb produced its document | read stdout |
+| `1` | OPT-IN, `scan --exit-code` only: the tool answered, and this target exhibits at least one PRESENT gap whose evidence clears the confidence floor. stdout carries the same document as the same invocation without the flag, and stderr is empty -- nothing went wrong | fail the gate, then read the `## Actionable now` section of stdout (or `--json`'s `findings`) for which gaps and where |
 | `2` | the tool refuses and says why: one line on stderr beginning `Error: `, and stdout stays empty rather than half a document | read that stderr line -- it names the register, the path or the record at fault |
 | `141` | the READER went away: stdout's pipe was closed, or the reader exited before the document finished. stderr is EMPTY and stdout is truncated, because nothing was wrong with the register | treat it as the consumer's own early exit, never as a defect here. It is the shell's 128+SIGPIPE, so head, grep -q and less see the code they already expect |
 
@@ -43,9 +44,16 @@ the document omits fails, and so does a row for a code the CLI cannot produce. I
 sits immediately under its heading on purpose -- the reader that checks it fails
 closed on a table it cannot find, and prose between the two is enough to hide it.
 
-Exit 1 is deliberately unused and unlisted. It is reserved for the floor-gated
-verdict code a future `scan` gate wants (roadmap row 25), so that row lands in
-this published vocabulary instead of inventing one the day it needs it.
+Exit 1 was held unused and unlisted for one named purpose, and that purpose has
+now arrived: it is the floor-gated verdict code of `scan --exit-code` (roadmap
+row 25), which is why the row above describes a gate result rather than a
+failure. Two properties of that code are worth stating plainly, because a gate is
+built on them. It is OPT-IN, so no invocation that works today can start
+returning it -- `scan` without the flag still exits 0 whatever it finds. And it
+is FLOOR-GATED, so a record whose only evidence is model output can never turn a
+build red: below-floor PRESENT findings still appear in the document, and they
+report 0. The floor rule has one implementation, shared with `--prd`, so the two
+cannot disagree about one target.
 
 **A departing reader is never reported as this tool's error.** On 141 stderr
 carries no `Error: ` line, no `BrokenPipeError` and no traceback. Getting that

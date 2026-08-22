@@ -21,7 +21,7 @@ from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import document, gap_brief, radar_report
-from .scan import render_scan, scan, scan_json, select_for_prd
+from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
 
@@ -39,16 +39,24 @@ def _resolve(path_arg: str) -> pathlib.Path:
 #: both directions -- so a fourth code cannot ship undocumented, and a row for a
 #: code the CLI cannot produce cannot survive either.
 #:
-#: `1` is deliberately absent and unused. It is reserved for the floor-gated
-#: verdict code roadmap row 25 wants, so that row lands in a published vocabulary
-#: instead of inventing one the day it needs it.
+#: `1` was held unused by iteration 25 for exactly one purpose, and this is it:
+#: `EXIT_GAPS_PRESENT` below. The reservation is now SPENT, not free.
 EXIT_OK = 0
+#: The floor-gated verdict `scan --exit-code` reports: this target exhibits at
+#: least one PRESENT gap whose EVIDENCE clears the confidence floor. OPT-IN, so
+#: no verb can return it unless a caller asked a verdict question -- a code that
+#: appeared by default would turn every existing `scan` consumer red on the day
+#: it shipped. Distinct from `EXIT_ERROR` because nothing went wrong: the tool
+#: answered, and the answer is that this target has an above-floor gap.
+EXIT_GAPS_PRESENT = 1
 EXIT_ERROR = 2
 #: The shell's own 128+SIGPIPE, so `head`, `grep -q` and `less` see the code they
-#: already expect from a pipeline they closed. Chosen over `1` for that reason and
-#: to keep `1` free; see above.
+#: already expect from a pipeline they closed. Chosen over `1` for that reason
+#: back when `1` was still being held; see above.
 EXIT_BROKEN_PIPE = 141
-EXIT_CODES: tuple[int, ...] = (EXIT_OK, EXIT_ERROR, EXIT_BROKEN_PIPE)
+#: Numeric order, which is the order the published table lists them in too.
+EXIT_CODES: tuple[int, ...] = (EXIT_OK, EXIT_GAPS_PRESENT, EXIT_ERROR,
+                               EXIT_BROKEN_PIPE)
 
 
 def _fail(msg: str) -> int:
@@ -178,14 +186,28 @@ def build_parser() -> argparse.ArgumentParser:
                         help="register location (default: current dir)")
     p_scan.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
+    # `--prd` and `--exit-code` are MUTUALLY EXCLUSIVE, and argparse enforces it
+    # rather than a branch silently preferring one. Both are floor-gated verdict
+    # surfaces with CONTRADICTORY code vocabularies: `--prd` already answers "a
+    # finding cleared the floor" with 0 (it built against it) and "none did" with
+    # 2, while `--exit-code` answers the first with 1. Accepting the pair would
+    # make one of them lose without saying so, and the losing direction is
+    # fail-open -- a gate would read 0 over a target with above-floor gaps.
+    # Refusing the pair costs a consumer nothing that works today: the pair is
+    # not accepted at HEAD either, because the flag did not exist.
+    verdict_surface = p_scan.add_mutually_exclusive_group()
     # "confidence floor" LEADS this help text deliberately. argparse wraps
     # help on whitespace, and a phrase the docs promise a reader will find
     # is broken by a line split; leading it survives any width above ~33
     # columns instead of only the default 80.
-    p_scan.add_argument("--prd", action="store_true",
-                        help="confidence floor gated: emit a prd.json for the "
-                             "worst PRESENT finding that clears the floor, "
-                             "instead of the report")
+    verdict_surface.add_argument("--prd", action="store_true",
+                                 help="confidence floor gated: emit a prd.json "
+                                      "for the worst PRESENT finding that clears "
+                                      "the floor, instead of the report")
+    verdict_surface.add_argument("--exit-code", action="store_true",
+                                 help="confidence floor gated: exit 1 when this "
+                                      "target has an above-floor PRESENT gap, 0 "
+                                      "when it has none; same document either way")
 
     p_diff = sub.add_parser(
         "diff", help="Report what changed between two register states.")
@@ -338,9 +360,19 @@ def _dispatch(argv: list[str] | None = None) -> int:
             sys.stdout.write(render_prd(selection.selected.gap,
                                         project=result.target.name))
             return EXIT_OK
+        # Decided BEFORE a byte is written, because a scan that verdicted NOTHING
+        # is a refusal and the published `2` row promises stdout stays empty on
+        # one. With the flag off `verdict` is False and the return is `EXIT_OK`,
+        # so the default path keeps today's single exit code and today's bytes.
+        verdict = gate_verdict(result) if args.exit_code else False
+        if verdict is None:
+            return _fail(
+                f"scan applied 0 register records from {directory}, so "
+                "--exit-code has no verdict to report; an all-zero census is "
+                "vacuous, not a clean target -- check the register path")
         sys.stdout.write(scan_json(result) if args.json
                          else render_scan(result))
-        return EXIT_OK
+        return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 
     if args.command == "diff":
         # Both sides load BEFORE anything is written, so a failure on either side

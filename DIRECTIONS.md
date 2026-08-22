@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-67
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- `radar scan` publishes the operator's home directory on both surfaces, so a committed report is machine-local
+    - Candidate A2 -- `tools/verify_quotes.py` certifies a vacuous domain, is the outlier of three doors, and has no tests
+    - Candidate A3 -- `checks._TRACKED_CACHE` outlives the scan, in the module whose own docstring forbids that
+    - Candidate B1 -- `radar prd` emits `userStories`, and the one declared consumer's reader answers `valid=False, total=0` on our bytes
+    - Candidate B2 -- `radar scan` finds 2 PRESENT gaps and exits 0, while the published contract has already RESERVED exit 1 for the verdict code
+    - Candidate B3 -- the below-floor prescription shipped as a human table column, so no gate can assert it
+    winner: B2
+    ship: pending (not yet decided)
   iter-66
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar sources`: a register-wide source inventory, so one document carrying three records becomes visible
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- one `live_ids()` test helper, then a census brake scoped to its callers (roadmap row 28)
     - Candidate B3 -- the roadmap index/archive split, sized from where the bytes actually are (roadmap rows 64 and 70)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 920cb29
   iter-65
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- UNKNOWN acquired a second meaning in iteration 63 and no published document says so
@@ -380,4 +390,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-38 scouted iterations
+39 scouted iterations

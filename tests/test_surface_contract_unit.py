@@ -120,8 +120,8 @@ def test_only_the_first_cell_of_a_row_is_read():
     """
     document = _replace_once(
         contract_text(),
-        "`radar scan <target> [--gaps R] [--json] [--prd]`",
-        "`radar scan <target> [--gaps R] [--json]`")
+        "`radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]`",
+        "`radar scan <target> [--gaps R] [--json] [--exit-code]`")
     scan_row = next(line for line in document.splitlines()
                     if line.startswith("| `radar scan"))
     assert "--prd" in scan_row, "the fail-open this test guards is not set up"

@@ -439,9 +439,15 @@ def test_b9_the_cli_publishes_its_exit_codes_as_module_constants():
     assert cli.EXIT_OK == 0
     assert cli.EXIT_ERROR == 2
     assert cli.EXIT_BROKEN_PIPE == EXPECTED_BROKEN_PIPE == 141
-    assert cli.EXIT_CODES == (cli.EXIT_OK, cli.EXIT_ERROR, cli.EXIT_BROKEN_PIPE)
+    # Iteration 67 SPENT the reservation this line used to assert was unspent:
+    # `1` is now the floor-gated verdict code of `scan --exit-code`, which is the
+    # roadmap row (25) the original assertion held it for. So the pin moves from
+    # "1 is absent" to "1 is exactly that code", which is the same brake pointed
+    # at the shipped fact -- an undocumented FIFTH code still fails behavior 10.
+    assert cli.EXIT_GAPS_PRESENT == 1, "the floor-gated verdict code moved"
+    assert cli.EXIT_CODES == (cli.EXIT_OK, cli.EXIT_GAPS_PRESENT, cli.EXIT_ERROR,
+                              cli.EXIT_BROKEN_PIPE)
     assert len(set(cli.EXIT_CODES)) == len(cli.EXIT_CODES), "a code is listed twice"
-    assert 1 not in cli.EXIT_CODES, "1 is reserved for the floor-gated verdict code"
 
 
 def test_b9_fail_returns_the_named_error_code(capsys):
