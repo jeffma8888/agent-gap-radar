@@ -241,6 +241,33 @@ Every key the tool emits must appear in this list: the drift this paragraph
 already suffered was omission, so the list is the contract and not a summary of
 it. Output is byte-stable across runs.
 
+## The prd payload -- the five top-level keys, published
+
+Both prd surfaces -- the prd verb, and the scan verb run with its prd flag -- emit ONE
+JSON object, and these are the complete top-level keys it carries, in emitted order:
+`project`, `branchName`, `description`, `sourceGap`, `stories`.
+
+`stories` carries the ordered story array a build loop iterates and writes back to as
+each story's pass flag flips. It is spelled that way because the one declared consumer's
+reader accepts a bare array or an object whose `stories` value is a list, and that
+ecosystem's own prd producer emits the same shape. Measured against live emitted bytes,
+the earlier wrapper name made that reader answer zero stories and made the consuming
+dispatcher render a present file as unparseable -- so the hand-off this product exists
+to complete failed on the name of one key and nothing else.
+
+The payload carries exactly ONE copy of the story list, under exactly one name, and no
+compatibility alias is emitted. A prd document is a file the consuming loop WRITES BACK
+to as each pass flag flips, so two copies of one list can diverge in the consumer's own
+hand and a reader may then count the stale one: a silent wrong answer of exactly the
+class this register exists to name, which is worse than a rename a consumer can see.
+
+This list is the contract and not a summary of it. A test DERIVES the expected set from
+the emitter's own bytes and compares it to the key names backticked in this section, in
+both directions, so a key added to the payload reds the suite until this document names
+it, and a key named here that the tool does not emit reds it too. That same comparison
+runs against both prd surfaces, which are asserted EQUAL to each other, so a later
+rename cannot fix one surface and leave the other behind.
+
 ## `radar ingest` - the reverse direction (NOT PLANNED)
 
 **Decided in iteration 16: not planned, and not built.** When that decision was

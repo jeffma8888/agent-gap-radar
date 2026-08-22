@@ -187,7 +187,7 @@ def prd_for(gap: Gap, project: str = "agent-gap-radar") -> dict:
             ],
             "check": check_payload,
         },
-        "userStories": stories,
+        "stories": stories,
     }
 
 

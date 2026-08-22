@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-68
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar prd` emits a wrapper key the one declared consumer cannot parse
+    - Candidate A2 -- the derived ranking is unreachable without pydantic, so the wired consumer ranks the register differently from `radar list`
+    - Candidate A3 -- `registry.load_all` returns `[]` where `radar validate` exits 2, and I tripped over it in this run
+    - Candidate B1 -- four closed-vocabulary validators collapse into one general rule
+    - Candidate B2 -- retire the two vocabulary accessors the product itself never calls
+    - Candidate B3 -- delete the restated register count in the published contract rather than updating it
+    winner: A1
+    ship: pending (not yet decided)
   iter-67
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `radar scan` publishes the operator's home directory on both surfaces, so a committed report is machine-local
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan` finds 2 PRESENT gaps and exits 0, while the published contract has already RESERVED exit 1 for the verdict code
     - Candidate B3 -- the below-floor prescription shipped as a human table column, so no gate can assert it
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED c86a51e
   iter-66
     lenses: new-capability, hardening/DX
     - Candidate A1 -- `radar sources`: a register-wide source inventory, so one document carrying three records becomes visible
@@ -390,4 +400,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-39 scouted iterations
+40 scouted iterations

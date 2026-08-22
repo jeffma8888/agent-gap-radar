@@ -55,7 +55,7 @@ README = REPO_ROOT / "README.md"
 
 #: The five top-level keys and the six `sourceGap` keys that pre-date this iteration, in
 #: emitted order (measured by running `radar prd . --gap GAP-003` before writing this).
-PRE_EXISTING_TOP_KEYS = ["project", "branchName", "description", "sourceGap", "userStories"]
+PRE_EXISTING_TOP_KEYS = ["project", "branchName", "description", "sourceGap", "stories"]
 PRE_EXISTING_SOURCE_GAP_KEYS = ["id", "layer", "gapType", "priority", "confidence", "evidence"]
 
 #: Behavior 1 calls the record pointer `recordFile`; the shipped key is `recordGlob`. The
@@ -162,7 +162,7 @@ def _pointer(sample):
 
 
 def _us001(gap):
-    first = prd_for(gap)["userStories"][0]
+    first = prd_for(gap)["stories"][0]
     assert first["id"] == "US-001", first["id"]
     return first
 
@@ -386,7 +386,7 @@ def test_b8_the_change_is_purely_additive(tmp_path):
     with_check = prd_for(_gap(tmp_path / "c", {**base, "check": _automated_check()}))
     for doc in (without, with_check):
         doc["sourceGap"].pop("check")
-        doc["userStories"][0]["acceptanceCriteria"].pop()
+        doc["stories"][0]["acceptanceCriteria"].pop()
     assert without == with_check
 
 

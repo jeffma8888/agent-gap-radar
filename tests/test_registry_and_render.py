@@ -136,18 +136,18 @@ def test_gap_brief_omits_build_hypothesis_when_absent():
 
 def test_prd_is_valid_ralph_shape():
     doc = prd_for(Gap.model_validate(RECORD))
-    assert set(doc) >= {"project", "branchName", "description", "userStories"}
+    assert set(doc) >= {"project", "branchName", "description", "stories"}
     assert doc["branchName"].startswith("ralph/")
-    ids = [s["id"] for s in doc["userStories"]]
+    ids = [s["id"] for s in doc["stories"]]
     assert ids == ["US-001", "US-002", "US-003"]
-    assert [s["priority"] for s in doc["userStories"]] == [1, 2, 3]
-    assert all(s["passes"] is False for s in doc["userStories"])
+    assert [s["priority"] for s in doc["stories"]] == [1, 2, 3]
+    assert all(s["passes"] is False for s in doc["stories"])
 
 
 def test_prd_first_story_is_a_failing_reproduction():
     """A loop that starts from a spec optimises the spec; start from a red test."""
     doc = prd_for(Gap.model_validate(RECORD))
-    first = doc["userStories"][0]
+    first = doc["stories"][0]
     assert "FAILS" in " ".join(first["acceptanceCriteria"])
     assert RECORD["symptom"] in " ".join(first["acceptanceCriteria"])
 
@@ -161,7 +161,7 @@ def test_prd_carries_evidence_provenance_forward():
 
 def test_prd_every_story_has_verifiable_criteria():
     doc = prd_for(Gap.model_validate(RECORD))
-    for story in doc["userStories"]:
+    for story in doc["stories"]:
         assert story["acceptanceCriteria"], story["id"]
         assert any("test" in c.lower() or "passes" in c.lower()
                    for c in story["acceptanceCriteria"]), story["id"]
