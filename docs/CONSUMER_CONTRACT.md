@@ -160,6 +160,66 @@ checked from this repository at all, and stating that limit is more honest than
 implying coverage: that half is a review obligation on whoever renames a
 documented key.
 
+### Deriving the scores without installing pydantic
+
+A consumer reading `gaps/*.json` directly, as the declared consumer does, has the
+stored integers and the evidence ladder but not `priority` and `confidence` --
+which are deliberately not stored. It does not have to reinvent them. Three
+modules of this package import with **pydantic absent**, so a reader with nothing
+installed can `import agent_gap_radar.scoring` and call the same functions the
+CLI calls, rather than writing a third ordering rule for the same register that
+no test on either side of the repo boundary can see drift.
+
+| Module | Imports with pydantic absent | Why |
+|---|---|---|
+| `agent_gap_radar.taxonomy` | yes | the closed vocabularies and their weights are plain tuples and mappings |
+| `agent_gap_radar.checks` | yes | rules are DATA; the matcher is stdlib `re` over text |
+| `agent_gap_radar.scoring` | yes | the two derived scores, and the below-floor prescription |
+| `agent_gap_radar.models` | no | the schema IS pydantic -- validating a record is what the dependency is FOR |
+| `agent_gap_radar.registry` | no | it validates every record through `models` before returning it |
+| `agent_gap_radar.render` | no | downstream of a validated record |
+| `agent_gap_radar.prd` | no | downstream of a validated record |
+| `agent_gap_radar.scan` | no | downstream of a validated record |
+| `agent_gap_radar.diff` | no | downstream of a validated record |
+| `agent_gap_radar.cli` | no | the entry point loads the register, so it validates |
+
+**This table is DERIVED, not hand-maintained.** A test installs an import blocker
+for `pydantic` in-process -- with a positive control asserting `import pydantic`
+really does raise first, because an absence measured by an unproven matcher is not
+evidence -- imports all ten modules behind it, and asserts the set that succeeds
+EQUALS the set this table marks `yes`, in both directions. So a module that later
+grows a runtime pydantic import reds the suite instead of leaving this document
+quietly wrong, and a module that becomes pydantic-free without being published
+here reds it too.
+
+**The record shape `scoring` requires.** It is duck-typed, and that is the
+guarantee: it reads attributes, never a class. An object is scoreable when it
+carries
+
+| Attribute | On | Read by |
+|---|---|---|
+| `id` | the record | the tie-break in `rank` and the sort in `below_floor` |
+| `severity`, `frequency`, `tractability` | the record | `priority` |
+| `evidence` | the record | `confidence`, `distinct_sources`, `strongest_source`, `promotion_options` |
+| `source_class` | each evidence item | the ceiling and the corroboration pair |
+| `locator` | each evidence item, OPTIONALLY | source identity for the corroboration pair |
+
+`locator` is the only optional one, and omitting it is not free: an item without
+it reads as the EMPTY source key, which is a DISTINCT key rather than a neutral
+one, so a record that omits one locator while another citation carries one EARNS
+the corroboration point that the truth -- both citations naming the same
+document -- withholds. Measured on synthetic records, strongest class weight 4:
+two citations of different classes on ONE document score 4 with
+`distinct_sources` 1; the same pair with the second `locator` omitted scores 5
+with `distinct_sources` 2. Omitting it is safe only when EVERY item omits it,
+which makes the keys coincide again. So supply the locator whenever the record
+has one -- `Evidence` rejects a blank one, so every citation in `gaps/` carries
+it, and this can only bite a hand-built object. A `types.SimpleNamespace` per
+record and per citation is enough -- measured over the live register, the five
+functions and both views answer identically to the pydantic-backed `Gap`
+objects. Nothing here is a second public record shape: it is the shape the file
+surface above already documents, read one attribute at a time.
+
 ## The invariant a consumer must not launder
 
 `priority` and `confidence` are deliberately UNBLENDED. `priority` is

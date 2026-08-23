@@ -15,9 +15,20 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from .models import Gap
 from .taxonomy import SOURCE_CLASSES, SOURCE_WEIGHTS
+
+if TYPE_CHECKING:
+    # Typing-only, so this module imports with pydantic absent. `models` IS the
+    # pydantic schema, and importing it for annotations alone made the whole
+    # scorer unreachable to the one declared consumer, which reads
+    # `gaps/*.json` as plain local JSON with no pydantic on its path -- so it
+    # ranked records by the STORED integers and disagreed with us about which
+    # records its own top five names. `from __future__ import annotations` is
+    # already in force above, so every `Gap` annotation below stays a string at
+    # runtime and needs no quoting.
+    from .models import Gap
 
 # Weights are integers and the divisor is exact, so scores are reproducible
 # across machines and Python versions (no float accumulation order effects).
@@ -176,14 +187,41 @@ class _ClassOnly:
     locator: str = _PROBE_LOCATOR
 
 
+@dataclass(frozen=True, slots=True)
+class _EvidenceOnly:
+    """Minimal stand-in for a RECORD, carrying the one field `confidence()` reads.
+
+    The same idiom as `_ClassOnly` one level up: build the smallest object the
+    scorer actually reads instead of copying a validated model. This used to be
+    a pydantic clone of the record: correct, and the one pydantic-only call in
+    the module, which is what made the whole scorer unimportable for the
+    consumer `docs/CONSUMER_CONTRACT.md` declares -- that consumer reads record
+    files as plain JSON and has no pydantic to clone with. `confidence()` reads
+    `evidence` off a record and nothing else, so that is the entire surface a
+    probe needs.
+
+    Deliberately NOT a `Gap`: a probe is a hypothetical, and building it as a
+    real record would put an unvalidated record one copy away from the register.
+    """
+
+    evidence: tuple[object, ...]
+
+
 def _confidence_with(gap: Gap, extra_class: str) -> int:
     """`confidence()` of `gap` as if it held ONE further citation of that class.
 
     Goes through the real `confidence()` rather than re-deriving the arithmetic,
     so a prescription can never disagree with the score it is prescribing for.
-    The probe copy is unvalidated on purpose and never leaves this module.
+    The probe never leaves this module.
+
+    `confidence()` is annotated `Gap` because that is the only record shape the
+    register can PRODUCE, not the only one it accepts: it reads `evidence`, each
+    item's `source_class`, and `_source_key`, all of which are documented total
+    over any object carrying those attributes. Passing a stand-in here is that
+    documented totality being used, not bypassed -- the same relationship
+    `_ClassOnly` already has with the `Evidence` annotations.
     """
-    probe = gap.model_copy(update={"evidence": [*gap.evidence, _ClassOnly(extra_class)]})
+    probe = _EvidenceOnly((*gap.evidence, _ClassOnly(extra_class)))
     return confidence(probe)
 
 

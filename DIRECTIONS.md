@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-73
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A -- `tools/check_locators.py` returns "all locators resolve" after checking zero of them
+    - Candidate B -- the ingest door admits a content pattern the suite bans, so a research pass reds a green suite
+    - Candidate C -- a derived brake that every tool is DRIVEN by a test, not merely mentioned by one
+    - Candidate A1 -- `agent_gap_radar.scoring` becomes importable without pydantic, so the declared consumer stops ordering the register by a third rule (roadmap row 33)
+    - Candidate C1 -- the published gate rule tells a consumer to require `status == open`, which refuses the joint-highest-priority record
+    - Candidate D1 -- `radar diff` has no machine payload, so the non-regression half of our own gate rule is unimplementable
+    winner: A1
+    ship: pending (not yet decided)
   iter-72
     lenses: new-capability, hardening/DX
     - Candidate A -- the ranked report publishes each record's newest-citation date
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the quote gate gets a network seam, so its verdict logic is testable offline
     - Candidate B3 -- byte-exact goldens for one renderer, over a SYNTHETIC register
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 5701bb8
   iter-71
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- publish the fourth closed vocabulary: `radar taxonomy` names three of four, and the missing one is the one a consumer is told to switch on
@@ -440,4 +450,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-44 scouted iterations
+45 scouted iterations
