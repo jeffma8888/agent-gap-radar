@@ -23,7 +23,8 @@ from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import document, gap_brief, radar_report
 from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
-from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS
+from .taxonomy import (GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS,
+                       STATUS_GLOSSES, STATUSES)
 
 
 def _resolve(path_arg: str) -> pathlib.Path:
@@ -310,6 +311,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
         out += [f"- `{k}` -- {v}" for k, v in GAP_TYPES.items()]
         out += ["", "## Evidence source classes (strongest first)", ""]
         out += [f"- `{c}` (weight {SOURCE_WEIGHTS[c]})" for c in SOURCE_CLASSES]
+        # Ordered by `STATUSES`, not by the gloss mapping, so the tuple that
+        # `models.py` VALIDATES against is the one thing that decides both the
+        # membership and the order of what is published about it.
+        out += ["", "## Record statuses", ""]
+        out += [f"- `{s}` -- {STATUS_GLOSSES[s]}" for s in STATUSES]
         # Reach the published `render.document` rather than re-spell its tail here.
         # The one-newline rule is a published guarantee, and a second copy of it
         # holds only while the copies agree: this branch spelled the join tail

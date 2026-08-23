@@ -69,6 +69,20 @@ SOURCE_WEIGHTS: dict[str, int] = {
 
 STATUSES: tuple[str, ...] = ("open", "partially-addressed", "addressed", "retired")
 
+#: One line per status, keyed and ORDERED like `STATUSES` -- the rendered section is
+#: derived from that tuple, so a key missing here would render a KeyError rather than a
+#: quietly glossless bullet. `status` is the one closed vocabulary a machine consumer is
+#: told in writing to select on, and until this iteration `radar taxonomy` published the
+#: other three and omitted it, so reading the register's own documentation could not
+#: recover `addressed` or `retired` -- exactly the two values that mean a gap has stopped
+#: being actionable, which is what a release gate needs to know.
+STATUS_GLOSSES: dict[str, str] = {
+    "open": "Live and actionable: nothing published is known to handle it.",
+    "partially-addressed": "A mitigation exists for part of it; the gap still bites.",
+    "addressed": "A published fix covers it; kept for provenance, not for building.",
+    "retired": "No longer a real gap, or superseded by another record.",
+}
+
 
 def layer_names() -> tuple[str, ...]:
     return tuple(LAYERS)

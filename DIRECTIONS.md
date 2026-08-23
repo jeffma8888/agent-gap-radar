@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-71
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- publish the fourth closed vocabulary: `radar taxonomy` names three of four, and the missing one is the one a consumer is told to switch on
+    - Candidate A2 -- the stable-surface table has no declared bracket convention, so it marks four optional arguments as required and hides `prd`'s shipped default
+    - Candidate A3 -- delete the contract's restated register cardinality, wrong twice, and the heading obligation its own body discharges
+    - Candidate B1 -- `radar report` publishes the CROSS-record shared-evidence view (roadmap row 56)
+    - Candidate B2 -- `radar diff --json`, so the non-regression gate the contract already prescribes has a machine surface
+    - Candidate B3 -- `radar show` states a record's floor position and the prescription that would lift it, DERIVED
+    winner: A1
+    ship: pending (not yet decided)
   iter-70
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- `content_absent` stops reading once its boolean is decided
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the consumer contract restates a register count, and it is now wrong on BOTH numbers
     - Candidate B3 -- the contract tells a consumer to gate on a status the register's joint-top record does not have
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 6e69680
   iter-69
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- two enumeration branches, ONE matcher: delete the duplicated match loop in `checks.py`
@@ -420,4 +430,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-42 scouted iterations
+43 scouted iterations

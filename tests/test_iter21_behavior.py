@@ -5,10 +5,11 @@ rather than its body, and no module imports a name it never loads.
 Black-box, and the isolation contract is honored: nothing here reads the implementation
 source to DERIVE an expectation, and nothing reads the engineer's or the reviewer's notes
 or a diff. Behavior 1's expectation is built from the PUBLISHED vocabularies
-(`taxonomy.LAYERS`, `GAP_TYPES`, `SOURCE_CLASSES`, `SOURCE_WEIGHTS`), never from the
-verb's rendering code and never from a restated literal -- the measured 1894-byte length
-and the vocabulary contents are both deliberately absent from this file, so a taxonomy
-that legitimately grows keeps this test green.
+(`taxonomy.LAYERS`, `GAP_TYPES`, `SOURCE_CLASSES`, `SOURCE_WEIGHTS`, and from iteration 71
+`STATUSES` with its `STATUS_GLOSSES` attribute table), never from the verb's rendering code
+and never from a restated literal -- the document's byte length and the vocabulary contents
+are both deliberately absent from this file, so a taxonomy that legitimately grows keeps
+this test green.
 
 Behaviors 3-8 are a SOURCE CENSUS and an AST ORACLE, which the spec asks for by name.
 They read `src/agent_gap_radar/**/*.py` as DATA and assert only counts and name lists;
@@ -48,6 +49,7 @@ TAXONOMY_TITLE = "# Taxonomy"
 LAYERS_HEADING = "## Layers"
 GAP_TYPES_HEADING = "## Gap types"
 SOURCES_HEADING = "## Evidence source classes (strongest first)"
+STATUSES_HEADING = "## Record statuses"
 
 
 def _joined_with_one_newline_tail(lines):
@@ -69,6 +71,12 @@ def _expected_taxonomy_document():
     lines += ["", SOURCES_HEADING, ""]
     lines += [f"- `{cls}` (weight {taxonomy.SOURCE_WEIGHTS[cls]})"
               for cls in taxonomy.SOURCE_CLASSES]
+    lines += ["", STATUSES_HEADING, ""]
+    # Ordered by `STATUSES`, never by the gloss mapping's own key order: the tuple is what
+    # `models.py` validates a record against, so it is the thing the document owes a
+    # reader. Iterating the mapping instead would let a reordered gloss table read green.
+    lines += [f"- `{status}` -- {taxonomy.STATUS_GLOSSES[status]}"
+              for status in taxonomy.STATUSES]
     return _joined_with_one_newline_tail(lines)
 
 
@@ -87,7 +95,7 @@ def test_taxonomy_document_equals_the_published_vocabularies(capsys):
 
 def test_taxonomy_covers_every_published_vocabulary_entry(capsys):
     """Behavior 1, restated as coverage: no entry may be silently dropped, and the
-    three sections stay in the order the verb publishes them."""
+    four sections stay in the order the verb publishes them."""
     assert main(["taxonomy"]) == 0
     out = capsys.readouterr().out
     for name in list(taxonomy.LAYERS) + list(taxonomy.GAP_TYPES):
@@ -95,8 +103,12 @@ def test_taxonomy_covers_every_published_vocabulary_entry(capsys):
     for cls in taxonomy.SOURCE_CLASSES:
         assert f"- `{cls}` (weight {taxonomy.SOURCE_WEIGHTS[cls]})" in out, (
             f"source class {cls!r} is missing or carries the wrong weight")
+    for status in taxonomy.STATUSES:
+        assert f"- `{status}` -- {taxonomy.STATUS_GLOSSES[status]}" in out, (
+            f"record status {status!r} is missing or carries the wrong gloss")
     positions = [out.index(h) for h in
-                 (TAXONOMY_TITLE, LAYERS_HEADING, GAP_TYPES_HEADING, SOURCES_HEADING)]
+                 (TAXONOMY_TITLE, LAYERS_HEADING, GAP_TYPES_HEADING, SOURCES_HEADING,
+                  STATUSES_HEADING)]
     assert positions == sorted(positions), f"section order changed: offsets {positions}"
 
 

@@ -74,7 +74,7 @@ Records are closed-vocabulary on purpose. A gap that does not fit an existing `l
 
 | Field group | Purpose |
 |---|---|
-| `layer`, `gap_type`, `status` | Where in the stack it lives, what kind of gap it is, whether it is still open |
+| `layer`, `gap_type`, `status` | Where in the stack it lives, what kind of gap it is, and how far it has moved from open to addressed. `status` is a closed vocabulary of several values, not a yes/no; `radar taxonomy` publishes them with a gloss each |
 | `problem`, `symptom`, `why_now` | The gap in the voice of the person hurt by it, what an operator observes, and why it is not already solved |
 | `existing` | Partial solutions, each with the reason it falls short |
 | `severity`, `frequency`, `tractability` | The three inputs to `priority`, 1-5 each |

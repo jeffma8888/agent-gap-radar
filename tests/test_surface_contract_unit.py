@@ -173,6 +173,18 @@ def test_an_unreadable_document_is_reported_rather_than_read_as_agreement():
     assert surface_violations("# Doc\n\nnothing here\n") != []
 
 
+#: The shipped Promise cell of the `radar taxonomy` row, held ONCE so the two
+#: known-bad fixtures below cannot drift apart from each other. `_replace_once`
+#: asserts `count(old) == 1`, so a stale value fails loudly rather than quietly
+#: proving nothing -- but two independently retyped copies could still disagree,
+#: and only one of them would be the row the document actually carries.
+TAXONOMY_PROMISE = (
+    "the closed vocabularies -- layers, gap types, the evidence ladder with its "
+    "weights, and record statuses. Sizes are deliberately not restated in this cell: "
+    "a hand-maintained count of a machine-published vocabulary decays silently and "
+    "then misleads with authority")
+
+
 # --- the comparison, both directions ----------------------------------------
 
 def test_the_shipped_document_agrees_with_the_parser():
@@ -194,15 +206,14 @@ def test_an_invented_flag_is_reported():
 
 def test_a_missing_verb_row_is_reported():
     document = _replace_once(
-        contract_text(), "| `radar taxonomy` | the closed vocabularies "
-                         "(11 layers, 8 gap types, 9 evidence classes) |\n", "")
+        contract_text(), "| `radar taxonomy` | "
+                         + TAXONOMY_PROMISE + " |\n", "")
     assert surface_violations(document) == [
         "verb set: missing ['taxonomy'], unexpected []"]
 
 
 def test_a_duplicated_verb_row_is_reported_because_set_equality_cannot_see_it():
-    row = "| `radar taxonomy` | the closed vocabularies " \
-          "(11 layers, 8 gap types, 9 evidence classes) |"
+    row = "| `radar taxonomy` | " + TAXONOMY_PROMISE + " |"
     document = _replace_once(contract_text(), row + "\n", row + "\n" + row + "\n")
     # The two counts are DERIVED from the parser, not restated. Written as literals
     # ("8 row(s) for 7 verb(s)") this assertion was a closed-set census over the live

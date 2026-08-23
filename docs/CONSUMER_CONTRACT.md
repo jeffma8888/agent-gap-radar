@@ -18,7 +18,7 @@ The consumer-side design lives with the consumer:
 | `radar prd <repo> --gap <ID> [--project NAME]` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
 | `radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding whose confidence clears the register floor, names each skipped below-floor finding on stderr, and exits 2 if none clears; `--exit-code` leaves the document byte-identical whenever it verdicts and moves the ANSWER into the exit status instead -- 1 when this target has at least one PRESENT finding that clears the floor, 0 when it has none, 2 when the scan applied zero records and so verdicted nothing. The two flags are mutually exclusive: both are floor-gated verdict surfaces, and they answer the same question with opposite codes |
 | `radar diff <old> <new>` | what changed between two register states: records added, records removed, and per-record changes across a CLOSED set of nine fields (`status`, `layer`, `gap_type`, `severity`, `frequency`, `tractability`, `priority`, `confidence`, citation count). Free prose is never compared, so a rewording is not a change; both domain sizes are stated, so an emptied, moved or one-level-too-high side cannot read as "everything was added"; both paths are REQUIRED, so neither side can silently default to the caller's working directory; `priority` and `confidence` are reported as two separate lines and never blended |
-| `radar taxonomy` | the closed vocabularies (11 layers, 8 gap types, 9 evidence classes) |
+| `radar taxonomy` | the closed vocabularies -- layers, gap types, the evidence ladder with its weights, and record statuses. Sizes are deliberately not restated in this cell: a hand-maintained count of a machine-published vocabulary decays silently and then misleads with authority |
 
 Guarantees a consumer may build on: offline always (no network at runtime or in
 tests); deterministic, byte-stable output; stdout carries only the document,
@@ -101,7 +101,7 @@ in the register rather than as data it has to tolerate.
 | `title` | yes | string | one line, the gap named as a reader would refer to it |
 | `layer` | yes | string | where in an agent stack the gap lives; a closed vocabulary, so a consumer may switch on it |
 | `gap_type` | yes | string | what kind of gap it is; a closed vocabulary, so a consumer may switch on it |
-| `status` | no | string | a closed vocabulary; absent means `open` |
+| `status` | no | string | a closed vocabulary, published in full by `radar taxonomy`; absent means `open` |
 | `problem` | yes | string | one sentence, in the voice of the person hurt by it |
 | `symptom` | yes | string | what an operator actually observes |
 | `why_now` | yes | string | why this is a gap today rather than a solved problem |
