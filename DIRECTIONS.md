@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-72
+    lenses: new-capability, hardening/DX
+    - Candidate A -- the ranked report publishes each record's newest-citation date
+    - Candidate B -- the report gains a shared-source section: which records rest on the same locator
+    - Candidate C -- opt-in `radar prd --with-fixtures` inlines the reproduction sample bytes
+    - Candidate B1 -- the tracked-set cache gets the scan lifetime this module already argues for
+    - Candidate B2 -- the quote gate gets a network seam, so its verdict logic is testable offline
+    - Candidate B3 -- byte-exact goldens for one renderer, over a SYNTHETIC register
+    winner: B2
+    ship: pending (not yet decided)
   iter-71
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- publish the fourth closed vocabulary: `radar taxonomy` names three of four, and the missing one is the one a consumer is told to switch on
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar diff --json`, so the non-regression gate the contract already prescribes has a machine surface
     - Candidate B3 -- `radar show` states a record's floor position and the prescription that would lift it, DERIVED
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 4e1bd39
   iter-70
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- `content_absent` stops reading once its boolean is decided
@@ -430,4 +440,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-43 scouted iterations
+44 scouted iterations

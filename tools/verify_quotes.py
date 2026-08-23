@@ -6,8 +6,12 @@ are actually there. That gap matters most for unattended research: a fabricated
 quote attached to a REAL, resolving URL is the failure mode that survives review,
 because every cheap signal about it looks correct.
 
-Deliberately not part of the test suite. The suite is offline by contract, and a
-network check in it would fail on a plane and pass on a bad day.
+`fetch` is deliberately not part of the test suite, and it is the ONLY line here that
+is not: it is the one line that needs the network, and a network check in a suite that is
+offline by contract would fail on a plane and pass on a bad day. Everything around it IS
+reachable -- `verify` takes `fetch` as a seam and `page_text` normalises a page from a
+string -- so the four verdicts, the PARTIAL window, the non-URL refusal and the exit code
+are all provable with no socket.
 
     python3 tools/verify_quotes.py --gaps gaps
     python3 tools/verify_quotes.py --inbox <dir>     # before promoting
@@ -20,6 +24,15 @@ excerpt containing a typographic quote was reported NOT FOUND. That is a
 fail-CLOSED detector - the checker was broken and it accused correct data.
 Normalisation must be applied to BOTH sides by the same function, which is why
 there is exactly one `_norm` here and both sides call it.
+
+That family has now bitten TWICE, and the SECOND instance is why `page_text` exists: the
+page side replaced EVERY tag with a space, so a page rendering `<code>outputSchema</code>:`
+normalised to `outputschema : ...` while the honest, character-perfect quote normalised to
+`outputschema: ...`, and the excerpt was reported NOT ON PAGE -- fail-CLOSED again -- while
+plain prose from the same paragraph verified. Same shape as the curly-quote bug: the two
+sides were normalised by rules that differ. So the members of `INLINE_ZERO_WIDTH_TAGS` are
+removed with NO separator, because that is what a reader sees, and every other tag still
+becomes a space, because collapsing block boundaries would buy a FALSE pass in exchange.
 """
 
 from __future__ import annotations
@@ -33,6 +46,7 @@ import ssl
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 
 UA = "Mozilla/5.0 (compatible; agent-gap-radar quote verifier)"
 TIMEOUT = 30
@@ -40,6 +54,12 @@ TIMEOUT = 30
 #: with an elided middle is legitimate; a quote sharing no long run with the page
 #: is not.
 PARTIAL_WINDOW = 12
+#: Inline elements a READER sees as zero width. A page rendering `<code>x</code>: y` shows no
+#: space before the colon, so replacing these tags with a space is what made an honest quote
+#: report NOT ON PAGE. Deliberately CLOSED and deliberately small: every member added widens
+#: the surface on which two separate words merge into one and buy a FALSE pass, which is the
+#: opposite and worse failure. `span`, `em`, `strong` and `a` are NOT here on purpose.
+INLINE_ZERO_WIDTH_TAGS = frozenset({"code", "kbd", "samp", "var", "tt"})
 
 _SUBS = {
     "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
@@ -55,8 +75,24 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def _visible_text(raw: str) -> str:
+#: Built FROM the published constant, so the set is authoritative rather than a comment
+#: about a hand-written pattern. `\b` keeps `<codex>` out of the `code` case; `[^>]*` lets
+#: attributes through (`<code class="x">`); `(?i)` covers `<CODE>`; `</?` covers both forms.
+_ZERO_WIDTH_RE = re.compile(
+    r"(?is)</?(?:" + "|".join(sorted(INLINE_ZERO_WIDTH_TAGS)) + r")\b[^>]*>"
+)
+
+
+def page_text(raw: str) -> str:
+    """Normalise an HTML page to the visible text a quote is compared against.
+
+    Published rather than `_`-private because it is HALF of every verdict this tool
+    prints: a caller who cannot reproduce this normalisation cannot audit, or test, the
+    NOT ON PAGE it produced. It is also the seam that makes the whole verdict path
+    reachable offline, from a literal HTML string.
+    """
     raw = re.sub(r"(?is)<(script|style|svg|noscript)\b.*?</\1>", " ", raw)
+    raw = _ZERO_WIDTH_RE.sub("", raw)
     return _norm(html.unescape(re.sub(r"(?s)<[^>]+>", " ", raw)))
 
 
@@ -66,12 +102,26 @@ def fetch(url: str) -> str | None:
         with urllib.request.urlopen(
             req, timeout=TIMEOUT, context=ssl.create_default_context()
         ) as resp:
-            return _visible_text(resp.read().decode("utf-8", "replace"))
+            return page_text(resp.read().decode("utf-8", "replace"))
     except (urllib.error.URLError, OSError, ValueError):
         return None
 
 
-def verify(records: list[tuple[str, dict]]) -> int:
+#: The one line that needs a socket, hoisted into a type so a caller can substitute it.
+_FetchFn = Callable[[str], str | None]
+
+
+def verify(records: list[tuple[str, dict]], fetch: _FetchFn = fetch) -> int:
+    """Print a verdict per quote and return 0 only if every one of them is accounted for.
+
+    `fetch` is a SEAM, defaulting to the module function so the CLI is unchanged. Without
+    it, the single networked line quarantined the ENTIRE verdict path -- the four labels,
+    the PARTIAL window, the non-URL refusal, the exit code -- from a suite that is offline
+    by contract, which left the central honesty claim of the register with no test at all.
+
+    Pages are memoised per URL, so a locator cited by two records is fetched ONCE. That was
+    always true of the network and is now observable through the seam.
+    """
     pages: dict[str, str | None] = {}
     verbatim = partial = missing = unreachable = 0
     problems: list[str] = []
