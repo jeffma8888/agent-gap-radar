@@ -37,7 +37,7 @@ import re
 
 import pytest
 
-from agent_gap_radar.checks import Verdict
+from agent_gap_radar.checks import UNKNOWN_MEANING, Verdict
 from agent_gap_radar.cli import main
 from agent_gap_radar.render import table
 from test_iter02_behavior import MARKER, _record, _target, _write_register
@@ -49,13 +49,15 @@ SRC_DIR = REPO_ROOT / "src" / "agent_gap_radar"
 VERDICT_HEADER = "| Verdict | Count | Meaning |"
 VERDICT_RULE = "| --- | --- | --- |"
 
-#: Behavior 1 -- the five meanings, verbatim from the spec, keyed by verdict value.
+#: Behavior 1 -- the five meanings keyed by verdict value. Four are verbatim from the
+#: spec; UNKNOWN is DERIVED from `checks.UNKNOWN_MEANING`, because iteration 70 made
+#: that constant the single published copy and a hand-copy here would be a second.
 MEANINGS = {
     "PRESENT": "gap signature found in this target",
     "ABSENT": "a mitigation was positively identified",
     "MANUAL": "static analysis cannot decide; a human must answer",
     "NOT_APPLICABLE": "this gap cannot apply to this target",
-    "UNKNOWN": "the check could not be run",
+    "UNKNOWN": UNKNOWN_MEANING,
 }
 
 #: Behavior 6 -- the two `radar report` table headers.

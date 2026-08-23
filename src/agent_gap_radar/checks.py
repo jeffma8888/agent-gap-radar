@@ -49,7 +49,18 @@ class Verdict(str, enum.Enum):
     ABSENT = "ABSENT"                  # a mitigation was POSITIVELY found
     NOT_APPLICABLE = "NOT_APPLICABLE"  # the gap cannot apply to this target
     MANUAL = "MANUAL"                  # undecidable statically; ask the question
-    UNKNOWN = "UNKNOWN"                # the check could not be run
+    UNKNOWN = "UNKNOWN"                # no verdict; the gloss is UNKNOWN_MEANING
+
+
+#: The ONE published gloss for `UNKNOWN`, and it must be true of BOTH its causes.
+#: Iteration 63 gave the verdict a second cause that INVERTS on the safety axis:
+#: there the check DID execute, and refuses `ABSENT` because `present_when` read
+#: only the head of a domain `MAX_SCAN_FILES` cut. A gloss naming only the first
+#: cause tells a consumer to retry a tool that never failed, so this one names
+#: neither cause and delegates the distinction to the finding's own `reason`,
+#: which states it in full. Every reader-facing surface reads THIS name: a second
+#: copy of the wording is precisely how the two drift apart.
+UNKNOWN_MEANING = "no verdict: the check could not run, or its search was incomplete"
 
 
 @dataclass
@@ -673,8 +684,8 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
             # found nothing over a domain `MAX_SCAN_FILES` cut, so the signature
             # may sit in the tail that was never read: that is UNKNOWN. The
             # mitigation hit is real but cannot carry the claim on its own, and
-            # its locations are dropped deliberately -- publishing them beside a
-            # verdict that says "could not run" would read as evidence of safety.
+            # its locations are dropped deliberately -- publishing them beside an
+            # UNKNOWN verdict would read as evidence of safety.
             return CheckOutcome(
                 Verdict.UNKNOWN,
                 reason=("present_when read only the first "

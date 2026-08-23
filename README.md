@@ -38,7 +38,7 @@ A register tells you what tends to break. A scan tells you what *your* project h
 
 The rules are **data, not code**. A register that carried executable rules would be a remote-code-execution surface for anyone who pulled a shared one.
 
-Five verdicts, never collapsed, because collapsing them is how a tool starts lying:
+### Five verdicts, never collapsed -- collapsing them is how a tool starts lying
 
 | Verdict | Meaning |
 |---|---|
@@ -46,7 +46,7 @@ Five verdicts, never collapsed, because collapsing them is how a tool starts lyi
 | `ABSENT` | a mitigation was **positively identified** |
 | `NOT_APPLICABLE` | the gap cannot apply here (the precondition is missing) |
 | `MANUAL` | static analysis cannot honestly decide, so it asks a question instead |
-| `UNKNOWN` | the check could not be run |
+| `UNKNOWN` | no verdict: the check could not run, or its search was incomplete |
 
 Three invariants make the output trustworthy rather than merely confident:
 

@@ -12,7 +12,8 @@ import json
 import pathlib
 from dataclasses import dataclass
 
-from .checks import CheckOutcome, Verdict, read_cache_scope, run_check
+from .checks import (CheckOutcome, UNKNOWN_MEANING, Verdict, read_cache_scope,
+                     run_check)
 from .models import Gap
 from .render import document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
@@ -260,7 +261,7 @@ def render_scan(result: ScanResult) -> str:
         Verdict.ABSENT: "a mitigation was positively identified",
         Verdict.MANUAL: "static analysis cannot decide; a human must answer",
         Verdict.NOT_APPLICABLE: "this gap cannot apply to this target",
-        Verdict.UNKNOWN: "the check could not be run",
+        Verdict.UNKNOWN: UNKNOWN_MEANING,
     }
     # Rows follow `Verdict` declaration order -- PRESENT, ABSENT,
     # NOT_APPLICABLE, MANUAL, UNKNOWN -- which is what the committed bytes
@@ -323,7 +324,10 @@ def render_scan(result: ScanResult) -> str:
 
     unknown = result.by_verdict(Verdict.UNKNOWN)
     if unknown:
-        lines += ["## Could not run (UNKNOWN)", ""]
+        # Derived from the member, not spelled: a heading naming a CAUSE was
+        # false for half the findings under it, and a hand-typed value drifts
+        # from the enum the moment either is edited.
+        lines += [f"## No verdict ({Verdict.UNKNOWN.value})", ""]
         lines += [f"- **{f.gap.id}** {f.outcome.reason}" for f in unknown]
         lines.append("")
 

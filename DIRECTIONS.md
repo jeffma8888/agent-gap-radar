@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-70
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A -- `content_absent` stops reading once its boolean is decided
+    - Candidate B -- memoise ENUMERATION (`iter_files`) for the scope of one scan
+    - Candidate C -- to be decided from measurement (row 63 fold-in / row 68 bounded enumeration)
+    - Candidate B1 -- `UNKNOWN` means two things and every surface, including the tool's own output, publishes only one
+    - Candidate B2 -- the consumer contract restates a register count, and it is now wrong on BOTH numbers
+    - Candidate B3 -- the contract tells a consumer to gate on a status the register's joint-top record does not have
+    winner: B1
+    ship: pending (not yet decided)
   iter-69
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- two enumeration branches, ONE matcher: delete the duplicated match loop in `checks.py`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- memoize `iter_files` per (target, globs, exclude_tests) for the life of one scan
     - Candidate B3 -- stop evaluating `any_of` sub-rules whose result can no longer change a byte of output
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 773afda
   iter-68
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar prd` emits a wrapper key the one declared consumer cannot parse
@@ -410,4 +420,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-41 scouted iterations
+42 scouted iterations
