@@ -227,63 +227,27 @@ def _glob_regex(pattern: str) -> re.Pattern[str]:
         return re.compile("^" + re.escape(pattern) + "$")
 
 
-def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
-                  globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
-    """Match globs against the tracked paths instead of walking the filesystem.
+def _match_globs(target: pathlib.Path, relatives: list[str],
+                 globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
+    """Match register globs against already-enumerated target-relative paths.
 
-    Same answer, a fraction of the work. The old order globbed the whole tree
-    and only afterwards filtered against the tracked set, so on a git target
-    `SKIP_DIRS` was never consulted and the walk descended `.git`, `.venv` and
-    every gitignored loop state dir: measured 181,440 yielded paths and 181,477
-    `Path.resolve()` calls to arrive at 222 files on a real 229-file target.
-    The tracked set is loaded before the first glob, so the information needed
-    to skip that walk was already in hand and thrown away.
-    """
-    root = target.resolve()
-    relatives: list[str] = []
-    for path in tracked:
-        try:
-            relatives.append(path.relative_to(root).as_posix())
-        except ValueError:
-            continue  # a tracked path outside the target cannot match a glob
-    seen: set[pathlib.Path] = set()
-    for pattern in globs:
-        regex = _glob_regex(pattern)
-        for rel in relatives:
-            if not regex.match(rel):
-                continue
-            path = target / rel
-            # `git ls-files` also names staged-but-deleted files and submodule
-            # gitlinks, so the existence check stays. It is now one stat per
-            # MATCH rather than one per walked path.
-            if not path.is_file():
-                continue
-            # A tracked SYMLINK may not drag content in from outside the target.
-            # `is_file()` follows links, so without this a tracked
-            # `escape.py -> ../outside.py` is scanned and its lines are quoted as
-            # evidence about a commit that does not contain them. The old walk
-            # excluded it by construction via `path.resolve() in tracked`.
-            # Resolved-vs-resolved, so the macOS `/var` -> `/private/var` link
-            # does not reject the whole target. One `resolve()` per MATCH.
-            try:
-                if not path.resolve().is_relative_to(root):
-                    continue
-            except OSError:
-                continue  # unreadable link chain: not a file we can judge
-            if exclude_tests and is_test_path(target, path):
-                continue
-            seen.add(path)
-    return sorted(seen)
+    The ONE match loop behind both branches of `iter_files`, so their shared
+    rule is code rather than a promise. As a promise it drifted TWICE, each
+    time as a fix landed on one branch that the other already had: `7570c39`
+    gave a non-git scan the same glob dialect as a git one, and `60a0fce`
+    re-landed the walked branch's containment guard.
 
+    Stats unconditionally and takes NO branch-selecting flag: the existence
+    check states something about the path this loop is about to PUBLISH as a
+    locator, not about how that path was enumerated. `git ls-files` names
+    staged-but-deleted files and submodule gitlinks, and a walk is not atomic,
+    so a file that passed `entry.is_file()` during the descent can be gone by
+    the time matching reaches it. Priced on the walked branch, which did not
+    stat before: 2,146 extra `Path.is_file()` calls per full non-git scan,
+    min-of-5 wall 489.9 ms against 500.1 ms unpatched -- inside the noise.
 
-def _iter_walked(target: pathlib.Path, globs: list[str],
-                 exclude_tests: bool) -> list[pathlib.Path]:
-    """Fallback for a non-git target: ENUMERATE by walking, then match as usual.
-
-    There is no authoritative "what does this project ship" answer without git,
-    so the hand-maintained `SKIP_DIRS` is the best available approximation and it
-    prunes the descent rather than filtering matches afterwards. That is the only
-    thing this branch decides differently from `_iter_tracked`.
+    `root` is derived, not accepted, so containment cannot be judged against a
+    root a caller picked; the wrong one publishes outside evidence silently.
 
     Matching is `_glob_regex` and NOT `Path.glob`, because a register pattern is
     consumer-supplied data and `Path.glob` answers it three different ways. All
@@ -306,6 +270,73 @@ def _iter_walked(target: pathlib.Path, globs: list[str],
     both wrong answers and the interpreter divergence at once.
     """
     root = target.resolve()
+    seen: set[pathlib.Path] = set()
+    for pattern in globs:
+        regex = _glob_regex(pattern)
+        for rel in relatives:
+            if not regex.match(rel):
+                continue
+            path = target / rel
+            if not path.is_file():
+                continue
+            # A SYMLINK may not drag content in from outside the target.
+            # `is_file()` follows links, so without this a tracked
+            # `escape.py -> ../outside.py` is scanned and its lines are quoted
+            # as evidence about a commit that does not contain them; on the
+            # walked branch the same commit answered PRESENT 1 with `.git` and
+            # PRESENT 0 without, a verdict flip on byte-identical inputs.
+            # Resolved-vs-resolved, because a target whose own root is reached
+            # through a link (macOS `/var` -> `/private/var`, where `tempfile`
+            # puts everything) would otherwise have every one of its files
+            # rejected. Settled once per MATCH rather than once per enumerated
+            # path because that is strictly cheaper: measured on a non-git copy
+            # of this repo against the live 16-record register, guarding during
+            # the walk would cost 34 x 83 = 2,822 `resolve()` calls where this
+            # loop reaches only 1,826 -- 1.5x cheaper for the same answer,
+            # since a file matching no register glob never needs judging.
+            try:
+                if not path.resolve().is_relative_to(root):
+                    continue
+            except OSError:
+                continue  # unreadable link chain: not a file we can judge
+            if exclude_tests and is_test_path(target, path):
+                continue
+            seen.add(path)
+    return sorted(seen)
+
+
+def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
+                  globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
+    """Match globs against the tracked paths instead of walking the filesystem.
+
+    Same answer, a fraction of the work. The old order globbed the whole tree
+    and only afterwards filtered against the tracked set, so on a git target
+    `SKIP_DIRS` was never consulted and the walk descended `.git`, `.venv` and
+    every gitignored loop state dir: measured 181,440 yielded paths and 181,477
+    `Path.resolve()` calls to arrive at 222 files on a real 229-file target.
+    The tracked set is loaded before the first glob, so the information needed
+    to skip that walk was already in hand and thrown away.
+    """
+    root = target.resolve()
+    relatives: list[str] = []
+    for path in tracked:
+        try:
+            relatives.append(path.relative_to(root).as_posix())
+        except ValueError:
+            continue  # a tracked path outside the target cannot match a glob
+    return _match_globs(target, relatives, globs, exclude_tests)
+
+
+def _iter_walked(target: pathlib.Path, globs: list[str],
+                 exclude_tests: bool) -> list[pathlib.Path]:
+    """Fallback for a non-git target: ENUMERATE by walking, then match as usual.
+
+    There is no authoritative "what does this project ship" answer without git,
+    so the hand-maintained `SKIP_DIRS` is the best available approximation and it
+    prunes the descent rather than filtering matches afterwards. That is the only
+    thing this branch decides differently from `_iter_tracked`. Everything after
+    enumeration is `_match_globs`, which is where the matching rules live.
+    """
     # The target-relative POSIX path is accumulated during the descent, so the
     # match loop needs no `relative_to` call per file and the string it matches is
     # built exactly like the one `_iter_tracked` matches. MEASURED, so it is not a
@@ -334,42 +365,12 @@ def _iter_walked(target: pathlib.Path, globs: list[str],
             elif entry.is_file():
                 # `is_file()` FOLLOWS links, as the old walk's did, so an entry
                 # whose target lies outside the tree is ENUMERATED here and
-                # rejected by the containment guard in the match loop below.
-                # Containment is a rule about evidence, separate from matching,
-                # and it is settled per MATCH rather than per walked path
-                # because that is strictly cheaper: measured on a non-git copy
-                # of this repo against the live 16-record register, one scan
-                # enters this branch 34 times over 83 walked files each, so a
-                # guard here would cost 34 x 83 = 2,822 `resolve()` calls where
-                # the match loop below reaches only 1,826 -- 1.5x cheaper for
-                # the same answer, because a walked file that matches no
-                # register glob never needs judging.
+                # rejected later by `_match_globs`. Containment is a rule about
+                # evidence, separate from enumeration, and settling it there
+                # per match rather than here per walked path is 1.5x cheaper on
+                # the same answer -- `_match_globs` carries the measurement.
                 relatives.append(rel)
-    seen: set[pathlib.Path] = set()
-    for pattern in globs:
-        regex = _glob_regex(pattern)
-        for rel in relatives:
-            if not regex.match(rel):
-                continue
-            path = target / rel
-            # A SYMLINK may not drag content in from outside the target. Without
-            # this the walked branch publishes a locator naming a file the tree
-            # does not hold, and flips a verdict on byte-identical inputs: the
-            # same commit scanned with and without `.git` answered PRESENT 1 vs
-            # PRESENT 0. Same rule and same shape as `_iter_tracked`, so the two
-            # branches differ in ENUMERATION only. Resolved-vs-resolved, because
-            # a target whose own root is reached through a link (macOS
-            # `/var` -> `/private/var`, where `tempfile` puts everything) would
-            # otherwise have every one of its files rejected.
-            try:
-                if not path.resolve().is_relative_to(root):
-                    continue
-            except OSError:
-                continue  # unreadable link chain: not a file we can judge
-            if exclude_tests and is_test_path(target, path):
-                continue
-            seen.add(path)
-    return sorted(seen)
+    return _match_globs(target, relatives, globs, exclude_tests)
 
 
 def iter_files(target: pathlib.Path, globs: list[str],

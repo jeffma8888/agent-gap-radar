@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-69
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- two enumeration branches, ONE matcher: delete the duplicated match loop in `checks.py`
+    - Candidate A2 -- four closed-vocabulary validators are ONE general rule (`models.py`)
+    - Candidate A3 -- retire `tools/check_locators.py`: one out-of-band network checker, not two
+    - Candidate B1 -- memoize a content rule's verdict per (pattern, file) inside the existing read-cache scope
+    - Candidate B2 -- memoize `iter_files` per (target, globs, exclude_tests) for the life of one scan
+    - Candidate B3 -- stop evaluating `any_of` sub-rules whose result can no longer change a byte of output
+    winner: A1
+    ship: pending (not yet decided)
   iter-68
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar prd` emits a wrapper key the one declared consumer cannot parse
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- retire the two vocabulary accessors the product itself never calls
     - Candidate B3 -- delete the restated register count in the published contract rather than updating it
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 962df3b
   iter-67
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `radar scan` publishes the operator's home directory on both surfaces, so a committed report is machine-local
@@ -400,4 +410,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-40 scouted iterations
+41 scouted iterations
