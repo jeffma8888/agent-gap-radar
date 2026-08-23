@@ -222,8 +222,9 @@ surface above already documents, read one attribute at a time.
 
 ## The invariant a consumer must not launder
 
-`priority` and `confidence` are deliberately UNBLENDED. `priority` is
-severity x frequency x tractability - how much it would matter to fix.
+`priority` and `confidence` are deliberately UNBLENDED. `priority` is a
+weighted sum of severity x3, frequency x2 and tractability x1, normalised to
+0.0-10.0 - how much it would matter to fix.
 `confidence` is derived ONLY from the evidence ladder - how much we should
 believe the gap is real. A single composite number would hide exactly the
 distinction the register exists to preserve, so no consumer should compute one.

@@ -2,7 +2,8 @@
 
 Two numbers come out of a gap, and they are deliberately NOT combined:
 
-  priority   -- how much it would matter to fix (severity x frequency x tractability)
+  priority   -- how much it would matter to fix (weighted sum: severity x3
+                + frequency x2 + tractability x1, normalised to 0.0-10.0)
   confidence -- how well we actually know it is true (derived from evidence only)
 
 Blending them produces the classic failure where a well-cited small problem

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-74
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- both published documents state the priority formula, both state it WRONG, and the contract obliges a file-reading consumer to implement it
+    - Candidate A2 -- `radar list --json` says a record is below the floor and never what would lift it (roadmap row 21)
+    - Candidate A3 -- the consumer switches on members of our closed vocabularies, and the contract promises they are switchable but never that they are stable
+    - Candidate B1 -- One `_slug`, not two, and the trailing dash goes with the copy
+    - Candidate B2 -- Move shipped-row detail out of `PRODUCT.md` into an archive
+    - Candidate B3 -- Delete the byte-identical duplicated test helpers
+    winner: A1
+    ship: pending (not yet decided)
   iter-73
     lenses: hardening/DX, integration-and-adoption
     - Candidate A -- `tools/check_locators.py` returns "all locators resolve" after checking zero of them
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate C1 -- the published gate rule tells a consumer to require `status == open`, which refuses the joint-highest-priority record
     - Candidate D1 -- `radar diff` has no machine payload, so the non-regression half of our own gate rule is unimplementable
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 0a611c5
   iter-72
     lenses: new-capability, hardening/DX
     - Candidate A -- the ranked report publishes each record's newest-citation date
@@ -450,4 +460,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-45 scouted iterations
+46 scouted iterations
