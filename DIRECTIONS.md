@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-76
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A -- memoise `iter_files` for the lifetime of one scan (roadmap row 67)
+    - Candidate B -- to be completed (CLI import cost paid per subprocess)
+    - Candidate C -- to be completed (per-pattern regex cost)
+    - Candidate A1 -- the stable-surface table marks three verbs' arguments REQUIRED that the parser makes optional
+    - Candidate B1 -- the contract restates a register cardinality, and it is now wrong in both numerator and denominator
+    - Candidate C1 -- the ingest door is stricter than the schema, and no consumer-facing document says so
+    winner: A1
+    ship: pending (not yet decided)
+  iter-75
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- Collapse the two divergent `_slug` implementations into one
+    - Candidate A2 -- Archive spent measurement prose from the 49 shipped rows, not the ledger
+    - Candidate A3 -- Collapse the duplicate open rows 64 and 70 into one open row
+    - Candidate B1 -- memoise the per-scan file-set enumeration in the frame the read cache already owns
+    - Candidate B2 -- memoise the content-rule verdict per (pattern, globs, exclude_tests, kind) within one scan
+    - Candidate B3 -- pay for pydantic only on the verbs that need a register
+    winner: A1
+    ship: REVERTED
   iter-74
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- both published documents state the priority formula, both state it WRONG, and the contract obliges a file-reading consumer to implement it
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Move shipped-row detail out of `PRODUCT.md` into an archive
     - Candidate B3 -- Delete the byte-identical duplicated test helpers
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 761bcd1
   iter-73
     lenses: hardening/DX, integration-and-adoption
     - Candidate A -- `tools/check_locators.py` returns "all locators resolve" after checking zero of them
@@ -460,4 +480,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-46 scouted iterations
+48 scouted iterations

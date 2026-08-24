@@ -12,8 +12,8 @@ import json
 import pathlib
 from dataclasses import dataclass
 
-from .checks import (CheckOutcome, UNKNOWN_MEANING, Verdict, read_cache_scope,
-                     run_check)
+from .checks import (CheckOutcome, UNKNOWN_MEANING, Verdict, file_cache_scope,
+                     read_cache_scope, run_check)
 from .models import Gap
 from .render import document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
@@ -230,11 +230,14 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
     findings: list[Finding] = []
     uncheckable: list[Gap] = []
 
-    # One read snapshot per scan. Every gap's rules read the target through this
-    # scope, so a file reached by several rules is decoded once and every rule in
-    # THIS scan sees the same bytes; the scope closes before the result is
-    # returned, so no later scan can be answered from it.
-    with read_cache_scope():
+    # One read snapshot and one enumeration snapshot per scan. Every gap's rules
+    # reach the target through these scopes, so a file reached by several rules is
+    # decoded once, a domain asked for by several rules is walked once, and every
+    # rule in THIS scan sees the same bytes and the same file list; both scopes
+    # close before the result is returned, so no later scan can be answered from
+    # either. Entered together because a scan that held one and not the other
+    # would answer two rules from one snapshot and one stale walk.
+    with read_cache_scope(), file_cache_scope():
         for gap in sorted(gaps, key=lambda g: g.id):
             if gap.check is None:
                 uncheckable.append(gap)

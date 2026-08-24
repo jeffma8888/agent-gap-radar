@@ -384,8 +384,51 @@ def _iter_walked(target: pathlib.Path, globs: list[str],
     return _match_globs(target, relatives, globs, exclude_tests)
 
 
-def iter_files(target: pathlib.Path, globs: list[str],
-               exclude_tests: bool = False) -> list[pathlib.Path]:
+#: One memoised enumeration: `(target as given, globs as asked, exclude_tests)`.
+_FileDomainKey = tuple[str, tuple[str, ...], bool]
+
+#: Enumeration frames, innermost last. A STACK for the same reason
+#: `_READ_CACHE_STACK` is one: a nested scan is a DIFFERENT scan, so it gets its
+#: own snapshot, and leaving it must leave the enclosing scan's snapshot intact.
+_FILE_CACHE_STACK: list[dict[_FileDomainKey, list[pathlib.Path]]] = []
+
+
+@contextlib.contextmanager
+def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
+    """Memoise `iter_files` for the duration of ONE scan, then forget everything.
+
+    The other half of the iteration that memoised the DECODE beside this and left
+    the ENUMERATION per-rule, and it is the same two arguments. Cost: a domain is
+    re-derived once per rule that asks for it -- measured on this repo as its own
+    target, 38 calls resolve to 11 distinct keys, so 27 of 38 (71%) re-derive a
+    list already in hand and one key is asked 18 times. Coherence: two rules
+    asking the same question of one tree must receive one answer, and a writer
+    touching the tree mid-scan is not hypothetical when this verb is pointed at a
+    live agent checkout.
+
+    The lifetime is the SCAN, not the process, for the reason `read_cache_scope`
+    states in full: a process-lifetime enumeration answers a LATER scan from a
+    tree that has since changed, and a wrong answer costs more here than a
+    redundant walk. `_TRACKED_CACHE` above is process-lifetime and that asymmetry
+    is a known open roadmap item; this scope deliberately does not extend it.
+
+    A separate stack rather than a widened `read_cache_scope`: the two memoise
+    different questions under differently-shaped keys, and that scope publishes a
+    decode-specific contract its own tests patch BY NAME. `scan()` enters both on
+    one line, so one scan still holds exactly one snapshot of each kind.
+    """
+    frame: dict[_FileDomainKey, list[pathlib.Path]] = {}
+    _FILE_CACHE_STACK.append(frame)
+    try:
+        yield frame
+    finally:
+        # Pop rather than clear, and in `finally`: an exception raised mid-scan
+        # must not leave a frame open for the next scan to answer from.
+        _FILE_CACHE_STACK.pop()
+
+
+def _enumerate_files(target: pathlib.Path, globs: list[str],
+                     exclude_tests: bool) -> list[pathlib.Path]:
     """Resolve globs under target, restricted to what the project ships.
 
     Two branches, chosen by whether the target is a git repo, because the two
@@ -400,6 +443,51 @@ def iter_files(target: pathlib.Path, globs: list[str],
     if tracked is not None:
         return _iter_tracked(target, tracked, globs, exclude_tests)
     return _iter_walked(target, globs, exclude_tests)
+
+
+def iter_files(target: pathlib.Path, globs: list[str],
+               exclude_tests: bool = False) -> list[pathlib.Path]:
+    """`_enumerate_files`, memoised if and only if a `file_cache_scope()` is open.
+
+    Uncached by default on purpose, exactly as `_read` is: this is a public entry
+    point, and a caller reaching it outside a scan must see the tree as it is now.
+
+    THE KEY CARRIES `exclude_tests` because dropping it is a fail-open, not a
+    tidier cache. Measured on this repo: of the 8 distinct glob sets one scan
+    asks for, 3 are asked under BOTH values, and all 3 answer DIFFERENTLY -- 73
+    files against 15, 73 against 15, and 90 against 32. A globs-only key would
+    hand the 15-file domain to a rule that asked for 73, so a mitigation rule
+    could search a domain its own `present_when` sibling had already narrowed,
+    which is the fail-open this module's header forbids arriving through a cache
+    instead of through a bad rule. It is also what explains the discrepancy an
+    earlier measurement left open: 38 calls are 11 keys but only 8 glob sets.
+
+    The target is keyed AS GIVEN, unresolved, for the reason `_read` documents:
+    two spellings of one directory miss each other, which costs one redundant
+    enumeration and can never return another target's files -- the safe direction
+    for a cache in a tool whose whole value is that its verdicts are honest.
+
+    The globs are keyed in the ORDER ASKED and are neither sorted nor deduped.
+    Normalising would buy a few more hits by ASSERTING that order and repetition
+    cannot change the answer. That happens to be true of `_match_globs` today,
+    which accumulates into a set, but a key that encodes an invariant belonging
+    to another function starts answering wrongly the day that function changes,
+    and the failure would be silent. The cost of not normalising is a redundant
+    enumeration; the cost of normalising wrongly is a wrong file list.
+    """
+    if not _FILE_CACHE_STACK:
+        return _enumerate_files(target, globs, exclude_tests)
+    frame = _FILE_CACHE_STACK[-1]
+    key: _FileDomainKey = (str(target), tuple(globs), exclude_tests)
+    if key not in frame:
+        frame[key] = _enumerate_files(target, globs, exclude_tests)
+    # A FRESH list on every hand-out, including the first, so the snapshot is
+    # never aliased by a caller. `evaluate` slices this list today, but a caller
+    # that sorted or truncated it in place would silently narrow the domain of
+    # every later rule asking the same question -- the same fail-open one layer
+    # down, arriving through an aliased list rather than through a bad rule.
+    # A shallow copy suffices: `pathlib.Path` is immutable.
+    return list(frame[key])
 
 
 #: Read frames, innermost last. A STACK rather than one dict because the scope
