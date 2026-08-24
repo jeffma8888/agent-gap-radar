@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-77
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- the consumer contract restates a register count, is wrong on both numbers, and breaks a rule it publishes itself
+    - Candidate A2 -- the contract tells a release gate to require `status == open`, which would refuse the register's top-ranked record
+    - Candidate A3 -- the roadmap says `open` for something iteration 64 shipped, and nothing in the repo can detect that
+    - Candidate B1 -- a status past `open` must cite the evidence that earned it, and `radar show` publishes it
+    - Candidate B2 -- `radar show` publishes what each citation CONTRIBUTES to the derived confidence
+    - Candidate B3 -- `radar diff --json`, so the non-regression half of the published gate rule is implementable
+    winner: B3
+    ship: pending (not yet decided)
   iter-76
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- memoise `iter_files` for the lifetime of one scan (roadmap row 67)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- the contract restates a register cardinality, and it is now wrong in both numerator and denominator
     - Candidate C1 -- the ingest door is stricter than the schema, and no consumer-facing document says so
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 11752d7
   iter-75
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- Collapse the two divergent `_slug` implementations into one
@@ -480,4 +490,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-48 scouted iterations
+49 scouted iterations

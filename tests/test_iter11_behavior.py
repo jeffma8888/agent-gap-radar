@@ -696,16 +696,47 @@ def test_b11_the_published_surface_reports_no_violations():
     assert surface_violations(contract_text()) == []
 
 
-def test_b11_the_diff_row_documents_two_positionals_and_no_options():
+def _bracketed_positionals(cell: str) -> list[str]:
+    """Bracketed tokens in a documented invocation that name a POSITIONAL.
+
+    A positional is spelled `<name>` in this table, so a bracketed token containing
+    `<` is a required path documented as optional. Optional FLAGS are bracketed on
+    every other row of the same table and are not this defect.
+    """
+    return [token for token in re.findall(r"\[[^\]]*\]", cell) if "<" in token]
+
+
+def test_b11_the_diff_row_documents_two_positionals_and_the_parser_option_set():
+    """AMENDED in iteration 77, which gave `diff` its first option (`--json`).
+
+    Iteration 11 pinned `claimed.options == frozenset()` and banned EVERY bracket
+    from the cell. Both held then, and neither is the property this row protects --
+    the assertion message says what that is: the cell must not BRACKET a positional,
+    because both register paths are required and a defaulted side would compare a
+    register against itself and report "nothing changed". A literal empty-set pin
+    makes any future option unshippable without editing this test, and a blanket
+    bracket ban outlaws the notation the table uses for every optional flag it
+    already documents.
+
+    So the option check now DERIVES from the parser -- the move iteration 70 made on
+    this file's UNKNOWN gloss -- which is strictly stronger than the literal: it
+    fails on a flag the parser accepts and the table omits AND on a flag the table
+    claims and the parser rejects, in either direction.
+    """
     surface = parser_surface()
     assert "diff" in surface, "build_parser() no longer registers the verb"
     cell = _diff_cell()
     claimed = documented_invocation(cell, surface["diff"].takes_value)
     assert claimed.positionals == 2, cell
-    assert claimed.options == frozenset(), cell
+    assert claimed.options == surface["diff"].options, cell
     assert claimed.positionals == surface["diff"].positionals
-    assert "[" not in cell and "]" not in cell, (
+    assert _bracketed_positionals(cell) == [], (
         f"{cell!r} brackets a positional the parser requires")
+    # Two-sided in place, because the amended predicate is narrower than the ban it
+    # replaces: a check that only ever sees a clean cell is indistinguishable from
+    # one that cannot fail. Planting the exact defect the message names must fire.
+    assert _bracketed_positionals(cell.replace("<new>", "[<new>]", 1)), (
+        "the bracketed-positional check no longer detects a bracketed positional")
 
 
 def test_b11_the_surface_check_is_armed_against_this_row():

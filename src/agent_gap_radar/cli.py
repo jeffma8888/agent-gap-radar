@@ -16,7 +16,7 @@ import pathlib
 import sys
 
 from . import __version__
-from .diff import diff_registers, render_diff
+from .diff import diff_json, diff_registers, render_diff
 from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
@@ -219,6 +219,12 @@ def build_parser() -> argparse.ArgumentParser:
     # compare a register against itself and report "nothing changed".
     p_diff.add_argument("old", help="register state to compare FROM")
     p_diff.add_argument("new", help="register state to compare TO")
+    # Same help wording as `scan --json` deliberately: one machine surface should not
+    # read as a different KIND of thing on a neighbouring verb. Not a verdict surface
+    # and not mutually exclusive with anything -- `diff` has no `--exit-code`, so
+    # there is no second floor-gated code vocabulary for this flag to contradict.
+    p_diff.add_argument("--json", action="store_true",
+                        help="emit a stable object for a machine consumer")
 
     sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     return parser
@@ -388,7 +394,13 @@ def _dispatch(argv: list[str] | None = None) -> int:
             new_gaps = load_all(_resolve(args.new))
         except RegistryError as exc:
             return _fail(str(exc))
-        sys.stdout.write(render_diff(diff_registers(old_gaps, new_gaps)))
+        # Compared ONCE and bound, so both surfaces answer from the same comparison
+        # rather than each calling `diff_registers` down its own branch. The two
+        # serializers are then provably reading one object, which is what makes
+        # "the markdown default is unchanged" a statement about the SURFACE only.
+        comparison = diff_registers(old_gaps, new_gaps)
+        sys.stdout.write(diff_json(comparison) if args.json
+                         else render_diff(comparison))
         return EXIT_OK
 
     directory = _resolve(args.path)

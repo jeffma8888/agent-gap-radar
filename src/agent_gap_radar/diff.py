@@ -35,6 +35,7 @@ duplicate-id gate -- this module deliberately does not carry a second one.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from .models import Gap
@@ -207,3 +208,72 @@ def render_diff(diff: RegisterDiff) -> str:
     lines += _section("Changed", len(diff.changed), changed_body)
 
     return document(lines)
+
+
+def _ref_json(ref: RecordRef) -> dict[str, str]:
+    """One Added/Removed entry. Its id AND its title, matching the markdown line.
+
+    The title is carried even though a gate keys on the id: a consumer reporting a
+    reintroduced gap has to name it to a human, and the alternative -- a second
+    `radar show` call per id, across a repo boundary -- is a second read of a
+    register that may already have moved.
+    """
+    return {"gap_id": ref.gap_id, "title": ref.title}
+
+
+def diff_json(diff: RegisterDiff) -> str:
+    """The comparison as a stable object for a machine consumer (a CI gate).
+
+    WHY THIS EXISTS SEPARATELY FROM `render_diff`
+    `docs/CONSUMER_CONTRACT.md` binds a consumer to gate on non-regression -- "the
+    diff did not reintroduce a known gap" -- and until now `render_diff` was this
+    verb's only surface. A gate that regex-scrapes prose breaks the first time a
+    heading is reworded, so half of a rule this product publishes across a repo
+    boundary had no surface any test here could protect.
+
+    PURE OVER THE DATACLASS, AND THAT IS THE POINT
+    Nothing is re-read and nothing is re-derived: every value is already inside
+    `RegisterDiff`, which took `priority` and `confidence` from `scoring`. A
+    serializer that recomputed either would give this payload a second opinion about
+    the register's core invariant, and it could then disagree with the markdown
+    report emitted from the same comparison.
+
+    WHY EVERY `old`/`new` IS A STRING
+    `record_facts` formats before comparing, so the values a `FieldChange` carries
+    ARE the compared strings. Parsing `"8.3"` back to a float here would re-derive a
+    number this module deliberately does not own, and it would type one field
+    differently from its eight siblings -- a consumer switching on `field` would then
+    need a per-field type table. The payload reports what was compared.
+
+    NO BLENDED SCORE, ASSERTED BY ABSENCE OF THE KEY
+    `priority` and `confidence` appear as two distinct `field` entries, exactly as
+    the markdown emits them, and no object at any depth carries a composite `score`.
+    Laundering the two into one figure here would erase the one distinction the
+    register exists to preserve, on the surface a gate reads automatically -- where
+    no human sees it happen.
+    """
+    payload = {
+        # Both domain SIZES first, for the reason `RegisterDiff` carries them: an
+        # emptied or one-level-too-high OLD path otherwise reads as "every record
+        # was added", and a gate keyed on `added` would fire on a path typo.
+        "counts": {"old": diff.old_count, "new": diff.new_count},
+        "added": [_ref_json(ref) for ref in diff.added],
+        "removed": [_ref_json(ref) for ref in diff.removed],
+        "changed": [
+            {
+                "gap_id": record.gap_id,
+                # `COMPARED_FIELDS` order, inherited from `_changes` rather than
+                # re-sorted here, so the payload and the markdown list one record's
+                # fields in the same order and neither owns a second opinion.
+                "changes": [
+                    {"field": change.field, "old": change.old, "new": change.new}
+                    for change in record.changes
+                ],
+            }
+            for record in diff.changed
+        ],
+    }
+    # `indent=2` and `sort_keys=False` match `scan_json` and `_list_json`: one
+    # newline at the end like every renderer here, and INSERTION order preserved so
+    # the key sequence above is the published one rather than an alphabetisation.
+    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
