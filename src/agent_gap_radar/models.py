@@ -192,6 +192,37 @@ def detectability(check: Check | None) -> str:
     return "automated" if check.is_automated else "manual"
 
 
+def _validate_glob(kind: str, glob: object) -> None:
+    """Refuse a `globs` element the matcher cannot even parse.
+
+    THE LINE THIS RULE DRAWS, and it is deliberately narrow: the schema keeps
+    `checks._match_globs`'s contract SATISFIABLE, and does NOT police glob
+    QUALITY. A glob that is a string is the matcher's problem -- iteration 26
+    decided that a blank, absolute or otherwise hostile pattern MATCHES NOTHING
+    at scan time rather than aborting, because a register is data consumers
+    write and share, and `test_iter26_behavior.py` holds that promise at CLI
+    level. A glob that is NOT a string is a different class: it is unparseable,
+    so there is no verdict to answer with.
+
+    `_glob_regex` calls `pattern.split("/")` before it builds any regex, so at
+    HEAD `globs=[123]` was CERTIFIED by `radar validate` (rc=0, 27 bytes of
+    stdout, empty stderr) and then made `radar scan` exit 1 with an
+    `AttributeError` traceback and ZERO document bytes -- the one outcome
+    `_match_globs`'s own docstring names as forbidden by the CLI contract. The
+    regex fallback cannot catch it: the crash precedes the `re.compile`, and
+    `AttributeError` is not a `ValueError`, so no upstream handler sees it. That
+    makes the schema the only door, which is why this limb belongs here while
+    the shape limbs (blank, absolute, `..`) do not -- see PRODUCT.md row 61,
+    which names the five committed tests that hold those shapes schema-valid.
+
+    Raises `ValueError` so pydantic wraps it and the CLI renders `Error: ` on
+    stderr with exit 2 and no stdout, the same path a bad `pattern` takes.
+    """
+    if not isinstance(glob, str):
+        raise ValueError(
+            f"{kind} requires each 'globs' element to be a string, got {glob!r}")
+
+
 def _validate_rule(rule: dict, depth: int = 0) -> None:
     """Reject malformed rules at load time rather than at scan time."""
     if depth > 8:
@@ -215,9 +246,21 @@ def _validate_rule(rule: dict, depth: int = 0) -> None:
     globs = rule.get("globs")
     if not isinstance(globs, list) or not globs:
         raise ValueError(f"{kind} requires a non-empty 'globs' list")
+    # ONE loop for all four leaf kinds, so they cannot disagree about what a
+    # glob element may be. Reached only after the `any_of`/`all_of`/`not` limbs
+    # have returned, and those recurse back through here, so a bad element
+    # nested inside a combinator is refused with the same message.
+    for glob in globs:
+        _validate_glob(kind, glob)
     if kind in ("content_matches", "content_absent"):
         pattern = rule.get("pattern")
-        if not isinstance(pattern, str) or not pattern:
+        # `.strip()` rather than truthiness: `"   "` and `"\t"` are truthy,
+        # compile fine, and are searched with `re.MULTILINE` over whole file
+        # text, so they hit on incidental indentation -- 75 of this repo's own
+        # 76 tracked `.py` files contain three consecutive spaces. That is a
+        # signature of nothing, and the truthiness test certified it. Message
+        # unchanged, so `""` keeps the refusal it already had.
+        if not isinstance(pattern, str) or not pattern.strip():
             raise ValueError(f"{kind} requires a 'pattern' string")
         try:
             re.compile(pattern)

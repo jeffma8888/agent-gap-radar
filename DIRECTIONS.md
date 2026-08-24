@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-78
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- the newest-citation date becomes a DERIVED published fact, and the age threshold is deliberately split off
+    - Candidate A2 -- `radar list --layer L`: a closed-vocabulary filter that REFUSES a typo and SPEAKS when it matches nothing
+    - Candidate A3 -- a status past `open` must cite the evidence that earned it, keyed on the DOCUMENT and not on a list position
+    - Candidate B1 -- do the roadmap index/archive split: `PRODUCT.md` is 94,641 chars against a 54,000-char wall, and the committed brake that would police the split does not know an archive exists
+    - Candidate B2 -- `checks._TRACKED_CACHE` is process-lifetime in the one module that argues in its own comments against process-lifetime caches; a second scan in the same process answers from the first scan's file list
+    - Candidate B3 -- `_validate_rule` type-checks the `globs` LIST and never looks at an element, so `""`, `"   "`, a bare newline, `"/etc/**"` and `"../../**"` are all schema-valid checks
+    winner: B3
+    ship: pending (not yet decided)
   iter-77
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the consumer contract restates a register count, is wrong on both numbers, and breaks a rule it publishes itself
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar show` publishes what each citation CONTRIBUTES to the derived confidence
     - Candidate B3 -- `radar diff --json`, so the non-regression half of the published gate rule is implementable
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED fe680e1
   iter-76
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- memoise `iter_files` for the lifetime of one scan (roadmap row 67)
@@ -490,4 +500,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-49 scouted iterations
+50 scouted iterations
