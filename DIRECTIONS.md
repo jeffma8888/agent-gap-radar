@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-79
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- the public-repo bar is enforced file-by-file by whichever iteration touched a doc, and the 120-record register is covered by nothing
+    - Candidate A2 -- the mutation harness that proves the suite can fail is referenced by nothing in the repo, and its 20 anchors rot silently
+    - Candidate A3 -- `check_locators.py` reports "0 broken" after checking zero locators, and has no seam to test it offline
+    - Candidate B1 -- two of the three `--json` machine surfaces are invisible at the front door, and `--floor` is named nowhere
+    - Candidate B2 -- the register's only door has an on-ramp describing a pipeline that no longer exists
+    - Candidate B3 -- the machine payload a CI consumer commits is machine-local (row 34)
+    winner: A3
+    ship: pending (not yet decided)
   iter-78
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the newest-citation date becomes a DERIVED published fact, and the age threshold is deliberately split off
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `checks._TRACKED_CACHE` is process-lifetime in the one module that argues in its own comments against process-lifetime caches; a second scan in the same process answers from the first scan's file list
     - Candidate B3 -- `_validate_rule` type-checks the `globs` LIST and never looks at an element, so `""`, `"   "`, a bare newline, `"/etc/**"` and `"../../**"` are all schema-valid checks
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED 27d96da
   iter-77
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the consumer contract restates a register count, is wrong on both numbers, and breaks a rule it publishes itself
@@ -500,4 +510,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-50 scouted iterations
+51 scouted iterations
