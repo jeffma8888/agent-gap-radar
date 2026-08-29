@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-81
+    lenses: simplification-and-deletion, performance-and-throughput (iteration 81)
+    - Candidate A1 -- re-land the one-slug-rule collapse iteration 80 lost at the clean-clone gate
+    - Candidate A2 -- one JSON tail, not four: `render.json_document()`
+    - Candidate A3 -- delete the copied helper set: `test_iter77_behavior.py` is `test_iter11_behavior.py`'s helpers
+    - Candidate B1 -- one register pattern costs 29% of every scan; anchor it and prove the document is byte-identical
+    - Candidate B2 -- placeholder (rule-result memo, ~3.5% measured) -- see refinement
+    - Candidate B3 -- placeholder (literal prefilter) -- see refinement
+    winner: B1
+    ship: pending (not yet decided)
+  iter-80
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- the four register doors have no doc round-trip: assert every documented `tools/*.py` command against that tool's own parser (roadmap row 50)
+    - Candidate A2 -- `radar diff` gained a machine payload in iter 77 and the one door that CREATES a register delta still cannot speak it
+    - Candidate A3 -- three of the four tools answer `--help`; the one the README tells you to run first answers `Error: not a directory: --help`
+    - Candidate B1 -- one record slug, not two: re-land the collapse iteration 75 built, approved and lost
+    - Candidate B2 -- one cache-lifetime rule in `checks.py`, not three: retire `_TRACKED_CACHE` (roadmap row 43)
+    - Candidate B3 -- collapse duplicate open rows 64 and 70, and do the index/archive split the foundry already did to itself
+    winner: B1
+    ship: REVERTED
   iter-79
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the public-repo bar is enforced file-by-file by whichever iteration touched a doc, and the 120-record register is covered by nothing
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the register's only door has an on-ramp describing a pipeline that no longer exists
     - Candidate B3 -- the machine payload a CI consumer commits is machine-local (row 34)
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED df23fc7
   iter-78
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the newest-citation date becomes a DERIVED published fact, and the age threshold is deliberately split off
@@ -510,4 +530,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-51 scouted iterations
+53 scouted iterations

@@ -132,7 +132,7 @@
           "globs": [
             "**/*"
           ],
-          "pattern": "(?s)^(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
+          "pattern": "(?s)\\A(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
         }
       ]
     },
@@ -141,7 +141,7 @@
       "globs": [
         "**/*"
       ],
-      "pattern": "(?s)^(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
+      "pattern": "(?s)\\A(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
     },
     "manual_question": "Name the single identifier that tells you which prompt version, which resolved model version and which tool manifest served a given request, and show where that identifier is written down. If answering needs two systems and a timestamp comparison, the composite release identity does not exist.",
     "rationale": "The signature is a repo that resolves its prompt from a versioned source and its model from an id, while no single tracked file names both a prompt version and a model version or dated snapshot. That absence is the gap: the legs are individually versioned and the pair is not. What it can get wrong: a team may keep the composite in an external deploy system such as a Helm values file or a Terraform variable outside this repo, in which case the honest answer comes from the manual question; and a repo that happens to mention prompt_id and model_id in unrelated files will read as mitigated, which is the safe direction for a false reading because a human then confirms rather than being told the gap is present.",
