@@ -242,11 +242,15 @@ Two consequences that bind machine consumers specifically:
 ## `radar scan` - the verb a gate consumes (SHIPPED), and what it still owes
 
 `scan` is what turns the register from a reading list into an instrument, and it
-is what a release gate should consume. It is already implemented: nine of the ten
-seed records carry a check, and each returns PRESENT, ABSENT, NOT_APPLICABLE,
-MANUAL or UNKNOWN rather than a bare pass/fail. MANUAL is a first-class verdict -
-where static analysis cannot honestly decide, the tool asks a question instead of
-guessing, which is the behaviour a consumer should trust it for.
+is what a release gate should consume. It is already implemented: nearly every
+record carries a check, and each returns PRESENT, ABSENT, NOT_APPLICABLE,
+MANUAL or UNKNOWN rather than a bare pass/fail. The exact count is
+deliberately not restated here -- `radar scan` prints `Register records
+applied` and `Gaps with no check yet` on every run, and a hand-maintained
+restatement of a number the research pipeline changes decays silently and then
+misleads with authority. MANUAL is a first-class verdict - where static
+analysis cannot honestly decide, the tool asks a question instead of guessing,
+which is the behaviour a consumer should trust it for.
 
 **First real target, 2026-08-16: `agent-foundry`** (a 200+-iteration autonomous
 loop whose defects are independently documented, so its ground truth was known
