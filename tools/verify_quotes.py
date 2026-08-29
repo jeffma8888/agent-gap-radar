@@ -84,11 +84,33 @@ _SUBS = {
 }
 
 
+#: Whitespace sitting immediately BEFORE closing punctuation. English prose never
+#: contains it, so removing it can only move a string toward what a reader sees --
+#: whereas leaving it in makes honest quotes unverifiable. It appears because every
+#: tag outside `INLINE_ZERO_WIDTH_TAGS` is replaced by a space, and ordinary emphasis
+#: markup like `<strong>restorable</strong>.` or `<em>alpha</em>,` puts a tag boundary
+#: right before the punctuation. Deliberately CLOSING punctuation only: this never
+#: joins two separate WORDS, which is the false-pass direction and the reason
+#: `INLINE_ZERO_WIDTH_TAGS` is kept small.
+_SPACE_BEFORE_PUNCT_RE = re.compile(r" +([,.;:!?)\]}])")
+
+
 def _norm(text: str) -> str:
-    """The ONE normaliser. Both the page and the quote must go through it."""
+    """The ONE normaliser. Both the page and the quote must go through it.
+
+    THIRD member of a family that has now cost real time three times, so the rule is
+    worth restating: every difference between how the PAGE side and the QUOTE side are
+    produced is a potential fail-CLOSED bug, where a correct excerpt is reported as
+    absent. Curly quotes were the first, `<code>` spacing the second, and a tag
+    boundary before punctuation the third -- found when a live pass quarantined two
+    records whose quotes were in fact present character for character. Anything added
+    here applies to BOTH sides by construction, which is the only reason that class of
+    bug is fixable in one place.
+    """
     for src, dst in _SUBS.items():
         text = text.replace(src, dst)
-    return re.sub(r"\s+", " ", text).strip().lower()
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    return _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
 
 
 #: Built FROM the published constant, so the set is authoritative rather than a comment
