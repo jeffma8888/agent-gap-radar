@@ -1,0 +1,137 @@
+{
+  "id": "GAP-101",
+  "title": "A streamed model call returns no token usage unless the caller opts in, so the cost meter of a streaming agent silently reads zero",
+  "layer": "cost-governance",
+  "gap_type": "silent-failure",
+  "status": "partially-addressed",
+  "problem": "I metered every model response and my dashboard shows almost no tokens, because the moment we switched the agent to streaming the provider stopped putting usage in the response and nothing told us.",
+  "symptom": "Per-call token totals are zero or absurdly low while the provider invoice is not, and the accumulator that is supposed to enforce a ceiling never approaches it, so a runaway run never trips its own brake.",
+  "why_now": "Streaming is the default for anything with a human watching or a long tool loop, and on the chat-completions contract usage is delivered only when the request carries stream_options with include_usage. The opt-in is per request, so it has to be threaded through every call site, wrapper and framework in the path, and a single wrapper that drops the kwarg silently returns the metering to zero. The failure is invisible in code review because the meter is still there and still runs.",
+  "existing": [
+    "OpenAI ships stream_options with include_usage, which closes the gap only for callers who know to pass it on every streaming request.",
+    "The LiteLLM proxy can force the flag on server side with always_include_stream_usage, which is the right shape but only helps traffic routed through that proxy.",
+    "Observability integrations such as MLflow document the flag as a prerequisite rather than supplying it, so auto-instrumentation records the zero it was handed.",
+    "The final usage chunk arrives last, so an interrupted or cancelled stream can bill without ever reporting, which no per-request flag fixes."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Chat Completions streaming events | OpenAI API Reference",
+      "locator": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events",
+      "date": "2026-08-20",
+      "quote": "An optional field that will only be present when you set",
+      "note": "The reference describes the usage field on a streamed chunk as conditional on the request having set stream_options with include_usage, so the default streaming response carries no usage at all."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How to stream completions (OpenAI Cookbook)",
+      "locator": "https://developers.openai.com/cookbook/examples/how_to_stream_completions.md",
+      "date": "2026-08-20",
+      "quote": "The value for the `usage` field on all chunks except for the last one will be null.",
+      "note": "Vendor guidance confirms usage arrives only on the last chunk and only under the opt-in, so a consumer that stops reading early, or whose stream is cut off, gets nothing."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Tracing OpenAI | MLflow AI Platform",
+      "locator": "https://mlflow.org/docs/latest/genai/tracing/integrations/listing/openai",
+      "date": "2026-08-20",
+      "quote": "By default, OpenAI does not return token usage information for Chat Completion API when streaming.",
+      "note": "A widely used observability tool states the default plainly and makes its own token and cost tracking conditional on the caller adding the flag, which is exactly the silent zero this gap describes."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Usage - LiteLLM",
+      "locator": "https://docs.litellm.ai/docs/completion/usage",
+      "date": "2026-08-20",
+      "quote": "All streaming requests will automatically have stream_options",
+      "note": "LiteLLM added a proxy-side always_include_stream_usage setting precisely because clients do not send the flag, which is independent evidence that the per-request opt-in fails in practice."
+    }
+  ],
+  "build_hypothesis": "A client-side wrapper that refuses to dispatch a streaming chat-completions request unless the usage opt-in is present, and that raises on stream close if no usage chunk was ever seen, so an unmetered stream fails loudly instead of accumulating zero.",
+  "tags": [
+    "cost",
+    "streaming",
+    "metering",
+    "silent-zero",
+    "wrong-default"
+  ],
+  "check": {
+    "id": "CHK-100",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "chat\\.completions\\.create|chat\\.completions\\.stream|litellm\\.a?completion|acreate\\(\\s*$"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "stream\\s*=\\s*True|stream\\s*:\\s*true|[\\\"']stream[\\\"']\\s*:\\s*[Tt]rue"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "stream\\s*=\\s*True|stream\\s*:\\s*true|[\\\"']stream[\\\"']\\s*:\\s*[Tt]rue"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "stream_options|include_usage|stream_usage|always_include_stream_usage"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "stream_options|include_usage|stream_usage|always_include_stream_usage"
+    },
+    "manual_question": "This project streams chat-completions responses. Point at the line that makes the provider return token usage for a streamed request, and at the code that notices when a stream ended without a usage chunk. If neither exists, what number is your cost meter reporting for every streaming call, and what would trip a ceiling?",
+    "rationale": "Fires when a target issues chat-completions style streaming calls and no file anywhere names the usage opt-in, which is the exact condition under which the provider returns no usage and a meter accumulates zero. Known limits, both stated rather than hidden: it is scoped to the chat-completions contract on purpose, because Anthropic Messages streaming carries usage in its message_delta and the OpenAI Responses API reports usage on completion, so a target using only those is deliberately NOT_APPLICABLE rather than a false positive. It can also be defeated in the other direction, since a repo that spells the flag once in dead code or in a comment reads as mitigated, and it cannot see the opt-in being dropped inside a wrapper that does pass it somewhere else.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\nSPEND = {\"input_tokens\": 0, \"output_tokens\": 0}\n\n\ndef ask(messages):\n    \"\"\"Stream an answer and meter what it cost.\"\"\"\n    stream = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=messages,\n        stream=True,\n    )\n    text = \"\"\n    for chunk in stream:\n        if chunk.usage is not None:\n            SPEND[\"input_tokens\"] += chunk.usage.prompt_tokens\n            SPEND[\"output_tokens\"] += chunk.usage.completion_tokens\n        if chunk.choices and chunk.choices[0].delta.content:\n            text += chunk.choices[0].delta.content\n    return text\n\n\ndef budget_left(ceiling):\n    return ceiling - (SPEND[\"input_tokens\"] + SPEND[\"output_tokens\"])\n"
+      },
+      "good": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\nSPEND = {\"input_tokens\": 0, \"output_tokens\": 0}\n\n\ndef ask(messages):\n    \"\"\"Stream an answer and meter what it cost.\"\"\"\n    stream = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=messages,\n        stream=True,\n        stream_options={\"include_usage\": True},\n    )\n    text = \"\"\n    saw_usage = False\n    for chunk in stream:\n        if chunk.usage is not None:\n            saw_usage = True\n            SPEND[\"input_tokens\"] += chunk.usage.prompt_tokens\n            SPEND[\"output_tokens\"] += chunk.usage.completion_tokens\n        if chunk.choices and chunk.choices[0].delta.content:\n            text += chunk.choices[0].delta.content\n    if not saw_usage:\n        raise RuntimeError(\"stream ended with no usage chunk: spend is unmetered\")\n    return text\n\n\ndef budget_left(ceiling):\n    return ceiling - (SPEND[\"input_tokens\"] + SPEND[\"output_tokens\"])\n"
+      }
+    }
+  }
+}

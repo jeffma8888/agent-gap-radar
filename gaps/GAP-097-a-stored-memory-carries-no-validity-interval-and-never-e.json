@@ -1,0 +1,113 @@
+{
+  "id": "GAP-097",
+  "title": "A stored memory carries no validity interval and never expiring is the default, so a superseded fact keeps being recalled as current",
+  "layer": "context-memory",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I corrected the agent weeks ago, the correction is in its memory store, and so is the thing it corrected - and retrieval hands back whichever one happens to embed closer to the query.",
+  "symptom": "The agent confidently repeats a fact that stopped being true - an old owner, a moved endpoint, a decision that was reversed - and the store is not wrong, it is holding both the fact and its replacement with nothing to say which one is live.",
+  "why_now": "Persistent agent memory shipped fast in 2025-2026 and retrieval is ranked by embedding similarity, which is a relevance signal and carries no notion of time. The one production memory layer that does offer an expiry documents it as an optional per-record field that defaults to never expiring, and supersession is left to the caller, so the default behaviour of every store is to keep a retracted fact permanently recallable.",
+  "existing": [
+    "Optional per-record expiry (Mem0's expiration_date) exists but must be set by the writer at write time, when whether a fact is temporary is usually not yet known, and its default is never-expire.",
+    "Recency re-ranking and memory decay reorder scores but never filter, so a strongly-matching stale record can still outrank a weakly-matching current one.",
+    "An extraction step that rewrites or merges memories at write time resolves contradictions it happens to see in the same batch, and cannot retire a fact contradicted by something learned in a later session.",
+    "Just-in-time retrieval of live sources avoids the problem by not caching, which works for files and not for facts the agent was told once and can never re-derive."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Memory Expiration in Mem0",
+      "locator": "https://docs.mem0.ai/platform/features/memory-expiration",
+      "date": "2026-08-28",
+      "quote": "Some facts are only true for a while. A trial plan ends, a seasonal preference goes stale, a support ticket ages past its retention window.",
+      "note": "The maintainers of a production memory layer state that stored facts have finite validity, and the same page documents the field that expresses it as optional with 'No expiration date means never expires. That is the default for every memory.' - so the shipped default is that a fact outlives its truth. This is an undated living docs page; the date given is the date it was fetched, not a publication date."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory",
+      "locator": "https://arxiv.org/abs/2410.10813",
+      "date": "2024-10-14",
+      "quote": "evaluate five core long-term memory abilities of chat assistants: information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention",
+      "note": "An ICLR 2025 benchmark treats 'knowledge updates' - recognising that a remembered fact has been replaced - as a distinct measured ability rather than something retrieval gives you, and reports a 30% accuracy drop for commercial assistants on sustained interactions. Evidence that supersession is an open capability gap, not an implementation detail."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "effectively bypassing the issues of stale indexing and complex syntax trees",
+      "note": "Anthropic's stated reason for preferring just-in-time retrieval over a precomputed index is staleness of the stored copy. That remedy is unavailable for facts an agent was told once and cannot re-derive from a live source, which is exactly the population a memory store holds."
+    }
+  ],
+  "build_hypothesis": "A thin bitemporal wrapper over an existing vector store: every record gets as_of and valid_until, a write can name the record it supersedes (which closes that record's interval rather than deleting it), and recall filters to the interval containing the query time before ranking - so the default becomes 'valid now' instead of 'forever', and the audit trail of what was believed when survives.",
+  "tags": [
+    "memory",
+    "staleness",
+    "supersession",
+    "retrieval",
+    "bitemporal"
+  ],
+  "check": {
+    "id": "CHK-096",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(similarity_search|\\.upsert\\(|add_texts|from_documents|chromadb|faiss|pinecone|qdrant|weaviate|lancedb|pgvector|def\\s+\\w*(?:store|save|write|add)_memor\\w*\\s*\\(|def\\s+\\w*(?:retrieve|recall|search|query|fetch)_memor\\w*\\s*\\(|memor(?:y|ies)_(?:store|index|table))"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(similarity_search|\\.upsert\\(|add_texts|from_documents|chromadb|faiss|pinecone|qdrant|weaviate|lancedb|pgvector|def\\s+\\w*(?:store|save|write|add)_memor\\w*\\s*\\(|def\\s+\\w*(?:retrieve|recall|search|query|fetch)_memor\\w*\\s*\\(|memor(?:y|ies)_(?:store|index|table))"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sql",
+            "**/*.md",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(valid_until|valid_from|valid_to|expires_at|expiration_date|expirationDate|expires_on|superseded|supersedes|invalidated_at|retracted_at|not_after|stale_after|ttl_seconds|as_of|asserted_at|fact_valid|freshness_(?:window|days)|is_expired)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(valid_until|valid_from|valid_to|expires_at|expiration_date|expirationDate|expires_on|superseded|supersedes|invalidated_at|retracted_at|not_after|stale_after|ttl_seconds|as_of|asserted_at|fact_valid|freshness_(?:window|days)|is_expired)"
+    },
+    "manual_question": "Your project writes facts into a memory or vector store and recalls them by similarity. When a stored fact stops being true, what makes it stop being recalled? Name the field that carries the fact's validity and the code that filters on it at recall time. If the answer is 'we overwrite it if the extractor notices', a fact contradicted in a later session stays recallable forever.",
+    "rationale": "A project that stores and recalls memories but nowhere carries a temporal-validity or supersession field is ranking on similarity alone, so a retracted fact competes with its own replacement on equal terms and can win. What it can get wrong: a project may express validity in a schema this pattern does not read (a migration file, a managed store's console, a provider-side field never named in code), which reads as PRESENT while the practice is in place; and matching the vocabulary anywhere in the tree is enough to suppress the finding, so a project that names valid_until in one unrelated module reads as mitigated when its memory path ignores it - which is why this check reports a location and asks the manual question rather than claiming a verdict about the whole store.",
+    "fixtures": {
+      "bad": {
+        "app/memory.py": "\"\"\"Long-term memory: write what the agent learns, recall it by similarity.\"\"\"\n\nMEMORIES = []\n\n\ndef store_memory(text, embed):\n    \"\"\"Append a fact. It stays recallable for as long as the process lives.\"\"\"\n    MEMORIES.append({\"text\": text, \"vector\": embed(text)})\n\n\ndef recall_memories(query, embed, k=5):\n    \"\"\"Rank every stored fact by cosine similarity and return the top k.\"\"\"\n    q = embed(query)\n    ranked = sorted(MEMORIES, key=lambda m: -cosine(q, m[\"vector\"]))\n    return [m[\"text\"] for m in ranked[:k]]\n\n\ndef cosine(a, b):\n    dot = sum(x * y for x, y in zip(a, b))\n    na = sum(x * x for x in a) ** 0.5\n    nb = sum(x * x for x in b) ** 0.5\n    return dot / (na * nb or 1.0)\n"
+      },
+      "good": {
+        "app/memory.py": "\"\"\"Long-term memory: every fact carries the window in which it is true.\"\"\"\n\nfrom datetime import date\n\nMEMORIES = []\n\n\ndef store_memory(text, embed, valid_until=None, supersedes=None):\n    \"\"\"Append a fact with the interval it is true for, and retire what it replaces.\"\"\"\n    if supersedes is not None:\n        for m in MEMORIES:\n            if m[\"id\"] == supersedes:\n                m[\"valid_until\"] = date.today().isoformat()\n    MEMORIES.append({\n        \"id\": len(MEMORIES),\n        \"text\": text,\n        \"vector\": embed(text),\n        \"as_of\": date.today().isoformat(),\n        \"valid_until\": valid_until,\n    })\n\n\ndef is_expired(memory, today=None):\n    \"\"\"A fact whose validity window has closed is not a candidate for recall.\"\"\"\n    today = today or date.today().isoformat()\n    return memory[\"valid_until\"] is not None and memory[\"valid_until\"] < today\n\n\ndef recall_memories(query, embed, k=5):\n    \"\"\"Rank by similarity, but only over facts that are still valid today.\"\"\"\n    q = embed(query)\n    live = [m for m in MEMORIES if not is_expired(m)]\n    ranked = sorted(live, key=lambda m: -cosine(q, m[\"vector\"]))\n    return [m[\"text\"] for m in ranked[:k]]\n\n\ndef cosine(a, b):\n    dot = sum(x * y for x, y in zip(a, b))\n    na = sum(x * x for x in a) ** 0.5\n    nb = sum(x * x for x in b) ** 0.5\n    return dot / (na * nb or 1.0)\n"
+      }
+    }
+  }
+}

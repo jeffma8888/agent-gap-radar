@@ -1,0 +1,149 @@
+{
+  "id": "GAP-055",
+  "title": "The model identifier in production is a floating alias, so a provider-side weight change is an unreviewed deploy the app cannot pin or roll back",
+  "layer": "model-runtime",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My prompts and my code did not change, my application's behaviour did, because the model string I ship resolves to whatever snapshot the provider currently defaults to.",
+  "symptom": "Quality complaints and output-shape breakages that no commit in the app explains. Nobody can say which weights served a given request, the previous behaviour cannot be restored from the app side, and recovery means waiting for the provider to roll back or racing to find the dated snapshot id.",
+  "why_now": "Both major serving surfaces default to movement rather than stability: undated aliases resolve to the current snapshot, and managed deployments offer automatic version upgrade as a first-class option. The application-side contract that would make this safe does not exist, namely pinning a dated snapshot, asserting the served version on every response, and recording it with the output so a regression can be attributed and reverted. Frameworks accept a bare model name and no linter, SDK, or eval harness objects to it, so the wrong default is the path of least resistance in 2026.",
+  "existing": [
+    "Providers publish dated snapshots and retirement schedules, which makes pinning possible but never required, and the shortest identifier remains the moving one.",
+    "Managed platforms notify before a default changes and keep the previous major version until retirement, which helps a team that reads the notice and has somewhere to pin, and does nothing for a repo whose only record of the version is a floating string.",
+    "Responses carry the served model id, but almost nothing asserts it or stores it with the output, so post-hoc attribution of a regression to a version change is guesswork."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Model versioning in Microsoft Foundry Models (classic)",
+      "locator": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/model-versions",
+      "date": "2026-03-10",
+      "quote": "Azure automatically upgrades deployments during the scheduled upgrade window",
+      "note": "A managed deployment can be set to move to a new model version on the provider's schedule, so the weights behind a stable-looking deployment name change without a deploy on the customer's side."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Model versioning in Microsoft Foundry Models (classic)",
+      "locator": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/model-versions",
+      "date": "2026-03-10",
+      "quote": "You can choose to start with a particular model version and stay on it, or automatically update as new versions are released",
+      "note": "Same page: pinning is available and optional. The gap is that the app side has no contract requiring the pin, and no assertion that the version served matches the version reviewed."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "The full rollback took around 24 hours to manage stability and avoid introducing new issues across the deployment",
+      "note": "When a provider-side model change is the regression, the rollback lever belongs to the provider and takes about a day. A consumer application holding a floating alias has no independent lever at all, which is the cost this gap imposes."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Sycophancy in GPT-4o: What happened and what we are doing about it",
+      "locator": "https://openai.com/index/sycophancy-in-gpt-4o/",
+      "date": "2025-04-29",
+      "quote": "so people are now using an earlier version with more balanced behavior",
+      "note": "Confirms the recovery path was the provider substituting an earlier version for everyone, not consumers selecting one."
+    }
+  ],
+  "build_hypothesis": "A tiny pin-and-attest wrapper plus a lint rule: refuse an undated model identifier at construction time, compare the served model field on every response against the pinned snapshot and fail loudly on drift, and stamp the snapshot id into every trace and eval record so a behavioural regression can be attributed to a version. The linter is a few dozen lines against a provider-published snapshot list, and it is exactly what the check in this record looks for.",
+  "tags": [
+    "model-pinning",
+    "snapshot",
+    "provider-drift",
+    "rollback"
+  ],
+  "check": {
+    "id": "CHK-054",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)(chat\\.completions|messages\\.create|from openai import|AzureOpenAI|ChatCompletion|anthropic)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)[\"'](gpt-4o|gpt-4o-mini|gpt-4-turbo|gpt-4|gpt-4\\.1|o3|o4-mini|claude-3-5-sonnet-latest|claude-3-7-sonnet-latest|claude-sonnet-4-0|gemini-1\\.5-pro|gemini-2\\.0-flash)[\"']"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(model_snapshot|pinned_model|assert_model_version|expected_model_version|model_version_pin)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(model_snapshot|pinned_model|assert_model_version|expected_model_version|model_version_pin)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)[\"'](gpt-4o|gpt-4\\.1|gpt-4-turbo|o3)-20\\d\\d-\\d\\d-\\d\\d[\"']"
+        }
+      ]
+    },
+    "manual_question": "Which exact model snapshot served production traffic last week, and where is that recorded? If the answer is a bare alias like gpt-4o rather than a dated snapshot, a provider-side default change is a deploy nobody in this repo reviewed and nobody here can revert.",
+    "rationale": "An undated, quoted model identifier reaching a chat or messages call is a dependency on whatever the provider currently defaults to, and the absence of any snapshot pin or served-version assertion means a version change is neither prevented nor detectable from inside the app. What it can get wrong: a team may pin outside the repo (a managed deployment configured to opt out of automatic upgrades, or a gateway that rewrites the model field), which this cannot see, so a missing mitigation is a MANUAL question and not proof of exposure. It also treats an alias in a test or an example as a signature, which is deliberate, because examples are how the wrong default spreads.",
+    "fixtures": {
+      "bad": {
+        "app/llm_client.py": "\"\"\"Thin wrapper over the chat completions API.\"\"\"\nfrom openai import OpenAI\n\nclient = OpenAI()\nMODEL = \"gpt-4o\"\n\ndef answer(prompt: str) -> str:\n    resp = client.chat.completions.create(\n        model=MODEL,\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n    )\n    return resp.choices[0].message.content\n",
+        "app/config.yaml": "llm:\n  model: \"gpt-4o\"\n  temperature: 0.2\n"
+      },
+      "good": {
+        "app/llm_client.py": "\"\"\"Thin wrapper over the chat completions API, pinned to one snapshot.\"\"\"\nfrom openai import OpenAI\n\nclient = OpenAI()\n\n# A dated snapshot, not a floating alias: a provider-side default change is then\n# a change we choose, and the previous snapshot is still a valid rollback target.\nMODEL_SNAPSHOT = \"gpt-4o-2024-08-06\"\n\ndef answer(prompt: str) -> str:\n    resp = client.chat.completions.create(\n        model=MODEL_SNAPSHOT,\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n    )\n    assert_model_version(resp, expected=MODEL_SNAPSHOT)\n    return resp.choices[0].message.content\n\ndef assert_model_version(resp, expected: str) -> None:\n    served = getattr(resp, \"model\", None)\n    if served != expected:\n        raise RuntimeError(\"served model \" + str(served) + \" is not the pinned \" + expected)\n",
+        "app/config.yaml": "llm:\n  model: \"gpt-4o-2024-08-06\"\n  temperature: 0.2\n"
+      }
+    }
+  }
+}

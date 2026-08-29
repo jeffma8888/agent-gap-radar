@@ -1,0 +1,141 @@
+{
+  "id": "GAP-072",
+  "title": "Tenant scope in a shared retrieval or cache store is a caller-supplied argument, and a read that omits it succeeds across every tenant",
+  "layer": "context-memory",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "Every customer's documents live in one collection, and a retrieval call that forgets the tenant predicate is not an error - it is a successful search across all of them, and the result goes straight into a model context.",
+  "symptom": "A user is answered with content they never uploaded, or a cached answer computed for a different account is served verbatim; nothing in the store's logs distinguishes the unscoped read from a legitimate one, because it was a valid query that returned results.",
+  "why_now": "Shared-collection multitenancy is the layout vector stores themselves recommend, since a collection per tenant carries its own overhead, and the isolation that layout depends on is a filter argument the application must attach to every single read. No store refuses an unscoped query, so isolation holds only while no call site forgets - including call sites an agent composes at runtime, and cache layers added later for latency.",
+  "existing": [
+    "A collection, namespace or shard per tenant isolates properly, but the vendors warn that the per-collection overhead makes it the wrong default for many small tenants.",
+    "Payload filters and tenant-aware indexes make scoping possible and efficient, but they are opt-in per query: the store has no way to reject a read that arrives without a scope predicate.",
+    "Application middleware can inject the filter centrally, but nothing verifies that every retrieval or cache path goes through the middleware rather than calling the client directly.",
+    "Row-level security exists in relational stores, and the vector and semantic-cache layers most agents retrieve from have no equivalent the query planner enforces."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-20",
+      "quote": "Upon deeper investigation, we also discovered that the same bug may have caused the unintentional visibility of payment-related information of 1.2% of the ChatGPT Plus subscribers who were active during a specific nine-hour window.",
+      "note": "A shared client-library cache in a multi-user LLM product served one user's data to another, which is this failure mode in production at the largest possible scale. Date recorded is the incident date named on the page; the page as fetched carries no day-level publication stamp."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Multitenancy - Qdrant",
+      "locator": "https://qdrant.tech/documentation/guides/multiple-partitions/",
+      "date": "2026-08-23",
+      "quote": "To partition data in a shared collection, add a payload field that identifies the tenant to each point. You can then filter by this field to ensure that each tenant only sees their own data.",
+      "note": "The store's own documentation places the isolation duty on the caller: tenancy is a payload field plus a filter the application supplies per query, not a boundary the engine enforces. Undated documentation page, retrieved 2026-08-23."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2025-01-01",
+      "quote": "Limit access to sensitive data based on the principle of least privilege.",
+      "note": "Names the control this gap is missing at the retrieval layer, and states it as guidance rather than as a mechanism the data store provides. Date recorded as the 2025 edition; the page carries the edition year, not a day-level publication date."
+    }
+  ],
+  "build_hypothesis": "A retrieval and cache wrapper that takes the tenant as a required argument, refuses to issue a query whose filter or cache key does not contain it, and a static check that fails CI when a store client is called outside that wrapper.",
+  "tags": [
+    "multi-tenant",
+    "retrieval",
+    "cache",
+    "isolation",
+    "context-bleed"
+  ],
+  "check": {
+    "id": "CHK-071",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java"
+      ],
+      "pattern": "(?i)(qdrant|pinecone|weaviate|chromadb|\\bchroma\\b|milvus|pgvector|lancedb|vector_?store|similarity_search|as_retriever|get_relevant_documents|semantic_?cache|set_llm_cache)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java"
+          ],
+          "pattern": "(?i)(tenant_id|tenantid|org_id|organization_id|workspace_id|customer_id|account_id)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|get_relevant_documents|\\.search\\(|\\.query\\(|\\.query_points\\(|\\.retrieve\\(|cache\\.get\\()"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java"
+          ],
+          "pattern": "(?i)((filter|filters|where|query_filter|must|namespace|partition|group_id|scope|cache_key|key)\\s*[=:]\\s*[^\\n]{0,160}(tenant|org_id|organization|workspace|customer|account_id|user_id)|(tenant|org_id|workspace_id|customer_id|account_id)[^\\n]{0,80}(namespace|query_filter|filter|partition|collection_name|cache_key))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java"
+      ],
+      "pattern": "(?i)((filter|filters|where|query_filter|must|namespace|partition|group_id|scope|cache_key|key)\\s*[=:]\\s*[^\\n]{0,160}(tenant|org_id|organization|workspace|customer|account_id|user_id)|(tenant|org_id|workspace_id|customer_id|account_id)[^\\n]{0,80}(namespace|query_filter|filter|partition|collection_name|cache_key))"
+    },
+    "manual_question": "For each retrieval store and each cache this service reads, name the component that guarantees the tenant identifier is part of the query filter or the cache key, and say what happens to a read that arrives without one.",
+    "rationale": "A target that has a tenant concept in its source, reads from a vector store or cache, and nowhere in its tracked source binds a tenant identifier to a filter, namespace or cache key, is issuing reads whose scope depends on the caller remembering. It can be wrong in two directions: scoping may be enforced by a proxy or a database policy outside the repository, which reads as PRESENT here, and a single line that happens to put a tenant word near the word filter reads as mitigated even if other call sites are unscoped - so a mitigated verdict means at least one path is scoped, never that all of them are.",
+    "fixtures": {
+      "bad": {
+        "app/retrieval.py": "from qdrant_client import QdrantClient\n\nqdrant = QdrantClient(url=\"http://localhost:6333\")\n\n\ndef answer_question(question_vector, tenant_id):\n    hits = qdrant.search(\n        collection_name=\"documents\",\n        query_vector=question_vector,\n        limit=8,\n    )\n    return [hit.payload[\"text\"] for hit in hits]\n"
+      },
+      "good": {
+        "app/retrieval.py": "from qdrant_client import QdrantClient, models\n\nqdrant = QdrantClient(url=\"http://localhost:6333\")\n\n\ndef _scope(tenant_id):\n    return models.Filter(\n        must=[\n            models.FieldCondition(\n                key=\"group_id\",\n                match=models.MatchValue(value=tenant_id),\n            )\n        ]\n    )\n\n\ndef answer_question(question_vector, tenant_id):\n    hits = qdrant.search(\n        collection_name=\"documents\",\n        query_vector=question_vector,\n        query_filter=_scope(tenant_id),\n        limit=8,\n    )\n    return [hit.payload[\"text\"] for hit in hits]\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "id": "GAP-112",
+  "title": "A structured-output retry loop discards the generation that failed, so the malformed output an incident is about never becomes an artifact",
+  "layer": "observability",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "A user showed me one garbled extraction and I have nothing to investigate: my pipeline re-prompted until the output validated, and the only text I stored is the object that finally passed.",
+  "symptom": "An intermittent bad result is reported and cannot be reproduced: the run record holds a well-formed object, the retry that produced it is invisible, and the generation that was actually wrong exists nowhere, so the investigation has no input to re-run.",
+  "why_now": "Retry-until-valid became the standard way to make model output typed, and it is implemented at the library boundary where the failing text is a transient exception argument rather than a stored artifact. Capturing the raw generation and the failed attempts is an opt-in hook that nothing forces a team to register, so the well-engineered pipeline is the one that erases its own evidence most reliably.",
+  "existing": [
+    "Extraction libraries expose hooks for the raw response and for validation failures, but registering them is optional and off by default, so the default configuration is the lossy one.",
+    "Application logs usually record that a retry happened and its exception message, which names the schema violation but not the bytes the model produced.",
+    "Tracing instrumentation captures a span per request, so multiple attempts may appear, but message content capture is itself opt-in and a truncated span attribute is not a re-runnable artifact."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Retry Logic with Tenacity - Instructor",
+      "locator": "https://python.useinstructor.com/concepts/retrying/",
+      "date": "2026-08-18",
+      "quote": "The budget is checked after a response fails validation and before Instructor prepares another request.",
+      "note": "Documents the mechanism: a response that fails validation is followed by another request. The failing response is an intermediate value inside the library, not something the caller is handed or asked to store."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Hooks - Instructor",
+      "locator": "https://python.useinstructor.com/concepts/hooks/",
+      "date": "2026-08-18",
+      "quote": "Hooks let you intercept and handle events during the completion and parsing process.",
+      "note": "The raw API response and the validation failure are reachable only through hooks the application chooses to register, which is what makes discarding them the default outcome rather than a mistake."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "for example producing Thai or Chinese characters in response to English prompts, or producing obvious syntax errors in code",
+      "note": "The class of defect that a parse-and-retry pipeline erases: corrupted token selection produces text that fails validation, so the exact evidence of the serving bug is what gets thrown away and re-requested."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "This protects user privacy but prevents engineers from examining the problematic interactions needed to identify or reproduce bugs.",
+      "note": "The harm named by a vendor investigating its own incident: without the problematic interaction in hand, identification and reproduction both stall. A retry loop produces the same end state for a local team, by construction rather than by policy."
+    }
+  ],
+  "build_hypothesis": "A thin decorator around the extraction call that writes every attempt to a run-scoped artifact directory - the request as sent, each raw completion, and each validation error, numbered by attempt - and emits the attempt count as a metric so intermittent malformed output becomes a measurable rate rather than an anecdote.",
+  "tags": [
+    "reproducibility",
+    "structured-output",
+    "retry",
+    "evidence-capture"
+  ],
+  "check": {
+    "id": "CHK-111",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)(instructor|response_model\\s*=|model_validate_json\\(|with_structured_output|zodResponseFormat)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(max_retries\\s*=\\s*[1-9]|max_attempts\\s*=\\s*[1-9]|stop_after_attempt\\(|retry_if_exception_type\\(\\s*ValidationError|except\\s+(?:pydantic\\.)?ValidationError|except\\s+json\\.JSONDecodeError)"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*"
+            ],
+            "pattern": "(?i)(completion:response|completion:error|parse:error|create_with_completion|raw_response|raw_completion|raw_output|raw_text|failed_attempt|attempt_artifact)"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(completion:response|completion:error|parse:error|create_with_completion|raw_response|raw_completion|raw_output|raw_text|failed_attempt|attempt_artifact)"
+    },
+    "manual_question": "When a generation fails schema validation and your code retries, where does the text the model actually produced end up, and could you hand that text to someone tomorrow and have them re-run it?",
+    "rationale": "A retry-on-validation-failure signature says generations are being thrown away and replaced; the absence of any raw-capture entry point says none of them is being kept. What it can get wrong: a project may capture raw generations through a proxy, gateway or tracing backend that never appears in its source, which reads as PRESENT here, and a raw-capture string may exist for one call path while another retries silently, which is why both signatures matching escalates to a human instead of passing.",
+    "fixtures": {
+      "bad": {
+        "app/extract.py": "import json\n\nimport instructor\nfrom pydantic import BaseModel\n\nclient = instructor.from_provider(\"openai/gpt-4.1-mini\")\n\n\nclass Invoice(BaseModel):\n    vendor: str\n    total_cents: int\n\n\ndef extract(document: str) -> Invoice:\n    # If the model emits something that does not validate, instructor asks\n    # again. Only the object that finally validated is ever written down.\n    invoice = client.chat.completions.create(\n        response_model=Invoice,\n        max_retries=3,\n        messages=[{\"role\": \"user\", \"content\": document}],\n    )\n    with open(\"runs.jsonl\", \"a\") as fh:\n        fh.write(json.dumps({\"vendor\": invoice.vendor,\n                             \"total_cents\": invoice.total_cents}) + \"\\n\")\n    return invoice\n"
+      },
+      "good": {
+        "app/extract.py": "import json\nimport pathlib\n\nimport instructor\nfrom pydantic import BaseModel\n\nclient = instructor.from_provider(\"openai/gpt-4.1-mini\")\n\nARTIFACTS = pathlib.Path(\"artifacts\")\n\n\nclass Invoice(BaseModel):\n    vendor: str\n    total_cents: int\n\n\ndef _keep_response(response) -> None:\n    # Every generation, including the ones that never validated, is kept as an\n    # artifact so a bad extraction can be examined and re-run later.\n    ARTIFACTS.mkdir(exist_ok=True)\n    (ARTIFACTS / \"raw_response.jsonl\").open(\"a\").write(\n        json.dumps({\"raw_completion\": response.model_dump()}) + \"\\n\")\n\n\ndef _keep_parse_error(error) -> None:\n    ARTIFACTS.mkdir(exist_ok=True)\n    (ARTIFACTS / \"raw_response.jsonl\").open(\"a\").write(\n        json.dumps({\"validation_error\": str(error)}) + \"\\n\")\n\n\nclient.on(\"completion:response\", _keep_response)\nclient.on(\"parse:error\", _keep_parse_error)\n\n\ndef extract(document: str) -> Invoice:\n    invoice = client.chat.completions.create(\n        response_model=Invoice,\n        max_retries=3,\n        messages=[{\"role\": \"user\", \"content\": document}],\n    )\n    with open(\"runs.jsonl\", \"a\") as fh:\n        fh.write(json.dumps({\"vendor\": invoice.vendor,\n                             \"total_cents\": invoice.total_cents}) + \"\\n\")\n    return invoice\n"
+      }
+    }
+  }
+}

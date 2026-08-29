@@ -1,0 +1,166 @@
+{
+  "id": "GAP-079",
+  "title": "A deployed RAG system scores only the final answer, so a retrieval regression is indistinguishable from a generation regression",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My eval suite gives one number for the answer, so when quality drops I cannot tell whether the right chunk was never retrieved or the model had it and did not use it, and I end up tuning prompts against an index problem.",
+  "symptom": "Answer-level scores move and nobody can attribute the move. There is no recall@k, no ranking metric, and no labelled query-to-document set, so every investigation starts by reading transcripts by hand, and a chunking or index change ships with no measurement of what it did to retrieval.",
+  "why_now": "Retrieval evaluation needs query-to-document relevance labels that do not exist for a private corpus, and the labels have to be produced before any retrieval metric can be computed, so teams ship the end-to-end answer score, which is cheap, and defer the retrieval score, which is not. The two dominant managed stacks both now document a separate retrieval evaluator, which is evidence the split matters and that the default state of a deployed pipeline does not have it.",
+  "existing": [
+    "End-to-end answer graders and LLM judges are widely deployed, but a single answer score is a sum over two stages and cannot localise which one failed.",
+    "Generic RAG metric libraries ship retrieval metrics, yet they still require a labelled evaluation set per corpus; without labels the retrieval metrics silently go unused while the answer metrics run.",
+    "Managed retrieval evaluators exist (Microsoft Foundry's document_retrieval, Databricks' retrieval metrics), which closes the tooling half and leaves the labels and the wiring as the team's problem."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "Seven Failure Points When Engineering a Retrieval Augmented Generation System",
+      "locator": "https://arxiv.org/abs/2401.05856",
+      "date": "2024-01-11",
+      "quote": "validation of a RAG system is only feasible during operation",
+      "note": "Experience report from three RAG deployments (two in live use), stated as one of the paper's two key takeaways. If validation only happens in operation, no pre-deploy retrieval measurement exists to regress against."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Seven Failure Points When Engineering a Retrieval Augmented Generation System",
+      "locator": "https://arxiv.org/html/2401.05856v1",
+      "date": "2024-01-11",
+      "quote": "RAG systems are difficult to test as no data exists and needs to be experimentally discovered",
+      "note": "Same deployment report, naming the missing input directly: the query-to-document labels a retrieval metric needs do not exist for a private corpus, which is why the retrieval stage goes unmeasured while answer scores get computed."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Seven Failure Points When Engineering a Retrieval Augmented Generation System",
+      "locator": "https://arxiv.org/html/2401.05856v1",
+      "date": "2024-01-11",
+      "quote": "The answer to the question is in the document but did not rank highly enough to be returned to the user.",
+      "note": "Failure point FP2 from the deployed systems. This is a pure ranking failure, invisible to an answer-only score, which is the class of defect the gap is about."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Assess performance: Metrics that matter - Azure Databricks | Microsoft Learn",
+      "locator": "https://learn.microsoft.com/en-us/azure/databricks/agents/tutorials/ai-cookbook/evaluate-assess-performance",
+      "date": "2025-01-17",
+      "quote": "A RAG application can respond poorly despite retrieving the correct context; it can also provide good responses based on faulty retrievals. Only by measuring both components can we accurately diagnose and address issues in the application.",
+      "note": "A vendor stating the attribution problem in the same terms: an answer-only score cannot separate the two stages, so both must be measured."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Retrieval-Augmented Generation (RAG) evaluators - Microsoft Foundry",
+      "locator": "https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rag-evaluators",
+      "date": "2026-06-02",
+      "quote": "The most precise measurement is to use the document_retrieval evaluator to evaluate retrieval quality and optimize your search parameters for RAG.",
+      "note": "The retrieval-only evaluator is a distinct, separately-invoked component that needs relevance labels, which is why an existing eval suite can be entirely answer-level and still look complete."
+    }
+  ],
+  "build_hypothesis": "A label-bootstrapping harness for retrieval only: capture production queries plus the chunk set that was actually returned and the chunk the answer cited, treat the cited chunk as a weak positive label, and emit recall@k and a ranking metric per index build. It gives a retrieval number that moves before any human labels exist, and it fails loudly when a chunking or embedding change drops recall, which is the signal an answer-level score cannot produce.",
+  "tags": [
+    "rag",
+    "retrieval",
+    "evaluation",
+    "attribution",
+    "recall"
+  ],
+  "check": {
+    "id": "CHK-078",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|\\.retrieve\\(|retriever\\b|vector_?store|top_k\\s*=|\\.query\\(\\s*(?:vector|embedding|query_))"
+        },
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**",
+            "eval/**",
+            "tests/**",
+            "**/test_*.py",
+            "**/*_test.py",
+            "**/*eval*.py"
+          ]
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|\\.retrieve\\(|retriever\\b|vector_?store|top_k\\s*=|\\.query\\(\\s*(?:vector|embedding|query_))"
+        },
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**",
+            "eval/**",
+            "tests/**",
+            "**/test_*.py",
+            "**/*_test.py",
+            "**/*eval*.py"
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ipynb",
+            "**/*.md",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sql",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(recall@|recall_at|context_recall|ndcg|\\bmrr\\b|mean_reciprocal_rank|hit_rate|hit@|precision@|precision_at|context_precision|retrieval_(?:recall|precision|hit|score|eval)|document_retrieval)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ipynb",
+        "**/*.md",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.sql",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)(recall@|recall_at|context_recall|ndcg|\\bmrr\\b|mean_reciprocal_rank|hit_rate|hit@|precision@|precision_at|context_precision|retrieval_(?:recall|precision|hit|score|eval)|document_retrieval)"
+    },
+    "manual_question": "For this pipeline, what number tells you that retrieval got worse without the answer score moving, and where do its query-to-document relevance labels come from?",
+    "rationale": "The signature is a repo that retrieves from a vector store AND already evaluates something (an eval or test surface exists), while no file anywhere names a retrieval-only metric. That combination says the team measures the answer and not the retrieval step, so a ranking or chunking regression cannot be attributed. Two ways it can be wrong: a team may compute recall under a house-specific name this pattern does not know (false PRESENT), or may merely mention a metric name in a doc without computing it per build (false mitigation), so the manual question asks which number moves and where its labels come from rather than which word appears.",
+    "fixtures": {
+      "bad": {
+        "app/rag.py": "from store import vector_store\n\n\ndef answer(question, top_k=8):\n    chunks = vector_store.similarity_search(question, top_k=top_k)\n    return llm(prompt(question, chunks))\n",
+        "evals/answer_quality.py": "from app.rag import answer\n\n\ndef score_answers(cases):\n    scores = []\n    for case in cases:\n        out = answer(case[\"question\"])\n        scores.append(judge_faithfulness(out, case[\"reference\"]))\n    return sum(scores) / len(scores)\n"
+      },
+      "good": {
+        "app/rag.py": "from store import vector_store\n\n\ndef answer(question, top_k=8):\n    chunks = vector_store.similarity_search(question, top_k=top_k)\n    return llm(prompt(question, chunks))\n",
+        "evals/answer_quality.py": "from app.rag import answer\n\n\ndef score_answers(cases):\n    scores = []\n    for case in cases:\n        out = answer(case[\"question\"])\n        scores.append(judge_faithfulness(out, case[\"reference\"]))\n    return sum(scores) / len(scores)\n",
+        "evals/retrieval_recall.py": "from store import vector_store\n\n\ndef recall_at_k(labelled_cases, k=10):\n    \"\"\"retrieval_recall computed per index build, independent of the answer score.\"\"\"\n    hits = 0\n    for case in labelled_cases:\n        got = [c.id for c in vector_store.similarity_search(case[\"question\"], top_k=k)]\n        hits += int(any(doc_id in got for doc_id in case[\"relevant_doc_ids\"]))\n    return hits / len(labelled_cases)\n"
+      }
+    }
+  }
+}

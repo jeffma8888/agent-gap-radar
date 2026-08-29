@@ -1,0 +1,80 @@
+{
+  "id": "GAP-059",
+  "title": "Concurrent agents fan out onto one shared provider quota with no admission control",
+  "layer": "multi-agent",
+  "gap_type": "scaling-cliff",
+  "status": "open",
+  "problem": "My batch of agents worked when I ran two of them and produced nothing at all when I ran eight, because every one of them was drawing on the same provider account and none of them knew the others existed.",
+  "symptom": "Every task in the batch fails with the same connection-stall or service-busy error, no single agent logs anything wrong, and the only way to see it is to count the live agent processes against one account.",
+  "why_now": "Agent frameworks expose per-call retry settings and per-pool worker counts, but no shared admission control across independently launched agents. Fan-out is one line of code and the quota it consumes is process-global, so the limit that binds is invisible at the call site.",
+  "existing": [
+    "Per-pool worker counts (ThreadPoolExecutor max_workers): bound one pool, not the sum of independently launched pools.",
+    "Provider-side rate limit headers: report the ceiling after you have hit it, and give a losing agent no way to yield.",
+    "Manual pre-flight process counting: works, but it is a human ritual with no runtime enforcement."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0011: Concurrent agent brains silently starve and kill each other",
+      "locator": "https://raw.githubusercontent.com/jeffma8888/agent-failure-modes/main/incidents/INC-0011-concurrent-agent-brains-silently-starve-and-kill-each-other.md",
+      "date": "2026-08-10",
+      "quote": "One provider account, N concurrent brains fighting for it. Each brain retries on failure, which manufactures more concurrent load, which starves the others further.",
+      "note": "First-hand incident: an 8-task batch failed 8/8 across 5 retries each with zero output, launched into an account already running an always-on dispatcher."
+    }
+  ],
+  "build_hypothesis": "A host-level admission token shared by every agent process against one provider account: a small daemon or lock-file lease that a launcher must acquire before adding concurrency, so an extra agent waits instead of starving the ones already running.",
+  "tags": [
+    "concurrency",
+    "rate-limit",
+    "scaling"
+  ],
+  "check": {
+    "id": "CHK-058",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "anthropic|openai|litellm|bedrock|chat\\.completions|messages\\.create|invoke_model"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "asyncio\\.gather\\(|ThreadPoolExecutor\\(|ProcessPoolExecutor\\(|multiprocessing\\.Pool\\(|threading\\.Thread\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "Semaphore\\(|max_concurrency|max_workers\\s*=|max_in_flight|token_bucket|TokenBucket|RateLimiter|rate_limiter|concurrency_limit"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "Semaphore\\(|max_concurrency|max_in_flight|token_bucket|TokenBucket|RateLimiter|rate_limiter|concurrency_limit"
+    },
+    "manual_question": "This code fans out concurrent model calls. If a second copy of it, or another agent loop, is already running against the same provider account, what bounds the TOTAL in-flight requests rather than the fan-out of this one process?",
+    "rationale": "Concurrent fan-out plus no lexical trace of any concurrency bound is the signature of unbounded admission against a shared quota. It can be wrong when the bound lives outside the repo (a gateway or a proxy), which is why the absence of a bound is a finding to look at rather than a fault, and the presence of one is credited as a mitigation.",
+    "fixtures": {
+      "bad": {
+        "fanout.py": "import asyncio\nfrom anthropic import Anthropic\n\nclient = Anthropic()\n\n\nasync def one(task):\n    return client.messages.create(model=\"m\", messages=task)\n\n\nasync def run_all(tasks):\n    return await asyncio.gather(*[one(t) for t in tasks])\n"
+      },
+      "good": {
+        "fanout.py": "import asyncio\nfrom anthropic import Anthropic\n\nclient = Anthropic()\n\n# Admission control shared by every caller in this process against one account.\nGATE = asyncio.Semaphore(2)\n\n\nasync def one(task):\n    async with GATE:\n        return client.messages.create(model=\"m\", messages=task)\n\n\nasync def run_all(tasks):\n    return await asyncio.gather(*[one(t) for t in tasks])\n"
+      }
+    }
+  }
+}

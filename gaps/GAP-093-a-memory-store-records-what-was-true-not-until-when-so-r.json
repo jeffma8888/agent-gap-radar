@@ -1,0 +1,113 @@
+{
+  "id": "GAP-093",
+  "title": "A memory store records what was true, not until when, so retrieval confidently returns a superseded fact",
+  "layer": "context-memory",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "The agent told me the deploy command, in detail and with confidence, and it was the command we replaced in April; the note it retrieved was written before the change and nothing in the store knows that.",
+  "symptom": "An agent asserts an out-of-date fact about the project or the user, and the memory it cites is genuinely in the store: the retrieval was correct and the record was stale.",
+  "why_now": "Agent memory was built as append-plus-embed because that is what retrieval needs, so writes carry text and tags but no validity interval and no supersession link. Retrieval then ranks by similarity, and a superseded record is exactly as similar to the query as its replacement, so it is preferentially returned when it happens to be worded better.",
+  "existing": [
+    "Recency weighting in ranking: makes a stale record less likely to win, never unable to win, and it cannot tell a still-true old fact from a superseded one.",
+    "Periodic manual review of memory files: works, and is unbounded human labour that scales with the store rather than with the change rate.",
+    "Model-driven memory rewriting on conflict: needs the conflict to be noticed inside one context window, which is exactly what a long-horizon store does not guarantee."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory",
+      "locator": "https://arxiv.org/abs/2410.10813",
+      "date": "2024-10-14",
+      "quote": "commercial chat assistants and long-context LLMs showing a 30% accuracy drop on memorizing information across sustained interactions",
+      "note": "ICLR 2025. Its five measured abilities include knowledge updates and temporal reasoning, which is the academic name for this failure, and the measured drop is large."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How Claude remembers your project - Claude Code Docs",
+      "locator": "https://docs.claude.com/en/docs/claude-code/memory",
+      "date": "2026-08-23",
+      "quote": "if two rules contradict each other, Claude may pick one arbitrarily",
+      "note": "The vendor's own remedy for a superseded instruction is periodic human review to remove outdated or conflicting entries, which concedes there is no mechanism that retires one. Undated documentation page; the date is the retrieval date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2026-08-23",
+      "quote": "Even a single distractor reduces performance relative to the baseline (needle only), and adding four distractors compounds this degradation further.",
+      "note": "A superseded memory is the strongest possible distractor because it is topically identical to the correct one, and this measures what one distractor costs. Undated technical report; the date is the retrieval date."
+    }
+  ],
+  "build_hypothesis": "Two fields and one filter: every memory row carries a validity interval and an optional superseded_by link, a write that contradicts an existing row sets that link instead of appending beside it, and retrieval filters superseded rows before ranking rather than hoping recency outranks them.",
+  "tags": [
+    "memory",
+    "staleness",
+    "supersession",
+    "retrieval"
+  ],
+  "check": {
+    "id": "CHK-092",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "add_memor|save_memor|write_memor|upsert_memor|remember\\(|memory_store\\.|store\\.put\\(|MemorySaver|mem0"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "add_memor|save_memor|write_memor|upsert_memor|remember\\(|memory_store\\.|store\\.put\\(|MemorySaver|mem0"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "supersede|superseded_by|invalidate|retract|valid_until|valid_from|expires_at|tombstone|deprecated_at|stale_after"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "supersede|superseded_by|invalidate|retract|valid_until|valid_from|expires_at|tombstone|deprecated_at|stale_after"
+    },
+    "manual_question": "Your agent writes to a memory store. When a fact it remembered stops being true, what marks the old record so retrieval stops returning it, and what happens to rows written before that mechanism existed?",
+    "rationale": "A store with writes and no supersession or validity vocabulary anywhere in its code cannot express that a record has stopped being true, so its retrieval path has nothing to filter on. It can be wrong in two ways: a project may model validity in a schema file or migration this pattern does not read, giving a false PRESENT, which the manual question is there to catch; and spelling one of these tokens is not proof the retrieval path filters on it, which is why both signatures matching escalates to MANUAL rather than passing.",
+    "fixtures": {
+      "bad": {
+        "app/memory.py": "import json\nimport pathlib\n\nSTORE = pathlib.Path(\"memories.jsonl\")\n\n\ndef add_memory(text, tags):\n    \"\"\"Append a fact. Nothing here can ever record that it stopped being true.\"\"\"\n    with STORE.open(\"a\", encoding=\"utf-8\") as fh:\n        fh.write(json.dumps({\"text\": text, \"tags\": tags}) + \"\\n\")\n\n\ndef _load():\n    return [json.loads(line) for line in STORE.read_text().splitlines()]\n\n\ndef recall(query, k=5):\n    rows = _load()\n    rows.sort(key=lambda r: similarity(query, r[\"text\"]), reverse=True)\n    return rows[:k]\n"
+      },
+      "good": {
+        "app/memory.py": "import json\nimport pathlib\n\nSTORE = pathlib.Path(\"memories.jsonl\")\n\n\ndef add_memory(text, tags, valid_until=None):\n    rows = _load()\n    rows.append({\"id\": len(rows), \"text\": text, \"tags\": tags,\n                 \"superseded_by\": None, \"valid_until\": valid_until})\n    _save(rows)\n    return rows[-1][\"id\"]\n\n\ndef supersede(memory_id, replacement_id, at):\n    \"\"\"Record that a fact stopped being true, so retrieval can refuse it.\"\"\"\n    rows = _load()\n    rows[memory_id][\"superseded_by\"] = replacement_id\n    rows[memory_id][\"valid_until\"] = at\n    _save(rows)\n\n\ndef _load():\n    return [json.loads(line) for line in STORE.read_text().splitlines()]\n\n\ndef _save(rows):\n    STORE.write_text(\"\\n\".join(json.dumps(r) for r in rows) + \"\\n\")\n\n\ndef recall(query, k=5, now=None):\n    rows = [r for r in _load()\n            if r[\"superseded_by\"] is None\n            and (r[\"valid_until\"] is None or now is None or r[\"valid_until\"] > now)]\n    rows.sort(key=lambda r: similarity(query, r[\"text\"]), reverse=True)\n    return rows[:k]\n"
+      }
+    }
+  }
+}

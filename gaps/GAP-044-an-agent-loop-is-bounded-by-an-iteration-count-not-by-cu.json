@@ -1,0 +1,114 @@
+{
+  "id": "GAP-044",
+  "title": "An agent loop is bounded by an iteration count, not by cumulative spend, so the cap holds while the bill does not",
+  "layer": "cost-governance",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I set the turn limit the docs told me to set, and I still woke up to a four-figure bill, because nothing in my loop ever knew how much money it had left.",
+  "symptom": "The run stays inside its configured turn or step limit and raises nothing, so no alert fires; the overspend is discovered on the invoice or the provider usage dashboard, hours or days after the money is gone.",
+  "why_now": "Every mainstream agent runtime ships a turn or step counter as its only terminating bound and none ships a cumulative token or dollar ceiling that halts a run in flight. Per-turn context has grown by orders of magnitude as tool definitions and history are re-sent every turn, so a fixed iteration count no longer bounds cost at all: the same 50-turn cap can mean cents or hundreds of dollars depending on how wide the context got.",
+  "existing": [
+    "OpenAI Agents SDK max_turns: bounds turns only, says nothing about tokens or money, and is explicitly disable-able by passing None.",
+    "LangGraph recursion_limit: a step counter whose documented remedy for hitting it is to pass a higher limit.",
+    "Per-request max_tokens: bounds one completion, never the sum over a run.",
+    "Provider spend dashboards and monthly budget alerts: detective rather than preventive, evaluated on aggregates after the calls have been billed, and unable to terminate an in-flight run."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG]  Claude Code sends repeated requests hundreds of times without stopping",
+      "locator": "https://github.com/anthropics/claude-code/issues/35166",
+      "date": "2026-03-17",
+      "quote": "Add a maximum retry limit or cumulative cost guardrail for unattended sessions.",
+      "note": "The reporter names the missing primitive in his own words after an unattended session cost him over 500 dollars. He is asking the vendor for a cumulative spend ceiling, which is exactly the primitive that does not exist."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Running agents - OpenAI Agents SDK",
+      "locator": "https://openai.github.io/openai-agents-python/running_agents/",
+      "date": "2026-08-20",
+      "quote": "If we exceed the max_turns passed, we raise a MaxTurnsExceeded exception. Pass max_turns=None to disable this turn limit.",
+      "note": "The only run-terminating bound the SDK documents is a turn count, and it can be switched off entirely. Page carries no publication date, so the date field is the date I fetched it."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "GRAPH_RECURSION_LIMIT - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
+      "date": "2026-08-20",
+      "quote": "Your LangGraph StateGraph reached the maximum number of steps before hitting a stop condition.",
+      "note": "The framework's runaway-loop guard is a step counter, and the documented remedy for hitting it is to raise the counter. Page carries no publication date, so the date field is the date I fetched it."
+    }
+  ],
+  "build_hypothesis": "A budget object threaded through the run: a cumulative token and dollar counter incremented from every response usage field, checked immediately before each model call, raising a typed BudgetExhausted that returns the partial result rather than discarding it - plus a non-None default read from the environment, so an unattended run is never accidentally unbounded.",
+  "tags": [
+    "cost",
+    "budget",
+    "runaway-loop",
+    "unattended"
+  ],
+  "check": {
+    "id": "CHK-043",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "max_turns|maxTurns|max_iterations|maxIterations|recursion_limit|recursionLimit|max_steps|maxSteps"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "max_turns|maxTurns|max_iterations|maxIterations|recursion_limit|recursionLimit|max_steps|maxSteps"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(budget|spend|cost)[_-]?(usd|cap|ceiling|limit|remaining|guard)|max[_-]?(cost|spend)|token[_-]?budget|max[_-]?total[_-]?tokens|cumulative[_-]?(cost|tokens|spend)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)(budget|spend|cost)[_-]?(usd|cap|ceiling|limit|remaining|guard)|max[_-]?(cost|spend)|token[_-]?budget|max[_-]?total[_-]?tokens|cumulative[_-]?(cost|tokens|spend)"
+    },
+    "manual_question": "Your agent loop declares an iteration cap. Is there also a cumulative token or dollar ceiling, accumulated from response usage and checked before each model call, that terminates the run in flight? If the only answer is a provider dashboard or a monthly budget alert, the run is unbounded.",
+    "rationale": "A repository that names an iteration bound has thought about termination, which makes the absence of any cumulative-spend identifier meaningful rather than incidental. What it can get wrong: a project may enforce spend in a gateway, proxy or sidecar outside this repository, in which case the verdict is a false positive - and a project that merely mentions a budget name without checking it before the call reads as mitigated when it is not, which is why both signatures matching escalates to MANUAL.",
+    "fixtures": {
+      "bad": {
+        "agent/loop.py": "from openai import OpenAI\n\nclient = OpenAI()\nMAX_TURNS = 50  # the only bound this loop has\n\n\ndef run(task, max_turns=MAX_TURNS):\n    messages = [{\"role\": \"user\", \"content\": task}]\n    for _turn in range(max_turns):\n        reply = client.chat.completions.create(model=\"gpt-5\", messages=messages)\n        text = reply.choices[0].message.content\n        messages.append({\"role\": \"assistant\", \"content\": text})\n        if \"DONE\" in text:\n            return messages\n    raise RuntimeError(\"turn limit reached\")\n"
+      },
+      "good": {
+        "agent/loop.py": "from openai import OpenAI\n\nclient = OpenAI()\nMAX_TURNS = 50\nMAX_COST_USD = 2.00\n\n\nclass BudgetExhausted(RuntimeError):\n    pass\n\n\ndef run(task, max_turns=MAX_TURNS, max_cost_usd=MAX_COST_USD):\n    messages = [{\"role\": \"user\", \"content\": task}]\n    cumulative_cost = 0.0\n    for _turn in range(max_turns):\n        if cumulative_cost >= max_cost_usd:\n            raise BudgetExhausted(f\"stopped at {cumulative_cost} of {max_cost_usd}\")\n        reply = client.chat.completions.create(model=\"gpt-5\", messages=messages)\n        cumulative_cost += price(reply.usage)\n        text = reply.choices[0].message.content\n        messages.append({\"role\": \"assistant\", \"content\": text})\n        if \"DONE\" in text:\n            return messages\n    raise RuntimeError(\"turn limit reached\")\n"
+      }
+    }
+  }
+}

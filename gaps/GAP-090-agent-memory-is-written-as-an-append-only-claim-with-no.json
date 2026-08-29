@@ -1,0 +1,150 @@
+{
+  "id": "GAP-090",
+  "title": "Agent memory is written as an append-only claim with no validity window, so retrieval returns facts the world has already replaced",
+  "layer": "context-memory",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent stored what the user told it in March, the user told it something different in July, and both are now in the store with equal standing - so a similarity search hands the model the March answer and it acts on a fact that stopped being true.",
+  "symptom": "The agent confidently asserts a superseded fact - an old address, a cancelled decision, a renamed service, a price that changed. Retrieval looks healthy because the record it returned really is in the store and really is the closest match to the query; there is no error, no low-confidence signal, and no way to tell a current memory from a retired one, because nothing was ever retired.",
+  "why_now": "The default agent-memory stack is an embedding index plus a top-k similarity read, and that pairing has no representation for time: a write appends, a read ranks by distance, and contradiction is invisible to both. The systems that do model validity treat it as their differentiator rather than as table stakes, which is the tell that it is not the default. Meanwhile the benchmark evidence names handling updated knowledge as a distinct ability that current assistants measurably lack, so this is not covered by making retrieval more accurate - a more accurate retriever returns the stale record more reliably.",
+  "existing": [
+    "Recency weighting or a timestamp in the metadata makes newer records score higher, but it never marks the older one wrong, so a strongly-matching stale record still outranks a weakly-matching current one.",
+    "Deleting or overwriting on update destroys the audit trail and cannot answer a question about what was true earlier, so teams reasonably avoid it and end up appending instead.",
+    "Bi-temporal or fact-invalidating memory layers do close this, and the fact that they market it as a distinguishing capability is itself evidence that the mainstream append-plus-similarity stack does not have it.",
+    "Letting the model decide which retrieved memory is current pushes the contradiction into the same context window the gap already poisoned, and gives no component below the model anything to enforce."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory",
+      "locator": "https://arxiv.org/abs/2410.10813",
+      "date": "2024-10-14",
+      "quote": "five core long-term memory abilities of chat assistants: information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention",
+      "note": "ICLR 2025. Names knowledge updates as a distinct core ability rather than a retrieval-quality detail, which is precisely the ability an append-only store cannot express."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory",
+      "locator": "https://arxiv.org/abs/2410.10813",
+      "date": "2024-10-14",
+      "quote": "commercial chat assistants and long-context LLMs showing a 30% accuracy drop on memorizing information across sustained interactions",
+      "note": "Measured degradation in shipped commercial memory systems over sustained interaction, so the gap is observed in production products and not only in research prototypes."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Zep: A Temporal Knowledge Graph Architecture for Agent Memory",
+      "locator": "https://arxiv.org/abs/2501.13956",
+      "date": "2025-01-20",
+      "quote": "While existing retrieval-augmented generation (RAG) frameworks for large language model (LLM)-based agents are limited to static document retrieval, enterprise applications demand dynamic knowledge integration from diverse sources including ongoing conversations and business data.",
+      "note": "States the limitation of the incumbent design directly: the mainstream retrieval frameworks treat memory as static documents, which is what leaves a superseded record indistinguishable from a current one."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Zep Documentation - Graphiti Overview",
+      "locator": "https://help.getzep.com/graphiti/graphiti/overview",
+      "date": "2026-08-21",
+      "quote": "Temporal Awareness: Tracks changes in facts and relationships over time, enabling point-in-time queries.",
+      "note": "The maintainers sell fact invalidation and bi-temporal tracking as what distinguishes their memory layer from document-oriented retrieval, which is evidence that validity handling is a differentiator rather than a default. Living documentation page carrying no publication date; the date field records the day it was fetched, 2026-08-21."
+    }
+  ],
+  "build_hypothesis": "A thin validity layer over any existing vector store: every write takes an observed-at and returns the ids it supersedes, every read filters to records open at a query time, and a contradiction pass runs at write time rather than at read time. The store stays append-only, which is what teams want; what is missing is the two metadata fields and the one write-time decision, plus a retrieval path that refuses to return a closed record by default.",
+  "tags": [
+    "memory",
+    "staleness",
+    "retrieval",
+    "long-horizon",
+    "temporal"
+  ],
+  "check": {
+    "id": "CHK-089",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(add|save|store|write|upsert|insert|put|remember)_?(memor(?:y|ies)|facts?|notes?|embeddings?|documents?|texts?)\\b|\\bupsert\\(|\\badd_texts\\(|\\badd_documents\\(|\\bmemory\\.(?:add|save|put|store|write)\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(similarity_search|as_retriever|vector_?stores?|retrieve_?memor\\w*|search_?memor\\w*|query_?memor\\w*|recall_?memor\\w*|semantic_search|knn_search|nearest_neighbou?rs?|embed_query|top_?k)\\b"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(add|save|store|write|upsert|insert|put|remember)_?(memor(?:y|ies)|facts?|notes?|embeddings?|documents?|texts?)\\b|\\bupsert\\(|\\badd_texts\\(|\\badd_documents\\(|\\bmemory\\.(?:add|save|put|store|write)\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(similarity_search|as_retriever|vector_?stores?|retrieve_?memor\\w*|search_?memor\\w*|query_?memor\\w*|recall_?memor\\w*|semantic_search|knn_search|nearest_neighbou?rs?|embed_query|top_?k)\\b"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(invalidate[sd]?|invalidation|supersede[sd]?|superseded|superseding|retract(?:ed|ion)?|tombstone[sd]?|expire[sd]?|expiry|expiration|stale|valid_from|valid_to|valid_until|valid_at|as_of|effective_from)_?(memor(?:y|ies)|facts?|records?|notes?|edges?|entr(?:y|ies)|beliefs?|claims?)\\b|\\b(memor(?:y|ies)|facts?|records?|notes?|edges?|entr(?:y|ies)|beliefs?|claims?)_?(invalidat\\w*|supersed\\w*|expir\\w*|retract\\w*|tombstone\\w*|stale\\w*|ttl|valid_from|valid_to|valid_until|valid_at|as_of|effective_from)\\b|\\bbi[_-]?temporal\\b|\\bpoint[_-]in[_-]time\\b"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)\\b(invalidate[sd]?|invalidation|supersede[sd]?|superseded|superseding|retract(?:ed|ion)?|tombstone[sd]?|expire[sd]?|expiry|expiration|stale|valid_from|valid_to|valid_until|valid_at|as_of|effective_from)_?(memor(?:y|ies)|facts?|records?|notes?|edges?|entr(?:y|ies)|beliefs?|claims?)\\b|\\b(memor(?:y|ies)|facts?|records?|notes?|edges?|entr(?:y|ies)|beliefs?|claims?)_?(invalidat\\w*|supersed\\w*|expir\\w*|retract\\w*|tombstone\\w*|stale\\w*|ttl|valid_from|valid_to|valid_until|valid_at|as_of|effective_from)\\b|\\bbi[_-]?temporal\\b|\\bpoint[_-]in[_-]time\\b"
+    },
+    "manual_question": "Your project writes agent memories and reads them back by similarity. When a stored memory stops being true, what changes in the store, and what stops the retired record from being returned by the next search? If the answer is that a newer record is also written and the model is expected to prefer it, the store cannot tell current from superseded.",
+    "rationale": "The signature is the append-plus-similarity pairing - a memory or embedding WRITE and a similarity READ in shipped code - with no vocabulary anywhere in that code for a record ceasing to be valid. The mitigation pattern deliberately requires a validity term BOUND to a memory noun (invalidate_fact, memory_valid_to, edge_invalidation) or an unambiguous term of art (bi-temporal, point-in-time), rather than bare words like expire, stale or ttl, because those appear in every HTTP cache and would credit an unrelated repo with a mitigation it does not have - a fail-open ABSENT. Two known error directions: a project may express validity through a house term or a database column this pattern cannot see, giving a false PRESENT that costs one manual look; and a project may spell a matching term in one subsystem while its memory path ignores validity entirely, giving a false ABSENT. The check cannot tell whether the retrieval path actually filters on the validity field it found.",
+    "fixtures": {
+      "bad": {
+        "service/memory.py": "\"\"\"Long-term memory: written on every turn, read back by embedding similarity.\"\"\"\n\n\nclass MemoryStore:\n    def __init__(self, index, embedder):\n        self.index = index\n        self.embedder = embedder\n\n    def add_memory(self, text, user_id):\n        \"\"\"Append what the user just told us.\"\"\"\n        self.index.upsert(\n            id=new_id(),\n            vector=self.embedder.embed(text),\n            metadata={\"user_id\": user_id, \"text\": text},\n        )\n\n    def recall(self, question, user_id, top_k=8):\n        hits = self.index.similarity_search(\n            self.embedder.embed(question), top_k=top_k, filter={\"user_id\": user_id}\n        )\n        return [h.metadata[\"text\"] for h in hits]\n\n\ndef build_prompt(question, store, user_id):\n    return \"\\\\n\".join(store.recall(question, user_id)) + \"\\\\n\\\\n\" + question\n"
+      },
+      "good": {
+        "service/memory.py": "\"\"\"Long-term memory with a validity window.\n\nA memory is a claim about a world that changes, so writing a new one has to settle\nwhat it does to the ones it contradicts. Retrieval reads only what is still valid.\n\"\"\"\n\n\nclass MemoryStore:\n    def __init__(self, index, embedder):\n        self.index = index\n        self.embedder = embedder\n\n    def add_memory(self, text, user_id, observed_at):\n        \"\"\"Append the new claim and close out the claims it replaces.\"\"\"\n        for prior in self._contradicted(text, user_id):\n            self.invalidate_fact(prior, at=observed_at)\n        self.index.upsert(\n            id=new_id(),\n            vector=self.embedder.embed(text),\n            metadata={\n                \"user_id\": user_id,\n                \"text\": text,\n                \"valid_from\": observed_at,\n                \"valid_to\": None,\n            },\n        )\n\n    def invalidate_fact(self, record, at):\n        \"\"\"Close a claim rather than deleting it, so history stays answerable.\"\"\"\n        self.index.update(record.id, metadata={\"valid_to\": at})\n\n    def recall(self, question, user_id, top_k=8, at=None):\n        hits = self.index.similarity_search(\n            self.embedder.embed(question), top_k=top_k, filter={\"user_id\": user_id}\n        )\n        return [h.metadata[\"text\"] for h in hits if self._valid(h, at)]\n\n    def _valid(self, hit, at):\n        closed = hit.metadata.get(\"valid_to\")\n        return closed is None or (at is not None and at < closed)\n\n\ndef build_prompt(question, store, user_id):\n    return \"\\\\n\".join(store.recall(question, user_id)) + \"\\\\n\\\\n\" + question\n"
+      }
+    }
+  }
+}

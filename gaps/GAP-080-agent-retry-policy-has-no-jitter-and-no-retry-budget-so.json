@@ -1,0 +1,97 @@
+{
+  "id": "GAP-080",
+  "title": "Agent retry policy has no jitter and no retry budget, so one rate limit becomes a retry storm",
+  "layer": "orchestration",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My agents all hit the provider limit at the same moment, all backed off by the same doubling delay, and all came back at the same moment, so my own retries kept the outage alive long after the original spike had passed.",
+  "symptom": "Request volume rises after the failure rather than falling, retries arrive in visible clusters at 1s, 2s, 4s, 8s, and the aggregate failure rate stays pinned even though each individual agent looks like it is politely backing off.",
+  "why_now": "Exponential backoff is the universally copied default in agent code and tutorials, and on its own it synchronises retries rather than spreading them. The two things that actually bound amplification, randomised delay and a cap on the retry-to-request ratio, are documented in reliability engineering but are absent from most agent retry loops, which retry per call with no view of the aggregate.",
+  "existing": [
+    "Capped exponential backoff alone: slows each client but leaves the clusters intact, so contention is barely reduced.",
+    "Provider SDK retry defaults: bound attempts per request, not the retry share of total traffic, so N agents still multiply the load.",
+    "Retries at several layers (agent loop, SDK, gateway): each looks reasonable alone and multiplies combinatorially."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Exponential Backoff And Jitter | AWS Architecture Blog",
+      "locator": "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/",
+      "date": "2015-01-01",
+      "quote": "The no-jitter exponential backoff approach is the clear loser. It not only takes more work, but also takes more time than the jittered approaches.",
+      "note": "Simulation result: backoff without jitter leaves clusters of synchronised calls. The page shows no publication date; its own May 2023 update says 'After 8 years', which places the original in 2015, so the day here is a placeholder following the register's existing convention for undated vendor pages (GAP-002, GAP-008)."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Handling Overload - Google SRE Book, Chapter 21",
+      "locator": "https://sre.google/sre-book/handling-overload/",
+      "date": "2017-01-01",
+      "quote": "First, we implement a per-request retry budget of up to three attempts. If a request has already failed three times, we let the failure bubble up to the caller.",
+      "note": "The same chapter quantifies the amplification a retry budget is there to bound - retries alone grow request volume 'to somewhere just below 3X' - and adds a per-client cap keeping retries under 10% of requests. The page carries no publication date and states Copyright 2017, so the day is a placeholder per the register's convention for undated pages."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0011: Concurrent agent brains silently starve and kill each other",
+      "locator": "https://raw.githubusercontent.com/jeffma8888/agent-failure-modes/main/incidents/INC-0011-concurrent-agent-brains-silently-starve-and-kill-each-other.md",
+      "date": "2026-08-10",
+      "quote": "Multiple agents share a model-provider quota, and the losing brain cannot degrade gracefully - it dies silently.",
+      "note": "Field instance of the amplification loop in an agent setting: 8 tasks x 5 retries each produced zero output, and the retries themselves manufactured the load that kept them failing."
+    }
+  ],
+  "build_hypothesis": "A retry decorator that is jittered by default and refuses to retry once the caller's retry-to-request ratio over a recent window exceeds a declared budget, with the ratio exported as a metric so amplification is visible before it is an outage.",
+  "tags": [
+    "retry",
+    "backoff",
+    "rate-limit",
+    "amplification"
+  ],
+  "check": {
+    "id": "CHK-079",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "429|RateLimitError|rate_limit|TooManyRequests|max_retries|retries|backoff"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(time|asyncio)\\.sleep\\([^)\\n]*2\\s*\\*\\*|(delay|backoff|wait|sleep_for)\\s*\\*=\\s*2"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "jitter|full_jitter|equal_jitter|retry_budget|retry_ratio|RetryBudget|random\\.uniform\\(\\s*0"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "jitter|full_jitter|equal_jitter|retry_budget|retry_ratio|RetryBudget|random\\.uniform\\(\\s*0"
+    },
+    "manual_question": "Your retry path doubles a delay. Randomise it, or all your concurrent callers will retry in the same instant. Separately: what caps the share of your total request volume that is retries, so a provider limit cannot be amplified by your own client?",
+    "rationale": "A doubling sleep with no randomised component anywhere in the tree is the documented synchronising-retry signature, and the two mitigations that bound amplification (jitter, a retry budget) both leave a lexical trace. It can be wrong when jitter is applied inside a vendored SDK the repo does not name, so the finding is that this repo shows no jitter of its own, not that the deployed system has none.",
+    "fixtures": {
+      "bad": {
+        "client.py": "import time\n\nimport requests\n\n\ndef call(url, payload, attempts=5):\n    \"\"\"Retry a rate-limited endpoint with capped exponential backoff.\"\"\"\n    for attempt in range(attempts):\n        response = requests.post(url, json=payload, timeout=30)\n        if response.status_code != 429:\n            return response\n        time.sleep(2 ** attempt)\n    raise RuntimeError(\"gave up after %d attempts\" % attempts)\n"
+      },
+      "good": {
+        "client.py": "import random\nimport time\n\nimport requests\n\n# Per-client retry budget: retries may not exceed 10% of attempted requests.\nRETRY_RATIO_BUDGET = 0.1\n\n\ndef call(url, payload, attempts=5, retry_ratio=lambda: 0.0):\n    for attempt in range(attempts):\n        response = requests.post(url, json=payload, timeout=30)\n        if response.status_code != 429:\n            return response\n        if retry_ratio() > RETRY_RATIO_BUDGET:\n            break\n        # Full jitter: spread the retries instead of synchronising them.\n        time.sleep(random.uniform(0, 2 ** attempt))\n    raise RuntimeError(\"gave up after %d attempts\" % attempts)\n"
+      }
+    }
+  }
+}

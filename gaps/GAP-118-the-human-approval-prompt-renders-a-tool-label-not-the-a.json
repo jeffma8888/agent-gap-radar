@@ -1,0 +1,138 @@
+{
+  "id": "GAP-118",
+  "title": "The human approval prompt renders a tool label, not the arguments, so the only enforcement point in the loop cannot see the payload it authorizes",
+  "layer": "human-interface",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I am the control that is supposed to stop an injected tool call, and the dialog I click asks me to allow a tool by name while the argument that carries my SSH key out of the building is not on my screen.",
+  "symptom": "An approval was granted and the transcript shows a benign tool being run with a benign label, while the exfiltrating value sits only inside the arguments object: the interaction log records consent to something the consenting human never read, so a post-incident review cannot even tell whether the approval was informed.",
+  "why_now": "Per-call human confirmation is the mitigation of record that every client shipped, and it is treated as the answer to indirect injection. Nothing in any protocol or client contract requires the approval surface to display the exact, canonical arguments that will be sent, so display fidelity is a UI choice made per client. Invariant demonstrated a client whose extended confirmation dialog omitted the exfiltrated key entirely, which means the approval step can be fully functional and still provide zero coverage against an injected argument.",
+  "existing": [
+    "Per-call confirmation dialogs (Claude Desktop, Cursor): present and demonstrated insufficient, because the rendering is a summarised tool name and Cursor's extended mode did not show the full tool input.",
+    "Blanket persistent grants such as Always Allow: the ergonomic escape hatch teams actually take, and Invariant observed users adopting it and stopping monitoring individual actions, which removes the surface entirely rather than fixing its fidelity.",
+    "Clear UI patterns distinguishing user-visible from model-visible text: Invariant's own first recommendation, which is guidance to client authors rather than an enforceable contract, so a deployment cannot verify it holds.",
+    "Interaction logs and audit trails: they record that consent was given, not what was displayed at the moment of consent, so they cannot distinguish an informed approval from a blind one after the fact.",
+    "Prompt-injection classifiers upstream of the dialog: they change the odds that a bad call is proposed and do nothing about what the human sees when one is."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "While user confirmation is required for the agent to execute the tool, the user is only shown a simple summarized tool name, where tool arguments are hidden behind an overly simplified UI representation",
+      "note": "The gap stated by the researchers who exploited it: the approval requirement was satisfied while the argument carrying the payload was not displayed."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "Cursor does show a tool call confirmation dialog, but even in its extended mode, it does not show the full tool input (e.g. the included SSH key is completely hidden).",
+      "note": "A named production client, in its most verbose mode, omitting the exfiltrated value. This is what makes the gap a display-fidelity contract rather than a request for a better dialog."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "Note that nowhere in the interaction log, outside of the tool call arguments, does the agent mention that it is sending emails to a different recipient.",
+      "note": "Supports the audit-trail entry in the existing list: the only place the malicious value appears is the arguments object, which is exactly what the approval surface and the log both summarise away."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "GitHub MCP Exploited: Accessing private repositories via MCP",
+      "locator": "https://invariantlabs.ai/blog/mcp-github-vulnerability",
+      "date": "2025-05-26",
+      "quote": "Throughout this process, Claude Desktop by default requires the user to confirm individual tool calls.",
+      "note": "Independent write-up, different client, same mitigation of record: confirmation was on by default and the exfiltration still completed. The same paragraph reports users adopting a blanket allow policy and stopping monitoring, which is the second entry in the existing list."
+    }
+  ],
+  "build_hypothesis": "A display contract with a machine-checkable form: the approval surface must render the same serialised argument bytes that the dispatcher will send, and the dispatcher must refuse a call whose argument hash does not match the hash of what was displayed. That turns display fidelity from a UI preference into an assertion, makes a blanket grant expressible as a scope over arguments rather than over a tool name, and gives a log that records what was shown rather than only that a click happened.",
+  "tags": [
+    "approval",
+    "human-in-the-loop",
+    "injection",
+    "exfiltration",
+    "display-fidelity"
+  ],
+  "check": {
+    "id": "CHK-117",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)tool_calls|function_call|call_tool|execute_tool|dispatch_tool|@tool\\b|@mcp\\.tool|@function_tool|StructuredTool"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)approv|confirm|authoriz|human_in_the_loop|\\bhitl\\b|interrupt_before"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(?:confirm|approve|approval|authoriz\\w*|prompt|ask|input)\\s*\\(\\s*f?[\"'][^\"'\\n]{0,80}\\{\\s*(?:tool|tool_name|name|action|func|function|call|cmd|command)[^}\\n]{0,24}\\}[^\"'\\n]{0,80}[\"']"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.jsx",
+            "**/*.html",
+            "**/*.jinja"
+          ],
+          "pattern": "(?i)json\\.dumps\\(\\s*(?:tool_call|call|args|arguments|params|parameters|payload|tool_input|tool_args)|JSON\\.stringify\\(\\s*(?:args|arguments|params|payload|toolInput|toolArgs)|\\{\\s*(?:args|arguments|params|payload|tool_input|tool_args|toolArgs|toolInput)\\s*\\}|pprint\\(\\s*(?:args|arguments|params|payload)|render_(?:args|arguments|payload|tool_call)|format_(?:args|arguments|tool_call)|approval_(?:diff|preview|payload)|show_full_(?:input|args|arguments|payload)|full_tool_input|args_hash|arguments_hash|approval_scope"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.html",
+        "**/*.jinja"
+      ],
+      "pattern": "(?i)json\\.dumps\\(\\s*(?:tool_call|call|args|arguments|params|parameters|payload|tool_input|tool_args)|JSON\\.stringify\\(\\s*(?:args|arguments|params|payload|toolInput|toolArgs)|\\{\\s*(?:args|arguments|params|payload|tool_input|tool_args|toolArgs|toolInput)\\s*\\}|pprint\\(\\s*(?:args|arguments|params|payload)|render_(?:args|arguments|payload|tool_call)|format_(?:args|arguments|tool_call)|approval_(?:diff|preview|payload)|show_full_(?:input|args|arguments|payload)|full_tool_input|args_hash|arguments_hash|approval_scope"
+    },
+    "manual_question": "Open the approval prompt your agent shows a human before it runs a tool call. Is the full argument object on that screen, serialised the way the tool will receive it, or is the human approving a tool label? If a value were appended to one argument by text your agent fetched from a stranger, at which pixel would the approver see it? And once someone picks the persistent allow option, what is that grant scoped to: the tool name, or the arguments?",
+    "rationale": "Fires when a project dispatches model-chosen tool calls behind an approval prompt whose string interpolates only a tool or action name, and no file anywhere renders the argument object for display. What it can get wrong: an approval surface built in a framework this vocabulary does not spell (a TUI widget, a React component that maps over an args array without naming it, a web template rendered server-side) reads as PRESENT when the payload may in fact be on screen - which is why the manual question asks the operator to look at the actual pixel rather than trusting the regex. It also cannot tell a rendered argument object from a truncated one, so a hit on the mitigation side yields ABSENT rather than proof of fidelity.",
+    "fixtures": {
+      "bad": {
+        "app/approval.py": "\"\"\"Tool dispatch with a human approval gate.\"\"\"\n\nfrom tools import TOOLS\n\n\ndef request_approval(tool_name: str, arguments: dict) -> bool:\n    \"\"\"The only human control in the loop. It renders the tool NAME.\"\"\"\n    answer = input(f\"Allow {tool_name}? [y/N] \")\n    return answer.strip().lower() == \"y\"\n\n\ndef dispatch(tool_call: dict) -> str:\n    \"\"\"Run one model-chosen tool call after the human says yes.\"\"\"\n    name = tool_call[\"name\"]\n    if not request_approval(name, tool_call[\"arguments\"]):\n        return \"denied by user\"\n    return TOOLS[name](**tool_call[\"arguments\"])\n\n\ndef run_turn(response: dict) -> list[str]:\n    return [dispatch(tc) for tc in response.get(\"tool_calls\", [])]\n"
+      },
+      "good": {
+        "app/approval.py": "\"\"\"Same dispatch, with the approval surface rendering the exact payload.\"\"\"\n\nimport json\n\nfrom tools import TOOLS\n\n\ndef request_approval(tool_name: str, arguments: dict) -> bool:\n    \"\"\"Renders the canonical bytes that will be sent, not a summary of them.\n\n    The human is shown the SAME serialisation the tool receives, so an argument\n    the model filled in from injected content cannot hide behind a tool label.\n    \"\"\"\n    print(f\"Tool: {tool_name}\")\n    print(json.dumps(arguments, indent=2, sort_keys=True))\n    answer = input(f\"Allow {tool_name} with the arguments printed above? [y/N] \")\n    return answer.strip().lower() == \"y\"\n\n\ndef dispatch(tool_call: dict) -> str:\n    name = tool_call[\"name\"]\n    if not request_approval(name, tool_call[\"arguments\"]):\n        return \"denied by user\"\n    return TOOLS[name](**tool_call[\"arguments\"])\n\n\ndef run_turn(response: dict) -> list[str]:\n    return [dispatch(tc) for tc in response.get(\"tool_calls\", [])]\n"
+      }
+    }
+  }
+}

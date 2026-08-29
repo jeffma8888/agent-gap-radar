@@ -1,0 +1,107 @@
+{
+  "id": "GAP-048",
+  "title": "Retrieval runs with no identity scope, so one tenant's documents can enter another tenant's context window",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "Every customer's documents are in one index because that is what the quickstart shows, and nothing in the retrieval call forces me to state whose documents this request is allowed to read.",
+  "symptom": "An agent cites a passage nobody on that account ever uploaded, and the trace shows a similarity search that carried a query and a k and no identity predicate at all.",
+  "why_now": "The isolation primitive exists in every vector store and is an OPTIONAL keyword argument, so the safe call and the leaking call differ by one argument that no test exercises, and a single-tenant staging environment cannot reproduce the failure.",
+  "existing": [
+    "Namespaces and metadata filters give real isolation, but they are opt-in per call site: one forgotten argument in one code path leaks, and the store returns a perfectly valid result.",
+    "Row-level security in the primary database does not travel into the vector index, which is a separate system with its own access model.",
+    "Framework retriever objects can be constructed with a filter, but the filter is bound at construction time while the identity is known per request, so a long-lived retriever is exactly the shape that loses the scope."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-20",
+      "quote": "a bug in an open-source library which allowed some users to see titles from another active user",
+      "note": "Canonical public postmortem of cross-user context bleed caused by shared per-request state, not by a model defect. The date field is the incident date printed on the page (Monday, March 20); the page as fetched does not print a publication date, so no publication date is asserted."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-20",
+      "quote": "the same bug may have caused the unintentional visibility of payment-related information of 1.2% of the ChatGPT Plus subscribers",
+      "note": "Quantifies the blast radius of a single unscoped shared-state bug in a live LLM product. The date field is the incident date printed on the page (Monday, March 20); the page as fetched does not print a publication date, so no publication date is asserted."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Implement multitenancy - Pinecone Docs",
+      "locator": "https://docs.pinecone.io/guides/index-data/implement-multitenancy",
+      "date": "2026-08-19",
+      "quote": "Within an index, records are stored in namespaces, and all upserts, queries, and other data read and write operations always target one namespace.",
+      "note": "The vendor's own isolation primitive is an OPTIONAL argument on the call, so the leaking call and the safe call differ by one keyword. Retrieved 2026-08-19; the page carries no publication date, so the date field is the retrieval date rather than an asserted publication date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2026-08-19",
+      "quote": "This includes personal identifiable information (PII), financial details, health records, confidential business data, security credentials, and legal documents.",
+      "note": "The OWASP GenAI Top 10 entry that defines the data class at risk; names security credentials alongside PII, which is the pairing this gap is about. Retrieved 2026-08-19; the page carries no publication date, so the date field is the retrieval date rather than an asserted publication date."
+    }
+  ],
+  "build_hypothesis": "A retrieval wrapper that takes the caller identity as a required positional argument and refuses to issue a query whose filter or namespace does not derive from it, plus a lint rule that flags any direct call to the underlying client so the wrapper cannot be bypassed silently.",
+  "tags": [
+    "multi-tenant",
+    "rag",
+    "retrieval",
+    "context-bleed",
+    "privacy",
+    "isolation"
+  ],
+  "check": {
+    "id": "CHK-047",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)similarity_search|as_retriever|max_marginal_relevance|pinecone|chromadb|weaviate|qdrant|pgvector|FAISS|vectorstore"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "\\.(?:similarity_search|similarity_search_with_score|max_marginal_relevance_search|as_retriever|aquery|query)\\s*\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(?:filter|namespace|where|search_kwargs|partition_key|scope)\\s*=[^\\n]{0,160}(?:tenant|user_id|org_id|customer_id|account_id|owner_id|workspace_id)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(?:filter|namespace|where|search_kwargs|partition_key|scope)\\s*=[^\\n]{0,160}(?:tenant|user_id|org_id|customer_id|account_id|owner_id|workspace_id)"
+    },
+    "manual_question": "For each retrieval call in this repo, name the argument that scopes it to the requesting identity. If a call has none, what prevents it from returning another tenant's records?",
+    "rationale": "A retrieval call exists and no filter, namespace or scope argument anywhere in the shipped Python carries a tenant, user or org identifier. It can be wrong when tenancy is enforced one layer down, by a per-tenant index instance, a per-tenant credential or a proxy that injects the filter server-side, so the two rules are deliberately complementary and a target with neither signature lands on MANUAL with the question above.",
+    "fixtures": {
+      "bad": {
+        "app/rag.py": "store = get_store()\n\n\ndef answer(question):\n    docs = store.similarity_search(question, k=5)\n    return summarise(docs)\n"
+      },
+      "good": {
+        "app/rag.py": "store = get_store()\n\n\ndef answer(question, tenant_id):\n    docs = store.similarity_search(question, k=5, filter={\"tenant_id\": tenant_id})\n    return summarise(docs)\n"
+      }
+    }
+  }
+}

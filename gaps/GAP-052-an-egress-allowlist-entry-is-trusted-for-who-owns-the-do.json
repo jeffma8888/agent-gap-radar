@@ -1,0 +1,133 @@
+{
+  "id": "GAP-052",
+  "title": "An egress allowlist entry is trusted for who owns the domain, not for whether that domain can carry data back to an attacker",
+  "layer": "tool-action",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I cut the exfiltration leg of the trifecta with a domain allowlist, and the attacker walked out through an entry I put on the list myself, because nothing in my stack asks whether an allowed host can store or reflect bytes.",
+  "symptom": "Every outbound request passes the allowlist check and the logs show only approved domains, while the attacker reads the stolen data out of a request-capture bucket, a form response, a file-upload endpoint or an open redirect hosted on one of them.",
+  "why_now": "Domain allowlisting is the mitigation of record for prompt-injection exfiltration and it is what vendors shipped after each incident, yet across 2025 and 2026 the same list has been defeated at least five times in five separate products: a Microsoft Teams proxy inside the Copilot CSP allowlist, an expired wildcard still present in the Salesforce CSP header, docs.google.com in the Superhuman CSP where Google Forms persists GET parameters, api.anthropic.com in the Claude Cowork outbound list reachable with the attacker's own API key, and webhook.site shipped in the DEFAULT Antigravity browser allowlist. The list keeps being written as a reputation judgement about the operator of a domain when the security property it needs is behavioural: can this host retain or forward a parameter the attacker chooses. Nobody ships a way to state or test that property, so each list is re-audited by hand only after a researcher publishes.",
+  "existing": [
+    "Hostname or suffix allowlists, including CSP img-src and connect-src: they answer who serves the domain, never whether the domain can carry a payload outward, which is the question the attack turns on.",
+    "Wildcard subdomain entries: strictly worse, because the entry survives the domain expiring or a subdomain being handed to someone else. Salesforce's CSP still named *.my-salesforce-cms.com after that domain had lapsed, and the researchers simply registered it.",
+    "Vendor-curated default allowlists: they carry the same defect with the vendor's authority behind it. Antigravity's shipped default list contained webhook.site, a service whose entire purpose is to let a stranger read requests sent to it.",
+    "First-party-only lists: not sufficient either. api.anthropic.com is as first-party as an entry gets for a Claude product, and its file-upload endpoint accepted the exfiltrated files under an attacker-supplied API key.",
+    "Exact-URL restriction, the strongest deployed version (Claude web_fetch may only visit URLs the user supplied or a previous search returned): it does target the right property, and it was still bypassed once because URLs discovered inside previously fetched pages were also admitted.",
+    "Post-hoc CSP audits after disclosure: they fix one entry per incident and leave the contract unspecified, so the next entry added by a feature team reopens the channel."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "EchoLeak: The First Real-World Zero-Click Prompt Injection Exploit in a Production LLM System",
+      "locator": "https://arxiv.org/html/2509.10540v1",
+      "date": "2025-09-06",
+      "quote": "The browser blocking the request to an arbitrary attacker domain was bypassed by abusing an allowed domain as a proxy.",
+      "note": "Published at AAAI Fall Symposium Series 2025 per the arXiv listing. The sharpest statement of the gap: the allowlist was enforced correctly and the attack went through an entry that could fetch an arbitrary URL on the caller's behalf."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Simon Willison on exfiltration-attacks",
+      "locator": "https://simonwillison.net/tags/markdown-exfiltration/",
+      "date": "2026-01-12",
+      "quote": "The root cause was a CSP rule that allowed markdown images to be loaded from docs.google.com - it turns out Google Forms on that domain will persist data fed to them via a GET request!",
+      "note": "Superhuman AI. The allowlist entry was a real Google domain; the defeating property was that a service on it persists GET parameters. Quote is from the entry dated 12th January 2026 on this tag page."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Simon Willison on exfiltration-attacks",
+      "locator": "https://simonwillison.net/tags/markdown-exfiltration/",
+      "date": "2026-01-14",
+      "quote": "Claude Cowork defaults to allowing outbound HTTP traffic to only a specific list of domains, to help protect the user against prompt injection attacks that exfiltrate their data.",
+      "note": "States the mitigation explicitly as the defence. The same entry then describes the bypass through the vendor's own API domain, which is on that list. Entry dated 14th January 2026."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Simon Willison on exfiltration-attacks",
+      "locator": "https://simonwillison.net/tags/markdown-exfiltration/",
+      "date": "2025-09-26",
+      "quote": "Salesforce had a CSP rule to prevent the UI from loading images from untrusted sources... but *.my-salesforce-cms.com was still in the header despite that domain having expired!",
+      "note": "ForcedLeak. Shows the wildcard-entry variant: the list outlived the ownership fact it encoded. Entry dated 26th September 2025."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Google Antigravity Exfiltrates Data",
+      "locator": "https://www.promptarmor.com/resources/google-antigravity-exfiltrates-data",
+      "date": "2025-11-25",
+      "quote": "Webhook.site allows anyone to create a URL where they can monitor requests to the URL.",
+      "note": "Primary report. This host shipped in Antigravity's DEFAULT browser URL allowlist, so the vendor-supplied list itself contained a data-carrying entry. Date is the one carried by the dated link to this report on simonwillison.net."
+    }
+  ],
+  "build_hypothesis": "A linter over an egress allowlist that classifies every entry by data-carrying capability rather than by owner: a curated set of known request-capture, paste, form, webhook and file-upload hosts, a rule that rejects wildcard entries outright, a WHOIS or DNS check for a lapsed registration behind an entry, and an optional active probe that sends a marker parameter to the entry and reports whether the marker becomes readable by a third party. Pair it with an egress broker that drops the query and fragment from any allowlisted URL, so an entry can be reached without being able to carry a payload.",
+  "tags": [
+    "injection",
+    "exfiltration",
+    "allowlist",
+    "egress",
+    "csp"
+  ],
+  "check": {
+    "id": "CHK-051",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.json",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.conf",
+        "**/*.txt"
+      ],
+      "pattern": "(?i)(allowed_domains|allow_?list|allowed_hosts|allowed_origins|trusted_domains|trusted_urls|url_allowlist|domain_allowlist|img-src|connect-src)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.conf",
+            "**/*.txt"
+          ],
+          "pattern": "(?i)(?:allowed_domains|allow_?list|allowed_hosts|allowed_origins|trusted_domains|trusted_urls|url_allowlist|domain_allowlist|img-src|connect-src)[^;]{0,400}?(?:webhook\\.site|requestbin|pipedream\\.net|hookbin|beeceptor|ngrok(?:-free)?\\.(?:io|app)|trycloudflare\\.com|pastebin\\.com|discord\\.com/api/webhooks|docs\\.google\\.com|script\\.google\\.com|forms\\.gle|api\\.(?:anthropic|openai)\\.com|githubusercontent\\.com|\\*\\.[a-z0-9-]+\\.[a-z]{2,})"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)(strip_?quer|drop_?quer|without_?quer|no_?query_?string|reject_?quer|exact_?url|allowed_urls\\b|user_supplied_urls|urls_from_(?:user|prompt|operator)|egress_?(?:broker|proxy|mediat)|urlunsplit\\(|urlunparse\\(|data_?carrying|open_?redirect_?(?:check|audit)|allowlist_?entry_?(?:review|audit))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(strip_?quer|drop_?quer|without_?quer|no_?query_?string|reject_?quer|exact_?url|allowed_urls\\b|user_supplied_urls|urls_from_(?:user|prompt|operator)|egress_?(?:broker|proxy|mediat)|urlunsplit\\(|urlunparse\\(|data_?carrying|open_?redirect_?(?:check|audit)|allowlist_?entry_?(?:review|audit))"
+    },
+    "manual_question": "Take your outbound allowlist entry by entry and ask one question of each: if the agent may reach this host with a URL of its own choosing, can an attacker who never touches my systems read what was in that URL? Name the entries you cannot answer no for. If your answer is that every entry belongs to a company you trust, you have described ownership, not capability, and the Copilot, Salesforce, Superhuman, Claude Cowork and Antigravity bypasses all went out through hosts whose owners were trusted.",
+    "rationale": "Fires when a declared allowlist has, within a few hundred characters, an entry drawn from a curated set of hosts whose documented function is to retain or reflect caller-supplied data (request-capture buckets, paste and form services, webhook endpoints, vendor file-upload APIs, user-content CDNs) or a wildcard subdomain entry, and no query-dropping or exact-URL restriction appears anywhere in the target. What it can get wrong, in both directions: the curated host list is finite, so a data-carrying host it does not know is missed, and an entry may be genuinely safe in context (an outbound allowlist entry that is only ever reached with a fixed URL). The proximity window can also straddle an unrelated declaration in dense config. It is a prompt to audit the entry, not proof of a live channel.",
+    "fixtures": {
+      "bad": {
+        "app/egress.py": "\"\"\"Outbound fetch, gated by a domain allowlist.\"\"\"\nimport requests\nfrom urllib.parse import urlparse\n\nALLOWED_DOMAINS = [\n    \"docs.example.com\",\n    \"webhook.site\",\n]\n\n\ndef is_allowed(url: str) -> bool:\n    host = urlparse(url).hostname or \"\"\n    return any(host == d or host.endswith(\".\" + d) for d in ALLOWED_DOMAINS)\n\n\ndef fetch(url: str) -> str:\n    if not is_allowed(url):\n        raise PermissionError(url)\n    return requests.get(url).text\n"
+      },
+      "good": {
+        "app/egress.py": "\"\"\"Outbound fetch. Ownership of a host is not the property that matters.\n\nAn entry that can store or reflect attacker-supplied bytes is an outbound\nchannel whoever owns it, so egress is limited to the exact locations the\noperator named this turn and the payload-bearing part of the URL is dropped.\n\"\"\"\nimport requests\nfrom urllib.parse import urlsplit, urlunsplit\n\nALLOWED_DOMAINS = [\"docs.example.com\"]\nALLOWED_URLS: frozenset[str] = frozenset()\n\n\ndef strip_query(url: str) -> str:\n    parts = urlsplit(url)\n    return urlunsplit((parts.scheme, parts.netloc, parts.path, \"\", \"\"))\n\n\ndef is_allowed(url: str) -> bool:\n    exact_url = strip_query(url)\n    return exact_url in ALLOWED_URLS\n\n\ndef fetch(url: str) -> str:\n    if not is_allowed(url):\n        raise PermissionError(url)\n    return requests.get(strip_query(url)).text\n"
+      }
+    }
+  }
+}

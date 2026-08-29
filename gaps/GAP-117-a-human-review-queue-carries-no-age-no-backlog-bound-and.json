@@ -1,0 +1,105 @@
+{
+  "id": "GAP-117",
+  "title": "A human review queue carries no age, no backlog bound, and no default action, so unread items are indistinguishable from approved ones",
+  "layer": "human-interface",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent parks everything it is unsure about in a review queue, and I have no idea whether that queue is being drained, because nothing in the system knows how old the oldest item is.",
+  "symptom": "The queue directory or table grows without bound while every dashboard stays green. There is no oldest-pending age, no backlog size alarm, and no stated behaviour for an item nobody ever looks at, so a queue that is never read reports exactly the same health as one drained hourly.",
+  "why_now": "Deferring to a human is the standard 2026 answer to agent uncertainty, and it is treated as the end of the story rather than the start of a queue with a service level. The failure is the documented alert-fatigue outcome arriving through a new door: production is fine, the reviewer is the bottleneck, and no instrument points at the reviewer.",
+  "existing": [
+    "Framework interrupt and resume primitives suspend a run correctly but say nothing about how long a suspended run may wait or what happens if it waits forever.",
+    "Generic job-queue metrics measure worker throughput, not the latency of a decision made by a person, so a human queue looks healthy whenever the enqueue side is healthy.",
+    "Triage and ranking research reduces the volume of items, which raises the odds any given item is read but still leaves the tail unmeasured."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "Towards Better Static Code Analysis Reports: Sentence Transformer-based Filtering of Non-Actionable Alerts",
+      "locator": "https://arxiv.org/abs/2604.18525",
+      "date": "2026-04-20",
+      "quote": "often contain a large number of non-actionable findings, which can overwhelm developers to the point of ignoring them altogether",
+      "note": "arXiv preprint (cs.SE), not stated as peer reviewed. The canonical documented form of this failure: a machine-generated review queue outruns human attention and is then ignored wholesale rather than item by item, which is why per-item quality work does not fix it."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "When Errors Become Narratives: A Longitudinal Taxonomy of Silent Failures in a Production LLM Agent Runtime",
+      "locator": "https://arxiv.org/abs/2606.14589",
+      "date": "2026-06-12",
+      "quote": "we documented 22 incidents with full root-cause postmortems, in which one meta-pattern -- a failure whose error signal never reaches a human in actionable form -- manifested at least 28 times",
+      "note": "arXiv preprint reporting 22 root-cause postmortems from a runtime in continuous production. It names the general mechanism this gap is one instance of: the signal is produced and never lands on a human in a form they act on."
+    }
+  ],
+  "build_hypothesis": "Give the review queue the same instruments a request queue already has and one a request queue does not: oldest-pending age, backlog size, drain rate, and a declared expiry policy per item so that an unread item resolves to a stated default rather than to silence.",
+  "tags": [
+    "review-queue",
+    "hitl",
+    "backlog",
+    "measurement-gap"
+  ],
+  "check": {
+    "id": "CHK-116",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "(?i)(review[_-]?queue|pending[_-]?review|awaiting[_-]?review|needs[_-]?review|human[_-]?review|approval[_-]?queue|quarantine)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "(?i)(review[_-]?queue|pending[_-]?review|awaiting[_-]?review|needs[_-]?review|human[_-]?review|approval[_-]?queue|quarantine)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "(?i)(queue[_-]?age|oldest[_-]?pending|age[_-]?seconds|stale[_-]?after|review[_-]?sla|review[_-]?deadline|max[_-]?pending|backlog[_-]?size|drain[_-]?rate|time[_-]?in[_-]?queue|queue[_-]?depth|expire[_-]?pending|escalate[_-]?stale)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "(?i)(queue[_-]?age|oldest[_-]?pending|age[_-]?seconds|stale[_-]?after|review[_-]?sla|review[_-]?deadline|max[_-]?pending|backlog[_-]?size|drain[_-]?rate|time[_-]?in[_-]?queue|queue[_-]?depth|expire[_-]?pending|escalate[_-]?stale)"
+    },
+    "manual_question": "For the queue this agent parks uncertain items in: what is the age of its oldest unread item right now, what is the alarm threshold on that age, and what happens to an item nobody ever reads?",
+    "rationale": "A codebase that routes work to a human review queue but carries no vocabulary for queue age, backlog size, drain rate or item expiry has no way to observe a queue nobody reads. It can be wrong when the accounting lives outside the repo, in a metrics dashboard or a database view, which is exactly what the manual question exists to settle.",
+    "fixtures": {
+      "bad": {
+        "app/reviewer.py": "import json, pathlib, uuid\n\nPENDING = pathlib.Path(\"pending_review\")\n\ndef park_for_human(item):\n    PENDING.mkdir(exist_ok=True)\n    (PENDING / f\"{uuid.uuid4()}.json\").write_text(json.dumps(item))\n\ndef list_for_human():\n    return sorted(PENDING.glob(\"*.json\"))\n"
+      },
+      "good": {
+        "app/reviewer.py": "import json, pathlib, time, uuid\n\nPENDING = pathlib.Path(\"pending_review\")\nSTALE_AFTER = 24 * 3600\n\ndef park_for_human(item):\n    PENDING.mkdir(exist_ok=True)\n    body = {\"item\": item, \"queued_at\": time.time()}\n    (PENDING / f\"{uuid.uuid4()}.json\").write_text(json.dumps(body))\n\ndef queue_health():\n    now = time.time()\n    ages = [now - json.loads(p.read_text())[\"queued_at\"] for p in PENDING.glob(\"*.json\")]\n    return {\"backlog_size\": len(ages), \"oldest_pending\": max(ages, default=0)}\n\ndef expire_pending():\n    for p in PENDING.glob(\"*.json\"):\n        queued = json.loads(p.read_text())[\"queued_at\"]\n        if time.time() - queued > STALE_AFTER:\n            escalate_stale(p)\n\ndef escalate_stale(path):\n    print(f\"unread past review_deadline, applying declared default: {path}\")\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "id": "GAP-058",
+  "title": "An agent's exec tool inherits the operator's whole ambient credential set, so its authority is never scoped to the task",
+  "layer": "sandbox-isolation",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I gave the agent a shell so it could run my test suite, and by inheriting my environment it also received my cloud keys, my registry tokens and my SSH agent, so one bad command reaches everything I can reach rather than everything the task needed.",
+  "symptom": "After an incident the honest blast-radius answer is the operator's entire credential inventory: the remediation instruction is rotate everything that was in the environment, because nobody can say which subset the agent could actually touch.",
+  "why_now": "Every mainstream agent runtime executes tools as a child process of the developer's shell, and the ergonomic default in every SDK is to omit the environment argument, which means inherit. Cloud IAM can scope a role and OAuth can scope a token, but there is no primitive that says this agent run gets these variables and this TTL, so scoping is a hand-rolled per-project chore that almost nobody does.",
+  "existing": [
+    "Cloud IAM roles and OAuth scopes can narrow authority, but they are configured on the identity, not on the agent run, so the agent still gets whatever the developer's ambient identity holds.",
+    "Container and VM sandboxes isolate the filesystem and the network, and then the orchestration passes the credentials in as environment variables anyway, which moves the boundary without narrowing the authority.",
+    "Secret managers replace files with API calls, which helps only if the agent's child process is denied the manager's own credential, and by default it is not."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Malicious versions of Nx and some supporting plugins were published",
+      "locator": "https://github.com/nrwl/nx/security/advisories/GHSA-cxm3-wv7p-598c",
+      "date": "2025-08-27",
+      "quote": "To be safe, rotate any credentials such as Github, NPM, and anything that may have been in your environment variables.",
+      "note": "The maintainers' own remediation instruction is the blast radius. Because the harvesting code ran with the developer's ambient environment, the recoverable scope could not be narrowed below everything that was exported, which is exactly the property this gap names. The advisory's own timeline records it as posted 2025-08-27 at 1:53 AM EDT."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Malicious versions of Nx and some supporting plugins were published",
+      "locator": "https://github.com/nrwl/nx/security/advisories/GHSA-cxm3-wv7p-598c",
+      "date": "2025-08-27",
+      "quote": "However, there are many less obvious ways NPM modules could get installed. Transitive dependencies, AI agents, editors, other editor extensions, other scripts are the first that come to mind but there are many many less obvious reasons why NPM modules might get installed.",
+      "note": "Supports the frequency score rather than the severity score: the code that inherits the ambient environment is routinely started by something the developer did not consciously invoke, so an unscoped-by-default execution path is entered far more often than an audit of deliberate agent runs would suggest."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "LLM06:2025 Excessive Agency",
+      "locator": "https://owasp.org/www-project-top-10-for-large-language-model-applications/2_0_vulns/LLM06_ExcessiveAgency.html",
+      "date": "2025-01-01",
+      "quote": "An LLM extension that is designed to perform operations in the context of an individual user accesses downstream systems with a generic high-privileged identity.",
+      "note": "OWASP names excessive permissions as one of three root causes of Excessive Agency and prescribes minimising them, but the prescription is a design instruction to a human. Nothing in it is a runtime primitive, which is why the gap survives being well documented. The page carries no publication date. The date field records the 2025 edition designation printed in the title, normalised to January 1 because the schema requires YYYY-MM-DD. Do not read it as an observed publication date."
+    }
+  ],
+  "build_hypothesis": "A tiny exec shim that every agent tool call must go through, which takes an explicit variable allowlist plus a TTL and refuses to launch a child with any inherited variable that is not named. Ship it with a report verb that prints the authority a run actually had, so blast radius becomes a number in a log rather than a guess after an incident.",
+  "tags": [
+    "sandbox",
+    "credentials",
+    "least-privilege",
+    "blast-radius",
+    "exec"
+  ],
+  "check": {
+    "id": "CHK-057",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)\\.chat\\.completions\\.create|\\.messages\\.create|invoke_model|generate_content|ChatCompletion|litellm|langchain|langgraph|crewai|autogen|openai|anthropic"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "subprocess\\.(?:run|Popen|call|check_output|check_call)|os\\.system\\(|os\\.execvp?e?\\(|pty\\.spawn\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)env\\s*=\\s*(?:\\{|[A-Za-z_]*ENV\\b)|environ\\s*\\.\\s*pop\\(|del\\s+os\\.environ\\[|ENV_ALLOWLIST|assume_role|AssumeRole|get_session_token|DurationSeconds|credentials_process|mint_(?:token|credential)|scoped_(?:token|credential|env)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tf",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)env\\s*=\\s*(?:\\{|[A-Za-z_]*ENV\\b)|environ\\s*\\.\\s*pop\\(|del\\s+os\\.environ\\[|ENV_ALLOWLIST|assume_role|AssumeRole|get_session_token|DurationSeconds|credentials_process|mint_(?:token|credential)|scoped_(?:token|credential|env)"
+    },
+    "manual_question": "Your agent can execute a subprocess. Name the variables that child is allowed to see, and say how long its strongest credential stays valid. If the answer is whatever I had exported, and indefinitely, the blast radius of one bad command is your entire identity rather than the task's.",
+    "rationale": "A repo that both calls a model and spawns a subprocess is running model-chosen commands as a child of the operator's shell. The absent half looks for any sign that the authority handed to that child was narrowed: an explicit env mapping or constant at the exec site, a removal from os.environ, or a broker call that mints a scoped or time-bounded credential. What it can get wrong, in both directions: it fires on a repo whose exec calls are unrelated to the agent (the two signatures need only share the repo, not the call path), and it stays silent on a repo whose only scoping vocabulary lives in a test, because the absent half deliberately reads test files too so that a signature inside a test still counts as real. Treat locators as evidence the signature exists, not as a fix list.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import os\nimport subprocess\n\nfrom anthropic import Anthropic\n\nclient = Anthropic()\n\n\ndef run_shell(command: str) -> str:\n    \"\"\"The agent's shell tool.\n\n    No third argument, so the child process is handed this process's entire\n    variable set: every API key, cloud credential and token the operator\n    happened to export before starting the agent.\n    \"\"\"\n    proc = subprocess.run(command, shell=True, capture_output=True, text=True)\n    return proc.stdout + proc.stderr\n\n\ndef step(goal: str) -> str:\n    msg = client.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": goal}],\n    )\n    return run_shell(msg.content[0].text)\n"
+      },
+      "good": {
+        "app/agent.py": "import os\nimport subprocess\n\nfrom anthropic import Anthropic\n\nclient = Anthropic()\n\nCHILD_ENV_ALLOWLIST = (\"PATH\", \"HOME\", \"LANG\", \"TZ\")\n\n\ndef mint_token(ttl_seconds: int) -> str:\n    \"\"\"Ask the broker for a task-scoped credential that expires by itself.\"\"\"\n    return _broker.issue(ttl_seconds=ttl_seconds, scope=\"read:repo\")\n\n\ndef _child_env() -> dict:\n    base = {k: os.environ[k] for k in CHILD_ENV_ALLOWLIST if k in os.environ}\n    base[\"TASK_TOKEN\"] = mint_token(ttl_seconds=300)\n    return base\n\n\ndef run_shell(command: str) -> str:\n    proc = subprocess.run(\n        command,\n        shell=True,\n        capture_output=True,\n        text=True,\n        env=_child_env(),\n    )\n    return proc.stdout + proc.stderr\n\n\ndef step(goal: str) -> str:\n    msg = client.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": goal}],\n    )\n    return run_shell(msg.content[0].text)\n"
+      }
+    }
+  }
+}

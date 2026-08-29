@@ -1,0 +1,138 @@
+{
+  "id": "GAP-111",
+  "title": "Telemetry redaction is a global switch, so the interaction a user complained about is not retained anywhere an engineer may read or replay it",
+  "layer": "observability",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "A user tells me the agent answered badly, and I can neither reproduce it nor even read it, because our tracing pipeline is configured to drop message content everywhere and there is no separate, consented, retention-bounded capture of the run that was reported.",
+  "symptom": "Quality complaints accumulate and each one dead-ends the same way: the trace proves the call happened and carries latency, token counts and a model name, but not the prompt, the retrieved documents, the tool results or the response, so the investigation stalls on not being able to see the conversation rather than on a competing hypothesis. Engineers reach for aggregate evals instead, which stay green.",
+  "why_now": "The suppression switch shipped years before the debug path. Every mainstream GenAI tracing stack now offers a way to drop prompt and completion text, because that text is the most sensitive payload an application holds, and privacy review reasonably insists on it. Nobody shipped the other half: a capture path for a case a user explicitly asked you to look at, with its own consent gate, its own short retention and its own access control. So the safe configuration and the debuggable configuration are still the same setting, teams correctly choose safe, and the cost lands later as an unreproducible incident. Anthropic hit exactly this in production in 2025 and listed the missing tooling as a remediation rather than as something it already had.",
+  "existing": [
+    "Content masking in OpenTelemetry GenAI instrumentation, LangSmith and Langfuse solves the disclosure problem and worsens the reproduction problem: it is a global on/off for a whole pipeline, not a policy that distinguishes routine telemetry from a reported failure.",
+    "A thumbs-down or feedback button records that a response was bad without necessarily retaining the response, so the report arrives without the artifact it is about.",
+    "Full-fidelity trace capture with long retention is the other extreme and is what privacy review exists to stop; it also does not bound who may read it or for how long, so it is not the primitive either.",
+    "Session replay tools reconstruct the user interface, not the resolved message array, the retrieved chunks or the sampling parameters the model was actually served."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Our internal privacy and security controls limit how and when engineers can access user interactions with Claude, in particular when those interactions are not reported to us as feedback.",
+      "note": "First-party postmortem naming a uniform access control over interaction content as a cause of slow diagnosis, and naming the exact discriminator this gap is about: whether the interaction was reported as feedback."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "This protects user privacy but prevents engineers from examining the problematic interactions needed to identify or reproduce bugs.",
+      "note": "The same postmortem states the consequence directly: without the interaction, the bug cannot be identified or reproduced. This is the gap in one sentence, from a vendor with better tooling than most teams."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Our own privacy practices also created challenges in investigating reports.",
+      "note": "Listed under the postmortem heading explaining why detection was difficult, which places the missing capture path among the root causes rather than among the inconveniences."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "OpenTelemetry OpenAI Instrumentation (opentelemetry-instrumentation-genai-openai)",
+      "locator": "https://raw.githubusercontent.com/open-telemetry/opentelemetry-python-genai/main/instrumentation/opentelemetry-instrumentation-genai-openai/README.rst",
+      "date": "2026-08-07",
+      "quote": "Message content such as the contents of the prompt, completion, function arguments and return values",
+      "note": "The mainstream GenAI instrumentation ships with content capture OFF: the documented default of OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT is no_content. So the no-record state is not an unusual configuration choice, it is what a team gets by adopting standard instrumentation, which is why this gap is a missing primitive rather than a misconfiguration. Living file with no publication date; the date given is its last commit, read from the GitHub commits API."
+    }
+  ],
+  "build_hypothesis": "A capture-on-failure primitive that is separate from the trace pipeline. On a flag event (thumbs-down, guardrail trip, non-zero exit, eval regression) it writes one record holding the resolved message array, tool call arguments and results, retrieved chunk ids, sampling parameters and the serving build identity, into a store with its own consent flag, its own retention clock and its own access audit. Two properties do the work: routine telemetry stays content-free, and the record is complete enough to replay, so the privacy question becomes who may read this one flagged case for thirty days rather than should we log every prompt forever.",
+  "tags": [
+    "reproducibility",
+    "observability",
+    "privacy",
+    "incident-response",
+    "capture-on-failure"
+  ],
+  "check": {
+    "id": "CHK-110",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json",
+        "**/*.md",
+        "**/*.sh",
+        "**/*.env",
+        "**/*.cfg",
+        "**/*.txt"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|client\\.responses\\.create|from\\s+openai\\s+import|from\\s+anthropic\\s+import|bedrock-runtime|langchain|langgraph|llama_index|crewai|autogen|langsmith|langfuse|opentelemetry)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.md",
+            "**/*.sh",
+            "**/*.env",
+            "**/*.cfg",
+            "**/*.txt"
+          ],
+          "pattern": "(?i)(capture[_-]?message[_-]?content\\s*[=:]\\s*[\\\"']?(?:false|0)|OTEL_[A-Z_]*CAPTURE_MESSAGE_CONTENT\\s*[=:]\\s*[\\\"']?(?:false|0)|hide[_-]?inputs\\s*[=:]\\s*[\\\"']?(?:true|1)|hide[_-]?outputs\\s*[=:]\\s*[\\\"']?(?:true|1)|LANGSMITH_HIDE_INPUTS|LANGCHAIN_HIDE_INPUTS|mask[_-]?(?:input|inputs|prompt|prompts|messages)|redact[_-]?(?:input|inputs|prompt|prompts|messages|conversation)|log[_-]?(?:prompt|prompts|messages|transcript)\\s*[=:]\\s*[\\\"']?(?:false|0)|(?:store|persist|save)[_-]?(?:prompt|prompts|messages|transcript)\\s*[=:]\\s*[\\\"']?(?:false|0))"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)(incident[_-]?capture|capture[_-]?on[_-]?(?:error|failure)|failure[_-]?capture|repro[_-]?(?:bundle|case|payload)|reproduction[_-]?bundle|save[_-]?failing[_-]?(?:case|run)|failed[_-]?run[_-]?snapshot|snapshot[_-]?on[_-]?(?:error|failure)|debug[_-]?retention|consent(?:ed)?[_-]?capture|feedback[_-]?capture|bug[_-]?report[_-]?(?:bundle|payload|capture))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(incident[_-]?capture|capture[_-]?on[_-]?(?:error|failure)|failure[_-]?capture|repro[_-]?(?:bundle|case|payload)|reproduction[_-]?bundle|save[_-]?failing[_-]?(?:case|run)|failed[_-]?run[_-]?snapshot|snapshot[_-]?on[_-]?(?:error|failure)|debug[_-]?retention|consent(?:ed)?[_-]?capture|feedback[_-]?capture|bug[_-]?report[_-]?(?:bundle|payload|capture))"
+    },
+    "manual_question": "Take a run a user complained about last week. Can an engineer read the exact messages the model received, the tool results it saw and the sampling parameters it was served, and if not, is there a consented capture path that would have retained them for that flagged run only?",
+    "rationale": "Fires when the project positively suppresses or masks prompt and completion content in its telemetry AND nowhere names a capture path for a failing or flagged run. Both halves are needed: suppression alone is good privacy hygiene, and the gap is suppression with no debug channel beside it. What it can get wrong: a project may hold a capture path under vocabulary this pattern does not know, which yields a false PRESENT, so the locators name the suppression site and the manual question is the tie-breaker; and a project that captures full content with no masking at all does not match here at all, which is correct, because that is a different gap (disclosure, not reproducibility). A project with no telemetry configuration matches neither side and is reported MANUAL rather than clean. One more limit worth stating: because content capture is OFF BY DEFAULT in the mainstream GenAI instrumentation, a project can have no examinable record while matching no suppression pattern at all, so the PRESENT set is a LOWER BOUND on the affected population and a MANUAL verdict here carries real risk rather than mild doubt.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\n\ndef answer(question: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": question}],\n    )\n    return resp.choices[0].message.content\n",
+        "app/telemetry.py": "\"\"\"Tracing setup. Content is suppressed everywhere, on purpose.\"\"\"\n\nfrom opentelemetry import trace\n\n# Prompts and completions are the most sensitive thing this service holds,\n# so the collector never receives them.\nOTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = \"false\"\n\n\ndef configure(instrumentor) -> None:\n    instrumentor.instrument(capture_message_content=False)\n    trace.get_tracer(__name__)\n",
+        "app/feedback.py": "\"\"\"A thumbs-down records that a run was bad. It records nothing else.\"\"\"\n\ndef record_vote(run_id: str, helpful: bool) -> None:\n    write_row({\"run_id\": run_id, \"helpful\": helpful})\n\n\ndef write_row(row: dict) -> None:\n    print(row)\n"
+      },
+      "good": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\n\ndef answer(question: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": question}],\n    )\n    return resp.choices[0].message.content\n",
+        "app/telemetry.py": "\"\"\"Tracing setup. Content is suppressed everywhere, on purpose.\"\"\"\n\nfrom opentelemetry import trace\n\n# Prompts and completions are the most sensitive thing this service holds,\n# so the collector never receives them.\nOTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = \"false\"\n\n\ndef configure(instrumentor) -> None:\n    instrumentor.instrument(capture_message_content=False)\n    trace.get_tracer(__name__)\n",
+        "app/feedback.py": "\"\"\"A thumbs-down records that a run was bad. It records nothing else.\"\"\"\n\ndef record_vote(run_id: str, helpful: bool) -> None:\n    write_row({\"run_id\": run_id, \"helpful\": helpful})\n\n\ndef write_row(row: dict) -> None:\n    print(row)\n",
+        "app/incident_capture.py": "\"\"\"Consented capture of one failing interaction, held apart from routine traces.\n\nRoutine telemetry stays content-free. When a run is FLAGGED - a thumbs-down, a\nguardrail trip, a non-zero exit - this path persists exactly what the model saw,\nunder an explicit consent flag and a short retention window, so an engineer can\nread and replay the case that was reported.\n\"\"\"\n\nimport json\nimport pathlib\n\nSTORE = pathlib.Path(\"/var/lib/agent/incidents\")\nRETENTION_DAYS = 30\n\n\ndef capture_on_failure(run_id, messages, response, sampling, model_build, consent):\n    if not consent:\n        return None\n    record = {\n        \"run_id\": run_id,\n        \"messages\": messages,\n        \"response\": response,\n        \"sampling\": sampling,\n        \"model_build\": model_build,\n        \"retention_days\": RETENTION_DAYS,\n    }\n    dest = STORE / (run_id + \".json\")\n    dest.write_text(json.dumps(record), encoding=\"utf-8\")\n    return dest\n"
+      }
+    }
+  }
+}

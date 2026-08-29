@@ -1,0 +1,145 @@
+{
+  "id": "GAP-106",
+  "title": "Production traces are promoted into an evaluation dataset with no redaction boundary at the copy, so customer data becomes a versioned test fixture that survives its own deletion",
+  "layer": "eval-verification",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I built my golden set the way everyone recommends, by promoting real production runs into a dataset, and in doing so I copied live customer text out of a store with a retention policy into an evaluation artifact that is versioned, shared with the team, exported to CI and kept precisely because it must not change.",
+  "symptom": "A dataset example contains a real name, address or bearer token; deleting the example does not remove it, because the delete creates a new dataset version and the earlier version still renders the old content; and nobody can answer which experiments, exports or shared links already carry the copy.",
+  "why_now": "Every evaluation guide tells teams to build datasets from real traffic, because synthetic cases do not reproduce the inputs that break an agent - so the promotion path is the recommended path. But redaction is configured on the trace, and the dataset is a copy taken downstream of it, with no equivalent hook at the copy. The dataset is then deliberately immutable and versioned, which is the right property for a benchmark and the wrong one for personal data: for traces, retention makes the problem expire, and for a dataset, versioning makes deletion ineffective.",
+  "existing": [
+    "Trace-level masking and hide-input switches protect the trace store, and a dataset built from an already-masked trace inherits that protection - but a dataset built from a run captured before masking was configured, or through a different exporter, does not, and nothing at the promotion step checks which case it is.",
+    "Dataset versioning is a genuine feature for reproducible evaluation, and it is exactly what defeats a deletion request: removing an example creates a new version while the prior version remains viewable.",
+    "PII detectors can be run over a dataset after the fact, which is a scan rather than a boundary: it decides what looked sensitive at scan time, and it runs after the copy has already been made, shared and exported."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Manage datasets - Docs by LangChain",
+      "locator": "https://docs.langchain.com/langsmith/manage-datasets",
+      "date": "2026-08-25",
+      "quote": "Any time you add, update, or delete examples in your dataset, a new version of your dataset is created.",
+      "note": "The retention half of the gap, from the vendor: a delete is a new version, not an erasure, and the same page documents viewing a past version of the dataset, sharing a dataset publicly and exporting it. So an example promoted from a production trace persists in earlier versions and in every copy taken from them, which is the opposite of what a data-deletion obligation requires."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Prevent logging of sensitive data in traces - Docs by LangChain",
+      "locator": "https://docs.langchain.com/langsmith/mask-inputs-outputs",
+      "date": "2026-08-25",
+      "quote": "When working with LangSmith traces, you may need to prevent sensitive information from being logged to maintain privacy and comply with security requirements.",
+      "note": "Establishes where the redaction hook lives: on the trace, before export. There is no counterpart on the trace-to-dataset promotion, so a team that configured masking late, or that promotes runs captured through an unmasked path, copies the unredacted payload into the dataset."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Wiz Research Uncovers Exposed DeepSeek Database Leaking Sensitive Information, Including Chat History",
+      "locator": "https://www.wiz.io/blog/wiz-research-uncovers-exposed-deepseek-database-leak",
+      "date": "2025-01-29",
+      "quote": "The exposure includes over a million lines of log streams containing chat history, secret keys, backend details, and other highly sensitive information.",
+      "note": "Establishes what the promoted material actually contains at scale, from a real exposure rather than an assumption: the log stream of an LLM product held plaintext chat history and API secrets side by side. A dataset built by promoting rows out of that class of store inherits both, and unlike the log stream it is kept on purpose."
+    }
+  ],
+  "build_hypothesis": "Put the boundary at the copy instead of upstream of it: a promotion function that refuses to create a dataset example unless the payload passed a declared redaction policy, recording the policy id on the example so an auditor can tell a scanned example from an unscanned one. The smallest useful version is a pre-commit and CI check plus a wrapper - dataset examples carrying credential-shaped or identifier-shaped strings fail the build, and a promotion call with no redaction step in its path is a lint finding.",
+  "tags": [
+    "eval-datasets",
+    "pii",
+    "retention",
+    "traces",
+    "deletion"
+  ],
+  "check": {
+    "id": "CHK-105",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.ipynb"
+      ],
+      "pattern": "(?i)create_examples?\\(|createExamples?\\(|upload_examples|create_dataset\\(|createDataset\\(|create_dataset_item|add_examples|\\bDatasetItem\\b"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.ipynb"
+          ],
+          "pattern": "(?i)create_examples?\\(|createExamples?\\(|upload_examples|create_dataset\\(|createDataset\\(|create_dataset_item|add_examples|\\bDatasetItem\\b"
+        },
+        {
+          "kind": "any_of",
+          "rules": [
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py",
+                "**/*.ts",
+                "**/*.js",
+                "**/*.mjs",
+                "**/*.ipynb"
+              ],
+              "pattern": "(?i)list_runs\\(|listRuns\\(|read_run\\(|fetch_traces|list_traces|get_traces|\\btrace_id\\b|\\brun\\.inputs\\b|run\\[.inputs.\\]|from_runs"
+            },
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py",
+                "**/*.ts",
+                "**/*.js",
+                "**/*.mjs",
+                "**/*.ipynb"
+              ],
+              "pattern": "(?i)production_?(runs|traces|logs)|prod_?(runs|traces)|real_?traffic"
+            }
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.ipynb",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)\\bredact|\\banonymi[sz]|\\bscrub|\\bmask\\b|presidio|\\bde_?identif|pii_?(filter|scan|check|strip)|create_anonymizer"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.ipynb",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)\\bredact|\\banonymi[sz]|\\bscrub|presidio|\\bde_?identif|pii_?(filter|scan|check|strip)|create_anonymizer"
+    },
+    "manual_question": "Evaluation examples are built from production runs and no redaction step appears in the promotion path. What strips customer identifiers and credentials at the moment a run becomes a dataset example, and when an example must be deleted, does the deletion also reach earlier dataset versions, exports and shared copies?",
+    "rationale": "The signature is a repository that constructs evaluation dataset examples, sources them from captured runs or traces, and names no redaction, anonymisation or PII-scanning step anywhere in its source. It can be wrong when redaction happens inside the tracing configuration rather than at the promotion site, which protects newly captured runs but not runs captured earlier, and it cannot see a manual curation step performed in a vendor UI, which is why the mitigation verdict asks a human rather than clearing the repository.",
+    "fixtures": {
+      "bad": {
+        "evals/build_golden_set.py": "from langsmith import Client\n\nclient = Client()\n\ndef promote(project: str, dataset_name: str) -> None:\n    dataset = client.create_dataset(dataset_name)\n    runs = list(client.list_runs(project_name=project, is_root=True, limit=500))\n    client.create_examples(\n        dataset_id=dataset.id,\n        inputs=[r.inputs for r in runs],\n        outputs=[r.outputs for r in runs],\n    )\n"
+      },
+      "good": {
+        "evals/build_golden_set.py": "import re\n\nfrom langsmith import Client\n\nclient = Client()\n\nPATTERNS = ((re.compile(r\"sk-[A-Za-z0-9]{8,}\"), \"[KEY]\"), (re.compile(r\"[\\w.+-]+@[\\w-]+\\.[\\w.]+\"), \"[EMAIL]\"))\n\ndef redact(payload):\n    text = str(payload)\n    for pattern, replacement in PATTERNS:\n        text = pattern.sub(replacement, text)\n    return {\"text\": text, \"redaction_policy\": \"golden-set-v3\"}\n\ndef promote(project: str, dataset_name: str) -> None:\n    dataset = client.create_dataset(dataset_name)\n    runs = list(client.list_runs(project_name=project, is_root=True, limit=500))\n    client.create_examples(\n        dataset_id=dataset.id,\n        inputs=[redact(r.inputs) for r in runs],\n        outputs=[redact(r.outputs) for r in runs],\n    )\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "id": "GAP-102",
+  "title": "A model-calling retry loop has no no-progress brake, so a stuck agent keeps paying for identical calls without ever failing",
+  "layer": "cost-governance",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "My agent did not crash. It re-sent the same request every minute for hours, and no layer of my stack had a rule that says repeating yourself without producing anything new should stop the run.",
+  "symptom": "Token consumption stays high while output stops: no new commits, files or completions. The process looks alive and healthy, liveness checks pass, and the only tell is a usage graph where spend keeps climbing against a flat output line.",
+  "why_now": "Retry logic is standard practice and progress detection is not. A retry wrapper cannot distinguish a transient 429 from a semantic dead end such as a context window that refills the instant it is compacted, so the same code that makes an agent resilient makes a stuck agent expensive. No runtime ships a progress predicate, and the two obvious substitutes both fail: a turn cap is satisfied by a loop that sits inside it, and backoff slows the burn rate without ever ending it.",
+  "existing": [
+    "Turn and recursion caps: bound the count, but a context-exhaustion retry cycle runs for hours inside a generous cap.",
+    "Exponential backoff: reduces the spend rate, never terminates, and has no notion of whether the work advanced.",
+    "Provider anomaly detection and usage alerts: evaluate aggregates and cannot see that two successive calls were byte-identical.",
+    "Process liveness and heartbeat monitoring: a spinning loop is maximally alive, so these report health throughout."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG]  Autocompacting Loop Causing Massive Token Usage Spikes OCT 15 2025",
+      "locator": "https://github.com/anthropics/claude-code/issues/9579",
+      "date": "2025-10-15",
+      "quote": "Autocompacting process is repeatedly reading the same file without making progress, creating an infinite processing loop.",
+      "note": "A four-day spike of 96 to 108 million tokens per day, diagnosed by the user as repetition without progress. The report's own suggested fixes are loop detection and a circuit breaker, which is the missing primitive stated from the outside."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG]  Claude Code sends repeated requests hundreds of times without stopping",
+      "locator": "https://github.com/anthropics/claude-code/issues/35166",
+      "date": "2026-03-17",
+      "quote": "Claude Code should detect repeated/looping request patterns and automatically stop after a reasonable number of retries, rather than continuing indefinitely for hours and consuming hundreds of dollars in tokens.",
+      "note": "An independent second instance of the same mechanism in a different subsystem: compaction frees context, the task immediately exhausts it again, and the retry cycle never terminates. The requested fix is a repetition detector, not a bigger budget."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0011: concurrent agent brains silently starve and kill each other",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0011-concurrent-agent-brains-silently-starve-and-kill-each-other.md",
+      "date": "2026-08-10",
+      "quote": "Each brain retries on failure, which manufactures more concurrent load, which starves the others further.",
+      "note": "Shows the amplifying direction of a brake-less retry: retrying without a progress or contention predicate worsens the condition it is responding to, so the spend is not merely wasted, it is self-sustaining. Cited for the mechanism, not for a dollar figure."
+    }
+  ],
+  "build_hypothesis": "A progress predicate at the call site: hash the outbound request, count consecutive identical or near-identical hashes, and raise a typed NoProgress after N - with the same counter also watching a declared output artifact, so a loop that keeps talking without writing anything is stopped even when its requests differ.",
+  "tags": [
+    "runaway-loop",
+    "cost",
+    "circuit-breaker",
+    "retry"
+  ],
+  "check": {
+    "id": "CHK-101",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "chat\\.completions\\.create|messages\\.create|responses\\.create|generate_content|invoke_model|\\.converse\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "while\\s+True|while\\s*\\(\\s*true\\s*\\)|@retry|tenacity|max_retries|retry_count|attempt\\s*\\+=\\s*1"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "chat\\.completions\\.create|messages\\.create|responses\\.create|generate_content|invoke_model|\\.converse\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "while\\s+True|while\\s*\\(\\s*true\\s*\\)|@retry|tenacity|max_retries|retry_count|attempt\\s*\\+=\\s*1"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)circuit[_-]?breaker|no[_-]?progress|progress[_-]?(check|guard|predicate)|loop[_-]?detect|repeated[_-]?(request|call)|request[_-]?fingerprint|dedup|identical[_-]?(request|call|response)|stall[_-]?(detect|guard)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)circuit[_-]?breaker|no[_-]?progress|progress[_-]?(check|guard|predicate)|loop[_-]?detect|repeated[_-]?(request|call)|request[_-]?fingerprint|dedup|identical[_-]?(request|call|response)|stall[_-]?(detect|guard)"
+    },
+    "manual_question": "Your code calls a model inside an unbounded or retrying loop. What stops that loop when the agent is repeating itself without producing new output - is there a request fingerprint, a repeat counter, a circuit breaker, or a check on a declared output artifact? A backoff delay and a turn cap are not answers, because both are satisfied by a loop that makes no progress.",
+    "rationale": "An unbounded or retrying construct in the same repository as a model call is the shape that turns a stuck agent into continuous spend, and a real brake leaves a lexical trace at the call site (a fingerprint, a repeat counter, a breaker). What it can get wrong: the loop and the model call may be in unrelated modules, so co-occurrence is a proximity heuristic rather than proof of one code path - and a brake implemented in a gateway outside the repository is invisible here, which is why nothing-found returns MANUAL rather than a pass.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import time\n\nimport anthropic\n\nclient = anthropic.Anthropic()\n\n\ndef drive(messages):\n    \"\"\"Keep asking until the model says it is finished.\"\"\"\n    while True:\n        reply = client.messages.create(\n            model=\"claude-sonnet-4-5\",\n            max_tokens=4096,\n            messages=messages,\n        )\n        messages.append({\"role\": \"assistant\", \"content\": reply.content[0].text})\n        if reply.stop_reason == \"end_turn\":\n            return messages\n        time.sleep(60)\n"
+      },
+      "good": {
+        "app/agent.py": "import hashlib\nimport time\n\nimport anthropic\n\nclient = anthropic.Anthropic()\nMAX_IDENTICAL_CALLS = 3\n\n\nclass NoProgress(RuntimeError):\n    pass\n\n\ndef drive(messages):\n    \"\"\"Keep asking until the model says it is finished, or until it repeats itself.\"\"\"\n    seen = {}\n    while True:\n        key = hashlib.sha256(repr(messages).encode()).hexdigest()\n        seen[key] = seen.get(key, 0) + 1\n        if seen[key] > MAX_IDENTICAL_CALLS:\n            # circuit_breaker: same request, no new output, so stop paying for it.\n            raise NoProgress(\"identical_request re-sent with no new output\")\n        reply = client.messages.create(\n            model=\"claude-sonnet-4-5\",\n            max_tokens=4096,\n            messages=messages,\n        )\n        messages.append({\"role\": \"assistant\", \"content\": reply.content[0].text})\n        if reply.stop_reason == \"end_turn\":\n            return messages\n        time.sleep(60)\n"
+      }
+    }
+  }
+}

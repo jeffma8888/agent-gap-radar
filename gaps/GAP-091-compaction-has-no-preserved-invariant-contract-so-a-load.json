@@ -1,0 +1,108 @@
+{
+  "id": "GAP-091",
+  "title": "Compaction has no preserved-invariant contract, so a load-bearing instruction can be summarised away silently",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent obeyed a constraint for two hours, the context was compacted, and from then on it behaved as if the constraint had never been stated.",
+  "symptom": "After a summarisation or context reset the agent violates a rule it had been following, and the rule is nowhere in the new context; the run continues normally, so nothing errors and the loss is dated only by the behaviour change.",
+  "why_now": "Compaction became the default first lever for long-horizon work faster than any contract for it: implementations declare a token threshold and a summarisation prompt, but nothing declares which spans MUST survive the boundary, and nothing asserts afterwards that they did. The summariser is a model, so the loss is probabilistic rather than reproducible.",
+  "existing": [
+    "Tuning the compaction prompt for recall: raises the odds that critical spans survive, but is a prompt, so it gives no per-run guarantee and no receipt.",
+    "Tool-result clearing as a lighter-touch form of compaction: safer because it targets a class known to be discardable, but it does not protect instructions when full summarisation eventually runs.",
+    "Structured note-taking to a file outside the window: durable, but the notes are written by the same model and re-reading them is not enforced at the boundary.",
+    "Bigger context windows: postpone the boundary rather than remove it, and buy degraded recall at length instead."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later",
+      "note": "The vendor that ships compaction in Claude Code names the failure directly, and its stated remedy is prompt tuning for recall rather than a declared set of spans that must survive - which is the missing contract this record is about."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Compaction is the practice of taking a conversation nearing the context window limit, summarizing its contents, and reinitiating a new context window with the summary.",
+      "note": "Establishes that the mechanism replaces the window wholesale, so anything the summariser omits is unrecoverable from context alone."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Across all experiments, model performance consistently degrades with increasing input length.",
+      "note": "Why the boundary cannot simply be avoided by keeping everything: 18 models measured with task complexity held constant still degrade with length, so long-horizon runs must compact and therefore must have a contract for what compaction may not drop."
+    }
+  ],
+  "build_hypothesis": "A compaction contract: a declared list of load-bearing spans (system rules, unresolved constraints, the current goal), re-injected verbatim after every compaction rather than summarised, plus a post-boundary assertion that each one is present in the new window and a loud failure when it is not.",
+  "tags": [
+    "compaction",
+    "long-horizon",
+    "instruction-loss",
+    "context-engineering"
+  ],
+  "check": {
+    "id": "CHK-090",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "(?i)compact(ion)?[_ -]?(context|history|messages|conversation|window)|(context|history|message|conversation)[_ -]?compact|summari[sz]e[_ -]?(history|messages|conversation|context)|trim_messages|prune[_ -]?(history|messages)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "(?i)compact(ion)?[_ -]?(context|history|messages|conversation|window)|(context|history|message|conversation)[_ -]?compact|summari[sz]e[_ -]?(history|messages|conversation|context)|trim_messages|prune[_ -]?(history|messages)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)must[_ -]?preserve|preserved?[_ -]invariant|pinned[_ -]?(instruction|context|rule|prompt|section)|re[_ -]?inject|survives?[_ -]compaction|post[_ -]compaction|preserve[_ -]after[_ -]compact"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)must[_ -]?preserve|preserved?[_ -]invariant|pinned[_ -]?(instruction|context|rule|prompt|section)|re[_ -]?inject|survives?[_ -]compaction|post[_ -]compaction|preserve[_ -]after[_ -]compact"
+    },
+    "manual_question": "Your agent compacts or summarises its own conversation history. Which spans are declared load-bearing and re-injected verbatim on the far side of that boundary, and what asserts afterwards that they are still present?",
+    "rationale": "A codebase that implements compaction while nowhere naming what must survive it has, by construction, no contract for the boundary: the summariser decides, and the decision is invisible. The check is lexical, so it can get two things wrong - a project that implements preservation under different vocabulary reads as PRESENT (a false positive a reader can dismiss in one look at the located file), and a project that merely spells one of these tokens without wiring it reads as mitigated. The mitigation vocabulary is deliberately narrow and specific to the boundary rather than generic words like memory or summary, so an incidental mention is unlikely.",
+    "fixtures": {
+      "bad": {
+        "app/context.py": "\"\"\"Keep the running conversation under the model context window.\"\"\"\n\nMAX_CONTEXT_TOKENS = 180000\n\n\ndef compact_history(messages, llm):\n    \"\"\"Summarise the conversation once it nears the window limit.\"\"\"\n    summary = llm.summarise(messages[:-5])\n    return [{\"role\": \"system\", \"content\": summary}] + messages[-5:]\n\n\ndef step(state, llm):\n    if count_tokens(state.messages) > MAX_CONTEXT_TOKENS:\n        state.messages = compact_history(state.messages, llm)\n    return llm.call(state.messages)\n",
+        "tests/test_context.py": "def test_compact_history_shortens():\n    assert True\n"
+      },
+      "good": {
+        "app/context.py": "\"\"\"Keep the running conversation under the model context window.\n\nCompaction is lossy, so the constraints below are declared as load-bearing and\nre-asserted verbatim on the far side of every compaction boundary.\n\"\"\"\n\nMAX_CONTEXT_TOKENS = 180000\n\nMUST_PRESERVE = (\n    \"never force-push\",\n    \"never write outside the workspace\",\n    \"always run the suite before committing\",\n)\n\n\ndef pinned_instructions():\n    return \"\\n\".join(\"- \" + rule for rule in MUST_PRESERVE)\n\n\ndef compact_history(messages, llm):\n    \"\"\"Summarise, then reinject the pinned instructions verbatim.\"\"\"\n    summary = llm.summarise(messages[:-5])\n    head = {\"role\": \"system\", \"content\": pinned_instructions()}\n    return [head, {\"role\": \"system\", \"content\": summary}] + messages[-5:]\n\n\ndef assert_pinned_context_survived(messages):\n    joined = \"\\n\".join(m[\"content\"] for m in messages)\n    missing = [r for r in MUST_PRESERVE if r not in joined]\n    if missing:\n        raise RuntimeError(\"compaction dropped load-bearing instructions: %r\" % missing)\n\n\ndef step(state, llm):\n    if count_tokens(state.messages) > MAX_CONTEXT_TOKENS:\n        state.messages = compact_history(state.messages, llm)\n        assert_pinned_context_survived(state.messages)\n    return llm.call(state.messages)\n",
+        "tests/test_context.py": "def test_compact_history_shortens():\n    assert True\n"
+      }
+    }
+  }
+}

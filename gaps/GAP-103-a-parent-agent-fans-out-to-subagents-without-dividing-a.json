@@ -1,0 +1,114 @@
+{
+  "id": "GAP-103",
+  "title": "A parent agent fans out to subagents without dividing a budget, so the ceiling multiplies by the fan-out",
+  "layer": "multi-agent",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I set a budget on the run I started, and the model decided to spawn eleven subagents, each of which started with a fresh budget of its own, so my ceiling silently became eleven ceilings.",
+  "symptom": "Spend scales with a fan-out width the model chose at runtime rather than with anything the operator configured. Each child looks well-behaved in isolation and the aggregate is the only place the problem is visible.",
+  "why_now": "Delegation is the current default architecture for hard tasks, and the fan-out width is a model decision, not a configuration value. Frameworks pass a task and a toolset across the delegation boundary; none of them passes a remaining allowance, so there is no representation in which a child could know it is spending its parent's money.",
+  "existing": [
+    "Prompt-level effort guidance ('use 3-5 subagents for a comparison') steers the count but cannot enforce it, and the vendor that published this guidance also reports agents spawning 50 subagents for simple queries.",
+    "A global account or workspace spend limit catches the aggregate, but only after the billing window and without attributing it to the run or telling any child to stop.",
+    "A per-child budget set by configuration bounds each child and not their number, so it is the same wrong-unit error one level down."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built our multi-agent research system",
+      "locator": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "date": "2025-06-13",
+      "quote": "Early agents made errors like spawning 50 subagents for simple queries, scouring the web endlessly for nonexistent sources, and distracting each other with excessive updates.",
+      "note": "The fan-out width is chosen by the model at runtime and can be wrong by an order of magnitude. This is the vendor that built the system reporting it, and their stated remedy is prompt guidance, which steers rather than enforces."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built our multi-agent research system",
+      "locator": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "date": "2025-06-13",
+      "quote": "These explicit guidelines help the lead agent allocate resources efficiently and prevent overinvestment in simple queries, which was a common failure mode in our early versions.",
+      "note": "Names overinvestment on simple queries as a common failure mode, and locates the control in prompt guidelines rather than in an enforced allowance crossing the delegation boundary."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built our multi-agent research system",
+      "locator": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "date": "2025-06-13",
+      "quote": "There is a downside: in practice, these architectures burn through tokens fast. In our data, agents typically use about 4× more tokens than chat interactions, and multi-agent systems use about 15× more tokens than chats.",
+      "note": "Sizes the multiplier the missing contract is meant to bound: the multi-agent topology itself is the 15x term, so an undivided budget is not a rounding error."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "400 Million Tokens Burned Overnight - A Multi-Agent AI Postmortem",
+      "locator": "https://github.com/nerudek/hermes-token-loop-postmortem",
+      "date": "2026-05-25",
+      "quote": "Agent startup is deceptively expensive — most burn came from context loading, not model output. A tiny ping triggered tens of thousands of input tokens",
+      "note": "Explains why fan-out is the expensive axis rather than depth: each spawned child pays a full context load before it does any work, so the per-child fixed cost is the dominant term and the child count is the multiplier."
+    }
+  ],
+  "build_hypothesis": "Make the allowance part of the delegation call signature and refuse the spawn without it: a parent divides remaining_budget across the children it is about to create, each child enforces its slice locally, and unspent slices return to the parent. The smallest useful version is a required keyword argument plus a lint rule that fails a spawn site which omits it.",
+  "tags": [
+    "cost",
+    "multi-agent",
+    "fan-out",
+    "delegation",
+    "budget"
+  ],
+  "check": {
+    "id": "CHK-102",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)((spawn|create|launch|start|run|dispatch)_?sub_?agents?\\s*\\(|sub_?agent\\s*\\(|asyncio\\.gather\\s*\\(|Runner\\.run\\s*\\()"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)((spawn|create|launch|start|run|dispatch)_?sub_?agents?\\s*\\(|sub_?agent\\s*\\(|asyncio\\.gather\\s*\\(|Runner\\.run\\s*\\()"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(child_budget|budget_per_child|per_child_budget|split_budget|budget_split|remaining_budget|budget_remaining|inherit(ed)?_budget)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(child_budget|budget_per_child|per_child_budget|split_budget|budget_split|remaining_budget|budget_remaining|inherit(ed)?_budget)"
+    },
+    "manual_question": "When this code spawns a subagent, what does the child receive that bounds its spend, and is that amount subtracted from the parent's remaining allowance rather than granted afresh?",
+    "rationale": "Fires when a repo spawns subagents and nowhere names a per-child or remaining allowance, which is the vocabulary any budget-splitting scheme has to have. It can be wrong when a project bounds children by a non-monetary quota it names differently, so a MANUAL verdict here is the expected outcome on a sophisticated codebase rather than a defect in the check.",
+    "fixtures": {
+      "bad": {
+        "app/orchestrator.py": "\"\"\"Lead agent. Decomposes a question and fans out to subagents.\"\"\"\n\nimport asyncio\n\nfrom .worker import run_subagent\n\n\nasync def research(question):\n    plans = decompose(question)\n    findings = await asyncio.gather(*(run_subagent(p) for p in plans))\n    return synthesise(question, findings)\n\n\ndef decompose(question):\n    \"\"\"The model decides how many subagents to spawn. Nothing bounds the count.\"\"\"\n    return ask_model_for_plans(question)\n"
+      },
+      "good": {
+        "app/orchestrator.py": "\"\"\"Lead agent. The parent's ceiling is divided among the children it spawns.\"\"\"\n\nimport asyncio\n\nfrom .worker import run_subagent\n\n\nasync def research(question, budget_usd=4.0):\n    plans = decompose(question)\n    child_budget = budget_usd / max(len(plans), 1)\n    findings = await asyncio.gather(\n        *(run_subagent(p, budget_usd=child_budget) for p in plans)\n    )\n    return synthesise(question, findings)\n\n\ndef decompose(question):\n    return ask_model_for_plans(question)\n"
+      }
+    }
+  }
+}

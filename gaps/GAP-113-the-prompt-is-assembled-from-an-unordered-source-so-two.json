@@ -1,0 +1,122 @@
+{
+  "id": "GAP-113",
+  "title": "The prompt is assembled from an unordered source, so two runs of one task are not the same request and nothing records the order that ran",
+  "layer": "orchestration",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "I re-ran the failing task with the same model, the same seed and temperature zero and got a different answer, because the harness built the prompt by walking a directory and joining whatever order the filesystem handed back.",
+  "symptom": "A reproduction disagrees with the original run and the difference is on the input side rather than the sampler: the same files, chunks or finished subtasks were concatenated in a different order, and no artifact says which order the failing run sent.",
+  "why_now": "The public reproducibility conversation is entirely about the sampler and the serving stack: seeds, temperature zero, batch-invariant kernels. Every one of those controls is conditional on the request being identical, and the request is assembled by ordinary application code from sources whose own documentation declines to promise an order. Nothing in the mainstream agent frameworks pins that order or fingerprints the assembled request, so a determinism effort can be complete on the model side and still produce runs that were never the same experiment.",
+  "existing": [
+    "Fixing the seed and setting temperature to zero constrains sampling only; the provider's own instructions require every other parameter, the prompt included, to be identical across requests, which the caller has to guarantee for itself.",
+    "Run-record and trace capture (recording the rendered prompt after the fact) tells you what one run sent, but recording is not pinning: the next run still assembles a different request, so the record explains the divergence rather than preventing it.",
+    "Sorting is the known fix and is one word long, which is exactly why nobody notices it is missing: an unsorted listing produces a plausible answer every time and never errors."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "glob - Unix style pathname pattern expansion",
+      "locator": "https://docs.python.org/3/library/glob.html",
+      "date": "2026-08-19",
+      "quote": "The pathnames are returned in no particular order. If you need a specific order, sort the results.",
+      "note": "The standard library's own refusal to promise an order, from the module agent harnesses use to gather context files. Page carries no publication date; dated here by the day it was fetched."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "glob - Unix style pathname pattern expansion",
+      "locator": "https://docs.python.org/3/library/glob.html",
+      "date": "2026-08-19",
+      "quote": "Whether or not the results are sorted depends on the file system",
+      "note": "Stated for glob.glob specifically: the ordering an unsorted context build inherits is a property of the machine it ran on, so the same code is not the same request across two hosts."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How to make your completions outputs consistent with the new seed parameter",
+      "locator": "https://cookbook.openai.com/examples/reproducible_outputs_with_the_seed_parameter",
+      "date": "2023-11-06",
+      "quote": "Set all other parameters (prompt, temperature, top_p, etc.) to the same values across requests.",
+      "note": "The provider states the precondition the harness is responsible for: the seed buys nothing unless the prompt is identical. Date follows the date the register's existing records already carry for this page."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How to make your completions outputs consistent with the new seed parameter",
+      "locator": "https://cookbook.openai.com/examples/reproducible_outputs_with_the_seed_parameter",
+      "date": "2023-11-06",
+      "quote": "The Chat Completions and Completions APIs are non-deterministic by default",
+      "note": "Establishes the baseline the ordering defect compounds: the model layer is already non-deterministic by default, so an unpinned input order removes the last thing the caller controlled."
+    }
+  ],
+  "build_hypothesis": "A request fingerprint primitive at the call site: hash the fully rendered request (messages, tools, sampling parameters) and write the digest into the run record, then have any replay refuse to claim a reproduction when the digest differs, and report the first differing element. One hash plus one field converts an unexplained 'it did not reproduce' into 'the request was not the same, and here is where it diverged', which also makes an unsorted listing self-announcing the first time anyone replays a run.",
+  "tags": [
+    "determinism",
+    "reproducibility",
+    "ordering",
+    "prompt-assembly"
+  ],
+  "check": {
+    "id": "CHK-112",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|responses\\.create|messages\\.create|invoke_model|converse\\s*\\(|generate_content|litellm\\.(?:a)?completion|ollama\\.chat)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?:glob\\.i?glob\\(|os\\.listdir\\(|os\\.scandir\\(|os\\.walk\\(|\\.rglob\\(|\\.iterdir\\(|as_completed\\()"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py"
+            ],
+            "pattern": "sorted\\(|\\.sort\\(|natsorted\\(|prompt_(?:hash|fingerprint)|request_(?:hash|fingerprint)"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "sorted\\(\\s*(?:glob\\.i?glob|os\\.listdir|os\\.scandir|[A-Za-z_][\\w.]*\\.(?:rglob|glob|iterdir))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "prompt_(?:hash|fingerprint|sha256)|request_fingerprint|fingerprint_prompt"
+        }
+      ]
+    },
+    "manual_question": "Given one task, is the request the model receives byte-identical across two runs, and if it is not, does the run record name the order of files, retrieved chunks or completed subtasks that the failing run actually sent?",
+    "rationale": "A repository that calls a model and enumerates inputs through a source documented as unordered (glob, listdir, scandir, walk, rglob, iterdir, or a completion-order join such as as_completed) is assembling a request whose byte content can change between runs on the same inputs. The mitigation this looks for is code that RUNS: an enumeration wrapped in sorted, or a recorded prompt or request fingerprint. What it can get wrong, stated plainly: the sorted-anywhere term is repository-scoped, so a sort unrelated to context assembly silences the signal (a false negative), and a project that deliberately preserves a semantically meaningful non-alphabetical order will look defective when it is not (a false positive). It also cannot see whether the sorted order is the order that actually entered the prompt, which is why the manual question asks for the run record rather than for the sort.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import glob\nfrom openai import OpenAI\n\nclient = OpenAI()\n\ndef build_context(root):\n    parts = []\n    for path in glob.glob(root + '/**/*.md', recursive=True):\n        parts.append(open(path).read())\n    return '\\n\\n'.join(parts)\n\ndef answer(root, question):\n    prompt = build_context(root) + '\\n\\n' + question\n    return client.chat.completions.create(\n        model='gpt-4.1-2025-04-14',\n        seed=7,\n        temperature=0,\n        messages=[{'role': 'user', 'content': prompt}],\n    )\n"
+      },
+      "good": {
+        "app/agent.py": "import glob\nimport hashlib\nimport json\nfrom openai import OpenAI\n\nclient = OpenAI()\n\ndef build_context(root):\n    parts = []\n    for path in sorted(glob.glob(root + '/**/*.md', recursive=True)):\n        parts.append(open(path).read())\n    return '\\n\\n'.join(parts)\n\ndef answer(root, question, run_record):\n    prompt = build_context(root) + '\\n\\n' + question\n    messages = [{'role': 'user', 'content': prompt}]\n    prompt_fingerprint = hashlib.sha256(\n        json.dumps(messages, sort_keys=True).encode('utf-8')\n    ).hexdigest()\n    run_record['prompt_fingerprint'] = prompt_fingerprint\n    return client.chat.completions.create(\n        model='gpt-4.1-2025-04-14',\n        seed=7,\n        temperature=0,\n        messages=messages,\n    )\n"
+      }
+    }
+  }
+}

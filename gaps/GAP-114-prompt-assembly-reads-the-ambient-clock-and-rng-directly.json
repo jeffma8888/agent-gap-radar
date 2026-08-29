@@ -1,0 +1,107 @@
+{
+  "id": "GAP-114",
+  "title": "Prompt assembly reads the ambient clock and RNG directly, so a captured model configuration still cannot reproduce the request",
+  "layer": "orchestration",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I captured the model, the seed and every sampling parameter, and my replay still produces a different request, because the prompt my harness builds embeds a timestamp and a fresh UUID that were never inputs I could pin.",
+  "symptom": "A replay of a failed run differs from the original in bytes the operator did not choose: the system prompt carries a different clock reading, a different run id, or a differently shuffled example set. Diffing the two requests shows drift the run record has no field for, and the incident is declared unreproducible even though the model configuration was pinned exactly.",
+  "why_now": "Reproducibility work in 2026 is aimed almost entirely at the model call: pin the seed, pin the served build, record the sampling parameters. Durable-execution runtimes solved the harness half a decade ago by forbidding a workflow from reading the local clock or a random number directly and routing both through a recorded API, but agent frameworks assemble prompts in ordinary application code where datetime.now() and uuid4() are idiomatic, and no agent-side convention marks them as inputs that must be resolved once, recorded, and re-injectable on replay.",
+  "existing": [
+    "Seeded sampling and provider fingerprints pin the model call, which is a different half of the request: they say nothing about bytes the harness generated before the call.",
+    "Durable-execution engines (Temporal and similar) do enforce this discipline, but only for code written inside their workflow abstraction; an agent loop that calls a model from a plain function gets none of it.",
+    "Freezing time in tests (freezegun and similar) proves the seam is buildable, but a test-only freeze does not create a production record of the value that was used.",
+    "Tracing SDKs capture the assembled prompt after the fact, which supports inspection but not re-execution: reading a timestamp out of a stored prompt is not the same as being able to inject it."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "What is a Workflow Definition?",
+      "locator": "https://docs.temporal.io/workflow-definition",
+      "date": "2026-08-23",
+      "quote": "Intrinsic non-determinism is when a Workflow Function Execution might emit a different sequence of Commands on re-execution, regardless of whether all the input parameters are the same.",
+      "note": "Names the exact failure this gap is about, and locates it in the harness rather than the model: identical inputs are not sufficient for replay when the code reads ambient state. The page carries no publication date, so this date is the date it was fetched."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "What is a Workflow Definition?",
+      "locator": "https://docs.temporal.io/workflow-definition",
+      "date": "2026-08-23",
+      "quote": "Each Temporal SDK offers APIs that enable Workflow Definitions to have logic that gets and uses time, random numbers, and data from unreliable resources.",
+      "note": "The mitigation this gap says is missing on the agent side, stated by a runtime that implements it: time and randomness are obtained through a recorded API rather than read from the environment. The page carries no publication date, so this date is the date it was fetched."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "The same prompt might work perfectly on one request and fail on the next.",
+      "note": "Establishes the cost side: when a defect is intermittent, an operator can only separate an environment-dependent bug from a request that was never byte-identical if the request itself is reconstructable."
+    }
+  ],
+  "build_hypothesis": "A tiny clock-and-RNG seam plus a resolved-inputs record: one helper that agent code must call for time, randomness and identifiers, which writes each resolved value into the run record and can be re-injected from that record on replay. A lint rule that flags a direct datetime.now() or uuid4() inside any module that also assembles a prompt makes it enforceable, and replay becomes byte-exact for the harness half of the request without touching the model call.",
+  "tags": [
+    "determinism",
+    "replay",
+    "prompt-assembly",
+    "harness"
+  ],
+  "check": {
+    "id": "CHK-113",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|invoke_model|generate_content|litellm|from openai|import openai|import anthropic)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "datetime\\.now\\(|datetime\\.utcnow\\(|time\\.time\\(|uuid\\.uuid4\\(|random\\.(?:random|randint|choice|choices|shuffle|sample|uniform)\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(system_prompt|user_prompt|build_prompt|render_prompt|prompt\\s*=\\s*f|messages\\s*=\\s*\\[)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(now_fn|time_provider|TimeProvider|clock\\s*[:=]|clock\\.now\\(|freeze_time|frozen_now|frozen_time|deterministic_now|random\\.Random\\(|prompt_inputs|resolved_inputs|snapshot_inputs|record_prompt_inputs)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(now_fn|time_provider|TimeProvider|clock\\s*[:=]|clock\\.now\\(|freeze_time|frozen_now|frozen_time|deterministic_now|random\\.Random\\(|prompt_inputs|resolved_inputs|snapshot_inputs|record_prompt_inputs)"
+    },
+    "manual_question": "Take one failed run and rebuild the exact request your harness sent. Which bytes in it were produced by reading the ambient clock, a random source, or a process id rather than by an input you recorded? If any, name the field in your run record that lets you re-inject those values on a replay.",
+    "rationale": "Fires when a repo calls a model API, reads ambient time or randomness somewhere in its Python, assembles prompts, and contains no injection seam or resolved-inputs record for those values. It is deliberately conservative: any clock or RNG seam anywhere in the tree silences it, so a repo with a partial seam is not reported. It can misfire when the ambient reads live entirely in unrelated code (a CLI printing a timestamp) since the rules are repo-scoped rather than file-scoped, which is why the manual question asks the operator to rebuild one real request.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import uuid\nfrom datetime import datetime\nfrom openai import OpenAI\n\nclient = OpenAI()\n\ndef build_prompt(task: str) -> list:\n    run_id = str(uuid.uuid4())\n    system_prompt = f\"You are an agent. Run {run_id}. It is now {datetime.now().isoformat()}.\"\n    messages = [\n        {\"role\": \"system\", \"content\": system_prompt},\n        {\"role\": \"user\", \"content\": task},\n    ]\n    return messages\n\ndef run(task: str) -> str:\n    messages = build_prompt(task)\n    resp = client.chat.completions.create(\n        model=\"gpt-4o\", messages=messages, temperature=0, seed=7\n    )\n    return resp.choices[0].message.content\n"
+      },
+      "good": {
+        "app/agent.py": "import json\nimport random\nimport uuid\nfrom datetime import datetime, timezone\nfrom openai import OpenAI\n\nclient = OpenAI()\n\ndef build_prompt(task: str, now_fn=lambda: datetime.now(timezone.utc), rng=None) -> tuple:\n    \"\"\"Every non-model input is injected, resolved once, and returned for the record.\"\"\"\n    rng = rng if rng is not None else random.Random(0)\n    resolved = {\n        \"now\": now_fn().isoformat(),\n        \"run_id\": str(uuid.UUID(int=rng.getrandbits(128))),\n    }\n    system_prompt = (\n        f\"You are an agent. Run {resolved['run_id']}. It is now {resolved['now']}.\"\n    )\n    messages = [\n        {\"role\": \"system\", \"content\": system_prompt},\n        {\"role\": \"user\", \"content\": task},\n    ]\n    return messages, resolved\n\ndef run(task: str, now_fn=None, rng=None) -> str:\n    messages, resolved = build_prompt(\n        task, now_fn or (lambda: datetime.now(timezone.utc)), rng\n    )\n    with open(\"run_inputs.json\", \"w\") as fh:\n        json.dump({\"prompt_inputs\": resolved, \"messages\": messages}, fh)\n    resp = client.chat.completions.create(\n        model=\"gpt-4o\", messages=messages, temperature=0, seed=7\n    )\n    return resp.choices[0].message.content\n"
+      }
+    }
+  }
+}

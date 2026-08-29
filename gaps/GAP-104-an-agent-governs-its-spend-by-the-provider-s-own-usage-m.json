@@ -1,0 +1,122 @@
+{
+  "id": "GAP-104",
+  "title": "An agent governs its spend by the provider's own usage meter, with no independent local ledger to reconcile it against",
+  "layer": "cost-governance",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "My agent stopped because the provider said my allowance was gone, and I cannot tell whether that is true: I never recorded what each call actually consumed, so the only number in the dispute is the vendor's, and my only move is to ask the vendor to audit its own counter.",
+  "symptom": "The remaining-allowance figure moves in ways the operator cannot account for. A session meter reads roughly half consumed before any message is sent; or a billing signal blocks every request while the plan's own usage page reads a few percent used. Both are one-sided arguments: the operator has no per-call record of tokens or cost to hold up against the meter, so the incident is escalated as a support ticket rather than resolved as a reconciliation.",
+  "why_now": "Providers moved to opaque bucketed allowances in 2025-2026 -- percentage-of-session and weekly windows on subscription plans, credit balances on API plans -- and an agent can now exhaust one unattended in minutes. The per-call usage numbers needed to audit the meter ARE returned on every response, so the data exists; what does not exist is any framework contract that they be captured and reconciled. So spend governance rests on a counter the governed party cannot see inside, and the discrepancy reports are the predictable result.",
+  "existing": [
+    "Provider usage dashboards and status commands: they display the same counter that is in question, so they cannot corroborate it. The observed failure mode is precisely two provider-side signals disagreeing with each other while the operator has no third record.",
+    "LLM tracing and observability platforms: they do record per-call usage, which is the right shape, but they are opt-in instrumentation bolted on per project rather than a contract of the agent runtime, and their numbers are rarely reconciled against the provider's own meter or invoice, so a drift between the two is not detected by anything.",
+    "Hand-rolled post-hoc scripts over session transcripts: this is what practitioners actually do, and it works, but it is written after the surprise, by the person who was surprised, and it measures a log that happens to have survived rather than a ledger anyone promised to keep.",
+    "Cloud budget services: they aggregate spend on a lag of hours, which is the wrong resolution to adjudicate an individual session meter and the wrong latency to catch an agent exhausting an allowance in minutes."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG] Session and weekly usage limits jump to a high percentage with no activity",
+      "locator": "https://github.com/anthropics/claude-code/issues/90022",
+      "date": "2026-08-27",
+      "quote": "In both cases I have no active usage at that moment: no new conversation, no messages sent, no background job running, and no other device or tab left open.",
+      "note": "An operator observing the governing meter move against a period he is confident had no activity. Maintainer-labelled area:cost on the vendor's own tracker. The gap is visible in what he can DO about it: nothing, because he holds no counter-record."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG] Session and weekly usage limits jump to a high percentage with no activity",
+      "locator": "https://github.com/anthropics/claude-code/issues/90022",
+      "date": "2026-08-27",
+      "quote": "Could you please review how usage is being metered on my account and explain why these percentages increase this way?",
+      "note": "This is the missing primitive stated as a request. The only remedy available to a party governed by a meter it cannot audit is to ask the meter's owner to audit it. A local reconcilable ledger would have turned this into a diff."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Claude Code shows \"Credit balance too low\" despite active Pro subscription with low session usage",
+      "locator": "https://github.com/anthropics/claude-code/issues/90167",
+      "date": "2026-08-27",
+      "quote": "blocking all usage despite the Pro plan showing low usage and active status",
+      "note": "The strongest form of the gap: TWO provider-side signals contradict each other, a credit-balance check that halts all work and a plan usage meter reading a few percent consumed, and the operator cannot adjudicate between them because neither is his own record. Labelled area:cost and area:auth on the vendor tracker."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "[BUG] Agent Teams: lead session loops on idle notifications and duplicate task_assignment echoes, burns ~13-22% of input tokens on no-op acks",
+      "locator": "https://github.com/anthropics/claude-code/issues/47930",
+      "date": "2026-04-14",
+      "quote": "Classified every lead turn by what message triggered it:",
+      "note": "Evidence that per-call attribution is achievable and is nonetheless do-it-yourself. This reporter recovered a full spend breakdown by instrumenting his own session transcript after the fact, and shipped the script for others to repeat it. That the analysis is possible from data already on disk is exactly why the absence of a kept ledger is a gap rather than a hard limit."
+    }
+  ],
+  "build_hypothesis": "A ledger seam in the model-call wrapper, well under 200 lines. Every response's usage object is appended to an append-only local record keyed by run, agent and call, priced by a pinned rate table, before the response is returned to the caller. Two derived commands make it worth keeping: one that reports spend for a run from the operator's own numbers, and one that reconciles the local total against the provider's reported consumption and reports the DELTA rather than either figure alone. The interesting design work is the reconciliation contract: what counts as agreement when the provider reports an opaque percentage and the ledger holds tokens, and what an operator is entitled to conclude when the two diverge.",
+  "tags": [
+    "cost-governance",
+    "auditability",
+    "quota",
+    "reconciliation",
+    "vendor-meter"
+  ],
+  "check": {
+    "id": "CHK-103",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|responses\\.create|generate_content|invoke_model|converse\\(|from\\s+openai|from\\s+anthropic|require\\(['\"]openai|@anthropic-ai/sdk)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(rate.?limit|ratelimit|usage.?limit|\\bquota\\b|\\b429\\b|insufficient_quota|credit.?balance|retry.?after|overloaded)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(prompt_tokens|completion_tokens|total_tokens|input_tokens|output_tokens|promptTokens|completionTokens|totalTokens|inputTokens|outputTokens|usage_ledger|spend_ledger|token_ledger|record_usage|record_spend|persist_usage|reconcile_usage|cost_usd|usd_cost)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(usage_ledger|spend_ledger|token_ledger|record_usage|record_spend|persist_usage|reconcile_usage|cost_usd|usd_cost|prompt_tokens|completion_tokens|total_tokens|input_tokens|output_tokens|promptTokens|completionTokens|totalTokens|inputTokens|outputTokens)"
+    },
+    "manual_question": "When your provider tells you the allowance is exhausted or the balance is too low, what record of your OWN do you compare that claim against? Point at the artifact, not the provider's dashboard. If there is none, note that your only available response to a meter you believe is wrong is to ask its owner to re-check it.",
+    "rationale": "The signature is a conjunction: the repo calls a model API, its spend behaviour is driven by provider-side scarcity signals (rate-limit, quota, credit-balance, retry-after), and nowhere does it capture the per-call usage figures those same responses return. That combination means every statement about what this system spent originates with the vendor. What it can get wrong, in both directions. False positive: usage may be captured by a proxy or gateway outside the repo, by an OpenTelemetry auto-instrumentation that names no token field in first-party code, or by a provider SDK's own logging, and a repo that merely retries on 429 without any budget ambition is arguably not governing spend at all. False negative, and this is the weaker half: reading a token count off a response is NOT the same as keeping a reconcilable ledger, so a repo that logs usage to stdout and never persists or reconciles it reads as mitigated here. The check therefore detects the absence of the raw material, not the presence of the primitive, which is why it ships a manual question that asks for the artifact.",
+    "fixtures": {
+      "bad": {
+        "app/llm.py": "import time\n\nimport openai\n\nclient = openai.OpenAI()\n\nMAX_RETRIES = 6\n\n\ndef complete(prompt: str) -> str:\n    \"\"\"Call the model, backing off when the provider says we are over the line.\n\n    Spend control is entirely delegated to the provider: we keep going until it\n    refuses us, then we wait and try again. Nothing here records what any call cost.\n    \"\"\"\n    delay = 1.0\n    for _ in range(MAX_RETRIES):\n        try:\n            response = client.chat.completions.create(\n                model=\"gpt-4o\",\n                messages=[{\"role\": \"user\", \"content\": prompt}],\n            )\n            return response.choices[0].message.content\n        except openai.RateLimitError:\n            # quota or rate limit hit -- the provider's meter is the only meter\n            time.sleep(delay)\n            delay *= 2\n    raise RuntimeError(\"gave up after repeated 429 responses\")\n",
+        "app/loop.py": "from app.llm import complete\n\n\ndef run(goal: str, max_steps: int = 200) -> str:\n    \"\"\"Agent loop. Bounded in STEPS, which is not a bound in money.\"\"\"\n    transcript = goal\n    for _ in range(max_steps):\n        transcript = complete(transcript)\n        if \"DONE\" in transcript:\n            break\n    return transcript\n"
+      },
+      "good": {
+        "app/llm.py": "import time\n\nimport openai\n\nfrom app.ledger import record_usage\n\nclient = openai.OpenAI()\n\nMAX_RETRIES = 6\n\n\ndef complete(prompt: str, run_id: str) -> str:\n    \"\"\"Call the model, and keep our OWN record of what the call consumed.\n\n    The provider's refusal is still honoured, but it is no longer the only\n    account of what happened: every response's usage is written to a local\n    append-only ledger before the value is handed back.\n    \"\"\"\n    delay = 1.0\n    for _ in range(MAX_RETRIES):\n        try:\n            response = client.chat.completions.create(\n                model=\"gpt-4o\",\n                messages=[{\"role\": \"user\", \"content\": prompt}],\n            )\n            record_usage(\n                run_id=run_id,\n                model=\"gpt-4o\",\n                prompt_tokens=response.usage.prompt_tokens,\n                completion_tokens=response.usage.completion_tokens,\n            )\n            return response.choices[0].message.content\n        except openai.RateLimitError:\n            time.sleep(delay)\n            delay *= 2\n    raise RuntimeError(\"gave up after repeated 429 responses\")\n",
+        "app/ledger.py": "\"\"\"Our own spend record, kept so the provider's meter is not the only witness.\n\nAppend-only on purpose: a ledger you can rewrite cannot settle a dispute. The\nreconcile function deliberately reports the DELTA against the provider's figure\nrather than preferring either number, because which one is wrong is exactly what\nis unknown when they disagree.\n\"\"\"\n\nimport json\nimport pathlib\nimport time\n\nLEDGER = pathlib.Path(\"var/usage-ledger.jsonl\")\n\n# Pinned rates, so a priced total is reproducible after the price list changes.\nRATES_USD_PER_MTOK = {\"gpt-4o\": (2.50, 10.00)}\n\n\ndef record_usage(run_id, model, prompt_tokens, completion_tokens):\n    \"\"\"Append one call's consumption. Called on the success path of every call.\"\"\"\n    rate_in, rate_out = RATES_USD_PER_MTOK[model]\n    cost_usd = (prompt_tokens * rate_in + completion_tokens * rate_out) / 1_000_000\n    LEDGER.parent.mkdir(parents=True, exist_ok=True)\n    with LEDGER.open(\"a\") as handle:\n        handle.write(\n            json.dumps(\n                {\n                    \"at\": time.time(),\n                    \"run_id\": run_id,\n                    \"model\": model,\n                    \"prompt_tokens\": prompt_tokens,\n                    \"completion_tokens\": completion_tokens,\n                    \"total_tokens\": prompt_tokens + completion_tokens,\n                    \"cost_usd\": round(cost_usd, 6),\n                }\n            )\n            + \"\\n\"\n        )\n    return cost_usd\n\n\ndef spend_for_run(run_id):\n    \"\"\"What WE think the run cost, from our own numbers.\"\"\"\n    if not LEDGER.exists():\n        return 0.0\n    rows = (json.loads(line) for line in LEDGER.read_text().splitlines() if line)\n    return sum(r[\"cost_usd\"] for r in rows if r[\"run_id\"] == run_id)\n\n\ndef reconcile_usage(run_id, provider_reported_usd):\n    \"\"\"Compare our record with the provider's and report the disagreement.\n\n    Returns the signed delta. A caller that wants to dispute a meter now has a\n    number to dispute it with, which is the whole point of keeping this file.\n    \"\"\"\n    ours = spend_for_run(run_id)\n    return {\n        \"ours_usd\": round(ours, 6),\n        \"provider_usd\": round(provider_reported_usd, 6),\n        \"delta_usd\": round(provider_reported_usd - ours, 6),\n    }\n",
+        "app/loop.py": "from app.llm import complete\nfrom app.ledger import spend_for_run\n\n\ndef run(goal: str, run_id: str, max_steps: int = 200, ceiling_usd: float = 5.0) -> str:\n    \"\"\"Agent loop bounded by OUR ledger, not only by the provider's refusal.\"\"\"\n    transcript = goal\n    for _ in range(max_steps):\n        if spend_for_run(run_id) >= ceiling_usd:\n            return transcript\n        transcript = complete(transcript, run_id=run_id)\n        if \"DONE\" in transcript:\n            break\n    return transcript\n"
+      }
+    }
+  }
+}

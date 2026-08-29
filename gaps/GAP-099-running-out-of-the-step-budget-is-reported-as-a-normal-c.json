@@ -1,0 +1,131 @@
+{
+  "id": "GAP-099",
+  "title": "Running out of the step budget is reported as a normal completion, so a run that was cut off is indistinguishable from one that finished",
+  "layer": "cost-governance",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "My agent hit its iteration cap, handed back a confident-looking answer in exactly the shape a finished run returns, and I only found out it had been cut off when I compared the bill against the transcript.",
+  "symptom": "A run returns an answer and exits zero, so the driver marks the task done, and nothing downstream can tell that the loop terminated because it ran out of its step allowance. The operator response is to raise the cap, which buys more spend against the same undiagnosed loop; a retry driver re-launches a task it believes succeeded, paying twice for the same truncated work.",
+  "why_now": "The bound agent frameworks actually ship is a step or turn count, and the terminal states they expose are not typed by why the loop stopped. LangChain AgentExecutor defaults to early_stopping_method force, which returns a fixed string inside the same AgentFinish object a successful answer arrives in, so exhaustion is the success channel. Frameworks that do raise on exhaustion (a turn-limit exception) prove the primitive is cheap, but the caller still receives no accounting of what was spent reaching the cap, so even the raising path cannot answer how much the aborted attempt cost.",
+  "existing": [
+    "LangChain AgentExecutor exposes max_iterations (default 15) and early_stopping_method. The default force path constructs an AgentFinish carrying the string Agent stopped due to iteration limit or time limit, which is the same return type a genuine final answer uses, so a caller must string-match prose to detect exhaustion.",
+    "The alternative early_stopping_method generate spends one MORE model call to synthesise a final answer from the steps so far. That improves the answer and makes the truncation even harder to see, because the output is now a normal-looking generated answer rather than a fixed sentinel string.",
+    "OpenAI Agents SDK raises MaxTurnsExceeded rather than returning a value, which is the right shape for the signal, but the exception carries no spend accounting, so exhaustion is distinguishable while its cost is not.",
+    "Provider-level finish_reason (length, max_tokens) types truncation for a single model call only. It says nothing about an agent LOOP terminating on its step or wall-clock allowance, which is the level an operator budgets at."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_classic/agents/agent.py (LangChain, master)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/langchain/langchain_classic/agents/agent.py",
+      "date": "2026-08-18",
+      "quote": "Agent stopped due to iteration limit or time limit.",
+      "note": "Fetched from the LangChain repository. This string is returned inside an AgentFinish, the same object a real final answer is returned in, on the default early_stopping_method of force. Exhaustion therefore travels on the success channel and a caller has to match prose to detect it. Living source, so the date is the date fetched."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_classic/agents/agent.py (LangChain, master)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/langchain/langchain_classic/agents/agent.py",
+      "date": "2026-08-18",
+      "quote": "The method to use for early stopping if the agent never",
+      "note": "Opening line of the early_stopping_method docstring in the same file, immediately below the field declaration early_stopping_method: str = force. It documents the choice as a stylistic one between returning a constant string and generating a final answer, never as a choice about how the caller learns that the budget ran out."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[Bug]: Infinite ReAct loop when setting max_iterations as 1",
+      "locator": "https://github.com/run-llama/llama_index/issues/16499",
+      "date": "2024-10-14",
+      "quote": "When I set max_iterations to 1, my ReAct Agent stuck in infinite loop.",
+      "note": "A user bug report against the llama_index repository showing that the step-cap primitive is not even reliably terminal: the cap was set to its tightest value and the loop still did not stop. Date taken from the issue number sequence and the reported version 0.11.14 as displayed on the fetched page; treat the day as approximate. Included because it shows operators reason about caps as the whole budget story, which is what makes a cap that terminates silently expensive."
+    }
+  ],
+  "build_hypothesis": "A typed terminal result for agent loops: one small dataclass with outcome in {finished, exhausted, failed}, the reason the loop stopped, and the spend accumulated getting there, plus thin wrappers over the two or three loop primitives in a framework that construct it. The gate that makes it real is a lint rule in the driver: refuse to treat a result as done unless outcome is read, so a cut-off run cannot be silently consumed as an answer.",
+  "tags": [
+    "cost",
+    "budget",
+    "exhaustion",
+    "silent-failure",
+    "loop"
+  ],
+  "check": {
+    "id": "CHK-098",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "max_iterations\\s*[=:]|max_turns\\s*[=:]|max_steps\\s*[=:]|maxSteps\\s*[=:]|recursion_limit\\s*[=:]|max_execution_time\\s*[=:]|MAX_STEPS|MAX_ITERATIONS|MAX_TURNS"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "max_iterations\\s*[=:]|max_turns\\s*[=:]|max_steps\\s*[=:]|maxSteps\\s*[=:]|recursion_limit\\s*[=:]|max_execution_time\\s*[=:]|MAX_STEPS|MAX_ITERATIONS|MAX_TURNS"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)MaxTurnsExceeded|GraphRecursionError|MaxIterationsError|raise\\s+\\w*(?:Exhausted|LimitReached|StepLimit|TurnLimit|IterationLimit|BudgetExceeded|CapReached)\\w*|(?:budget|step|turn|iteration|token|spend)[_-]?exhaust\\w*|exhaust\\w*[_-]?(?:budget|error|exception|status)|(?:cap|limit|step[_-]?limit|turn[_-]?limit)[_-]?reached|hit[_-]?(?:the[_-]?)?(?:cap|step[_-]?limit|turn[_-]?limit)|terminated[_-]?by[_-]?cap|truncated[_-]?by[_-]?cap|[\\\"'](?:exhausted|incomplete|truncated|cap_reached|step_limit|max_turns_exceeded)[\\\"']|early_stopping_method\\s*=\\s*[\\\"']generate[\\\"']"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)MaxTurnsExceeded|GraphRecursionError|MaxIterationsError|raise\\s+\\w*(?:Exhausted|LimitReached|StepLimit|TurnLimit|IterationLimit|BudgetExceeded|CapReached)\\w*|(?:budget|step|turn|iteration|token|spend)[_-]?exhaust\\w*|exhaust\\w*[_-]?(?:budget|error|exception|status)|(?:cap|limit|step[_-]?limit|turn[_-]?limit)[_-]?reached|hit[_-]?(?:the[_-]?)?(?:cap|step[_-]?limit|turn[_-]?limit)|terminated[_-]?by[_-]?cap|truncated[_-]?by[_-]?cap|[\\\"'](?:exhausted|incomplete|truncated|cap_reached|step_limit|max_turns_exceeded)[\\\"']|early_stopping_method\\s*=\\s*[\\\"']generate[\\\"']"
+    },
+    "manual_question": "When this agent loop runs out of its step, turn or time allowance, what does the caller receive? Point at the line that makes that outcome different from a finished run: a raised exception, or a status field the caller must read. If the cap path returns the same shape as success, every driver above it will record a truncated run as done.",
+    "rationale": "A project that configures a step, turn or iteration cap and never names an exhaustion outcome anywhere in its tracked source almost certainly falls out of its loop and returns whatever it has. The mitigation side looks for the vocabulary of a distinct terminal state (a raised exhaustion exception, a framework turn-limit exception, or a status value such as exhausted or truncated). What it can get wrong: a project may branch on a bespoke sentinel this pattern does not know, or on a provider finish_reason, in which case PRESENT means the repo shows no in-tree exhaustion signal and the manual question needs answering rather than that the gap is proven. It can also be satisfied by a name alone that no caller ever reads, which is why the manual question asks for the line the caller branches on.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "\"\"\"Research loop. The step cap is the only brake on how long this runs.\"\"\"\n\nimport os\n\nimport anthropic\n\nclient = anthropic.Anthropic(api_key=os.environ[\"ANTHROPIC_API_KEY\"])\nMODEL = \"claude-sonnet-4-5\"\nMAX_STEPS = 40\n\n\ndef run(question: str) -> dict:\n    messages = [{\"role\": \"user\", \"content\": question}]\n    latest = \"\"\n    for _ in range(MAX_STEPS):\n        reply = client.messages.create(\n            model=MODEL, max_tokens=2048, messages=messages\n        )\n        latest = reply.content[0].text\n        messages.append({\"role\": \"assistant\", \"content\": latest})\n        if latest.startswith(\"FINAL:\"):\n            return {\"answer\": latest.removeprefix(\"FINAL:\").strip()}\n        messages.append({\"role\": \"user\", \"content\": \"Continue.\"})\n    # The cap fired. Hand back whatever the last turn said, shaped exactly like\n    # the value a finished run returns, so the caller cannot tell the difference.\n    return {\"answer\": latest}\n"
+      },
+      "good": {
+        "app/loop.py": "\"\"\"Research loop. Running out of steps is a DIFFERENT outcome from finishing.\"\"\"\n\nimport os\n\nimport anthropic\n\nclient = anthropic.Anthropic(api_key=os.environ[\"ANTHROPIC_API_KEY\"])\nMODEL = \"claude-sonnet-4-5\"\nMAX_STEPS = 40\n\n\nclass StepBudgetExhausted(RuntimeError):\n    \"\"\"The loop ran out of steps. No answer was produced.\"\"\"\n\n\ndef run(question: str, strict: bool = True) -> dict:\n    messages = [{\"role\": \"user\", \"content\": question}]\n    latest = \"\"\n    for _ in range(MAX_STEPS):\n        reply = client.messages.create(\n            model=MODEL, max_tokens=2048, messages=messages\n        )\n        latest = reply.content[0].text\n        messages.append({\"role\": \"assistant\", \"content\": latest})\n        if latest.startswith(\"FINAL:\"):\n            return {\"outcome\": \"finished\", \"answer\": latest.removeprefix(\"FINAL:\").strip()}\n        messages.append({\"role\": \"user\", \"content\": \"Continue.\"})\n    if strict:\n        raise StepBudgetExhausted(f\"no answer after {MAX_STEPS} steps\")\n    # Non-strict callers still get a terminal status they can branch on, and the\n    # partial text is labelled so no driver can read it as a completed answer.\n    return {\"outcome\": \"exhausted\", \"partial\": latest, \"answer\": None}\n"
+      }
+    }
+  }
+}

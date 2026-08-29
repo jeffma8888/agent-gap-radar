@@ -1,0 +1,114 @@
+{
+  "id": "GAP-089",
+  "title": "Context compaction is a lossy rewrite with no protected set, so a standing instruction can be summarised away",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent summarises its own history to stay inside the context window, and the constraint I gave it in turn three is simply not in the summary, so it violates a rule it was told and nothing anywhere reports that the rule was dropped.",
+  "symptom": "After a compaction boundary the agent stops honouring an earlier standing instruction - a freeze, a naming convention, a do-not-touch path - and behaves as though it were never told. The run continues normally, no error is raised, and the only trace is a summary message that reads plausibly because it kept the architectural narrative and dropped the one prohibition.",
+  "why_now": "Compaction became the default first lever for long-horizon work in 2025-2026 and ships inside the agent harnesses themselves, so most teams inherit it rather than implement it. The vendor documenting the technique also documents its failure mode as a tuning problem for the summarisation prompt, which means the loss is managed by recall-tuning a prompt rather than by a contract that names which spans MUST cross the boundary. There is no widely adopted primitive for pinning a span, and no post-compaction assertion, so the transform is unaudited by construction.",
+  "existing": [
+    "Tool-result clearing, the lightest form of compaction, bounds what is discarded to raw tool output - but it does not protect anything in the message history itself.",
+    "Prompt tuning for recall on complex traces raises the probability that critical content survives; it cannot guarantee that a named span does, and it produces no signal when one is lost.",
+    "Structured note-taking and external memory files move content out of the window, which helps only if the agent chooses to read the note back; nothing forces the standing constraint back into the next window.",
+    "Re-injecting the system prompt every turn protects the system prompt only. Constraints that arrive mid-conversation from the operator or from a tool result are exactly the ones with no protected home."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later",
+      "note": "The vendor that ships compaction in its own coding agent names this exact loss, and prescribes prompt tuning rather than a protected set or a post-compaction check."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "We demonstrate that even under these minimal conditions, model performance degrades as input length increases, often in surprising and non-uniform ways.",
+      "note": "Establishes that simply widening the window is not the fix, so lossy compaction is a permanent part of long-horizon agents rather than a stopgap."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "LLMs Get Lost In Multi-Turn Conversation",
+      "locator": "https://arxiv.org/abs/2505.06120",
+      "date": "2025-05-09",
+      "quote": "all the top open- and closed-weight LLMs we test exhibit significantly lower performance in multi-turn conversations than single-turn, with an average drop of 39% across six generation tasks",
+      "note": "Measured degradation across multi-turn runs, and the failure is unrecovered once instructions are mishandled, which is the regime a compaction boundary sits inside."
+    }
+  ],
+  "build_hypothesis": "A compaction wrapper with two parts: a pin API that marks a span as must-survive, and a gate that diffs the pinned spans against the rewritten context and refuses or repairs the compaction that dropped one. Both are cheap; the missing piece is that nothing in the ecosystem names the pinned set at all.",
+  "tags": [
+    "compaction",
+    "long-horizon",
+    "instruction-drift",
+    "context-window"
+  ],
+  "check": {
+    "id": "CHK-088",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)\\b(compact|summari[sz]e|summari[sz]ation|truncate|trim)_?(history|messages|conversation|context|transcript)\\b|\\b(history|messages|conversation|context|transcript)_?(compact|compaction|summary|summari[sz]ation)\\b|\\bauto[_-]?compact\\b|\\btrim_messages\\b|\\bSummarizationNode\\b"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(compact|summari[sz]e|summari[sz]ation|truncate|trim)_?(history|messages|conversation|context|transcript)\\b|\\b(history|messages|conversation|context|transcript)_?(compact|compaction|summary|summari[sz]ation)\\b|\\bauto[_-]?compact\\b|\\btrim_messages\\b|\\bSummarizationNode\\b"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)\\b(pinned|protected|preserved|must_keep|always_keep|never_drop|do_not_drop|retained|verbatim|invariant)s?_?(blocks?|messages?|instructions?|context|prefix|prompt|sets?|rules?|sections?|invariants?|directives?)\\b|\\b(context|history|messages|prompt|compaction)_?(pins?|pinned|protected|protection|invariants?|allowlist|must_keep)\\b|\\bmust_survive_compaction\\b|\\bassert_invariants_survived\\b"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)\\b(pinned|protected|preserved|must_keep|always_keep|never_drop|do_not_drop|retained|verbatim|invariant)s?_?(blocks?|messages?|instructions?|context|prefix|prompt|sets?|rules?|sections?|invariants?|directives?)\\b|\\b(context|history|messages|prompt|compaction)_?(pins?|pinned|protected|protection|invariants?|allowlist|must_keep)\\b|\\bmust_survive_compaction\\b|\\bassert_invariants_survived\\b"
+    },
+    "manual_question": "Your code rewrites conversation history to fit the context window. Name the spans that are guaranteed to survive that rewrite, and name the code that would fail if one of them did not. If the answer is that the summarisation prompt is asked to keep the important parts, the guarantee is a probability.",
+    "rationale": "The signature is a compaction or summarisation site over message history in shipped code, with no vocabulary anywhere in that code for a span that must survive it. The mitigation is deliberately narrow - a protected/pinned NOUN pairing such as pinned_invariants or context_protection - rather than bare words like preserve or retain, because a generic word would credit any repo that happens to use it and produce a fail-open ABSENT. It can be wrong in two ways: a project may pin invariants under a house term this pattern does not know (a false PRESENT, costing one manual look), or a project may spell a protected-set term for an unrelated reason and read as mitigated (a false ABSENT). It cannot tell whether the pin is enforced on the path the compaction actually takes.",
+    "fixtures": {
+      "bad": {
+        "app/context_manager.py": "\"\"\"Keep the conversation under the model context window.\"\"\"\n\nMODEL = \"some-frontier-model\"\nLIMIT_TOKENS = 180_000\n\n\ndef build_request(system, history):\n    return {\"system\": system, \"messages\": history}\n\n\ndef compact_history(history, client):\n    \"\"\"Replace older turns with a model-written summary of them.\"\"\"\n    older, tail = history[:-5], history[-5:]\n    summary = client.complete(\n        model=MODEL,\n        messages=older + [{\"role\": \"user\", \"content\": \"Summarise what happened so far.\"}],\n    )\n    return [{\"role\": \"assistant\", \"content\": summary.text}] + tail\n\n\ndef run_turn(history, system, client):\n    if count_tokens(history) > LIMIT_TOKENS:\n        history = compact_history(history, client)\n    return client.complete(**build_request(system, history))\n"
+      },
+      "good": {
+        "app/context_manager.py": "\"\"\"Keep the conversation under the model context window.\n\nCompaction is a lossy rewrite, so the operating constraints that must outlive it\nare declared here and re-checked against the rewritten context.\n\"\"\"\n\nMODEL = \"some-frontier-model\"\nLIMIT_TOKENS = 180_000\n\n# Blocks that every compaction MUST carry forward verbatim.\nPINNED_INVARIANTS = (\n    \"never write to the production database\",\n    \"stop and ask before spending money\",\n)\n\n\ndef build_request(system, history):\n    return {\"system\": system, \"messages\": history}\n\n\ndef compact_history(history, client):\n    \"\"\"Replace older turns with a model-written summary of them.\"\"\"\n    older, tail = history[:-5], history[-5:]\n    summary = client.complete(\n        model=MODEL,\n        messages=older + [{\"role\": \"user\", \"content\": \"Summarise what happened so far.\"}],\n    )\n    rewritten = [{\"role\": \"assistant\", \"content\": summary.text}] + tail\n    return enforce_pinned_invariants(rewritten)\n\n\ndef enforce_pinned_invariants(rewritten):\n    \"\"\"Fail loudly if the rewrite dropped a block that had to survive it.\"\"\"\n    blob = \"\\\\n\".join(m[\"content\"] for m in rewritten)\n    missing = [b for b in PINNED_INVARIANTS if b not in blob]\n    if missing:\n        rewritten.insert(0, {\"role\": \"system\", \"content\": \"\\\\n\".join(missing)})\n    return rewritten\n\n\ndef run_turn(history, system, client):\n    if count_tokens(history) > LIMIT_TOKENS:\n        history = compact_history(history, client)\n    return client.complete(**build_request(system, history))\n"
+      }
+    }
+  }
+}

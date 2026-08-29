@@ -1,0 +1,152 @@
+{
+  "id": "GAP-115",
+  "title": "An approval gate records the verdict and nothing about the decision, so rubber-stamping and real review produce identical telemetry",
+  "layer": "human-interface",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "I am the accountable human on this gate and I cannot tell you whether I am overseeing the agent or clicking through it, because the only thing the system keeps is approve or reject.",
+  "symptom": "The audit trail says a person approved 812 of 814 calls. Nothing says who, how long they had the request open, what was rendered to them, or whether they changed anything, so a reviewer approving in 400 milliseconds without reading and a reviewer who read the whole diff are the same row.",
+  "why_now": "Approval plumbing shipped in every agent framework in 2025 and 2026 and the decision is modelled as a boolean verdict on a call id. The regulatory requirement landing in the same window is explicitly about the reviewer's state of mind rather than the verdict, and there is no primitive that produces the numbers an operator would need to see the drift: reviewer identity, time to decision, what was actually rendered, and override rate.",
+  "existing": [
+    "Framework approval APIs carry a verdict and a call id and optionally a rejection message, so the schema of the recorded decision has no field for who decided, how long it took, or what they saw.",
+    "Generic tracing and audit logs capture that an approval span happened, which answers whether the gate ran, not whether the person engaged with it.",
+    "Peer-reviewed field work shows developers substituting cheaper proxies for review (reading the plan instead of the diff, treating passing tests as a guarantee, eyeballing summaries). Those substitutions are rational and invisible to any telemetry that records only the verdict."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Human oversight of agentic systems in practice: Examining the oversight work, challenges, and heuristics of developers using software agents",
+      "locator": "https://arxiv.org/html/2606.05391v1",
+      "date": "2026-06-05",
+      "quote": "enabling developers to substitute the large effort of code review with the easier task of plan verification",
+      "note": "Interview study of 17 experienced agent users (Microsoft authors; the same work carries an ACM DOI, 10.1145/3805689.3812402). This is the mechanism the gap is about: the reviewer substitutes a cheap proxy for the expensive check, and a system that records only the verdict cannot see the substitution. Dated to the arXiv v1 identifier."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Human oversight of agentic systems in practice: Examining the oversight work, challenges, and heuristics of developers using software agents",
+      "locator": "https://arxiv.org/html/2606.05391v1",
+      "date": "2026-06-05",
+      "quote": "We find that developers opt for efficient, not perfect, oversight, surfacing disconnects between research aspirations for ideal human supervision and the practical realities of using agents",
+      "note": "The paper's own headline finding. Oversight in the field is a variable-effort activity, which is exactly why its effort needs to be measured rather than assumed from the presence of a gate."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Article 14: Human oversight | AI Act Service Desk",
+      "locator": "https://ai-act-service-desk.ec.europa.eu/en/ai-act/article-14",
+      "date": "2026-08-17",
+      "quote": "to remain aware of the possible tendency of automatically relying or over-relying on the output produced by a high-risk AI system (automation bias)",
+      "note": "The regulation names the failure mode directly and puts it on the overseer, but states no observable that would evidence compliance. The closed source-class enum has no regulator category; this is the European Commission's own service-desk rendering of the Article 14 text, so it is primary rather than a summary. Living page with no publication date, so dated to the day it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Human-in-the-loop - OpenAI Agents SDK",
+      "locator": "https://openai.github.io/openai-agents-python/human_in_the_loop/",
+      "date": "2026-08-17",
+      "quote": "Use the human-in-the-loop (HITL) flow to pause agent execution until a person approves or rejects sensitive tool calls.",
+      "note": "The vendor's own one-sentence definition of the primitive: the human's entire documented contribution is approves or rejects. Nowhere in the documented flow is there a reviewer identity, an elapsed time, or a record of what was rendered to the person, which is what makes the two reviewers in the symptom produce identical telemetry. Living documentation with no publication date, so dated to the day it was fetched."
+    }
+  ],
+  "build_hypothesis": "Make the decision a record rather than a boolean: reviewer identity, request-open and decision timestamps, a digest of exactly what was rendered, and whether the arguments were edited. Then ship three derived numbers per reviewer and per tool: reject rate, override rate, and share of approvals returned faster than the diff could be read. Two of those three going to zero is the measurable signature of a gate that has stopped working, and today it is unobservable.",
+  "tags": [
+    "trust-calibration",
+    "rubber-stamping",
+    "human-oversight",
+    "measurement-gap",
+    "audit"
+  ],
+  "check": {
+    "id": "CHK-114",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java",
+        "**/*.rs",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml"
+      ],
+      "pattern": "(?i)(needs?_approval|require[sd]?_approval|approval_required|request_approval|human_review|review_queue|pending_approval|approval_gate|human_in_the_loop|\\bhitl\\b)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.js",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java",
+            "**/*.rs",
+            "**/*.json",
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)(\\.approve\\(|\\.reject\\(|decision\\s*==\\s*[\\\"']?(?:approve|reject)|if\\s+approved\\b|verdict\\s*==|is_approved\\b|approved\\s*=\\s*(?:True|true))"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.js",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java",
+            "**/*.rs",
+            "**/*.json",
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)(approved_by|approver_id|reviewer_id|decided_by|decision_latency|time_to_(?:decision|approve)|approval_(?:audit|log|event|metric)s?|audit_log|override_rate|reject(?:ion)?_rate|approval_rate|shown_(?:context|evidence|diff)|reviewed_(?:bytes|lines))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java",
+        "**/*.rs",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml"
+      ],
+      "pattern": "(?i)(approved_by|approver_id|reviewer_id|decided_by|decision_latency|time_to_(?:decision|approve)|approval_(?:audit|log|event|metric)s?|audit_log|override_rate|reject(?:ion)?_rate|approval_rate|shown_(?:context|evidence|diff)|reviewed_(?:bytes|lines))"
+    },
+    "manual_question": "For the last hundred approvals your agent asked for, can you produce who decided, how long each request was open before it was answered, what was rendered to that person, and the share where they changed something? If not, what would tell you the gate had degraded into a click-through?",
+    "rationale": "A repository that gates agent actions on a human verdict and consumes that verdict, while nowhere naming reviewer identity, decision latency, an approval audit record, or an override or rejection rate, cannot distinguish oversight from click-through. It can be wrong where the decision record is produced outside the repository (an external ticketing system, an identity-aware proxy, a warehouse job) or where the vocabulary differs, which is why the manual question asks for the last hundred decisions rather than for a file.",
+    "fixtures": {
+      "bad": {
+        "server/review_gate.py": "\"\"\"Route sensitive tool calls to a person before they execute.\"\"\"\n\nSENSITIVE = {\"send_email\", \"delete_record\", \"wire_transfer\"}\n\n\ndef needs_approval(call):\n    return call.tool in SENSITIVE\n\n\ndef request_approval(call):\n    ticket = queue.put({\"tool\": call.tool, \"args\": call.args})\n    decision = wait_for_decision(ticket)\n    if decision == \"approve\":\n        return call.execute()\n    return {\"status\": \"rejected\", \"tool\": call.tool}\n",
+        "web/ApprovalCard.js": "export function ApprovalCard({ call, onDone }) {\n  // Two buttons. Whatever the person clicks, only the verdict leaves this component.\n  const send = (verdict) => {\n    fetch(`/api/approvals/${call.id}`, {\n      method: \"POST\",\n      body: JSON.stringify({ verdict }),\n    }).then(onDone);\n  };\n  return renderCard(call, send);\n}\n"
+      },
+      "good": {
+        "server/review_gate.py": "\"\"\"Route sensitive tool calls to a person before they execute.\n\nEvery decision is recorded with who made it, how long they had the request open,\nand what they were actually shown, so oversight QUALITY is measurable rather than\nassumed. oversight_metrics.py turns that record into a rate a human can read.\n\"\"\"\n\nSENSITIVE = {\"send_email\", \"delete_record\", \"wire_transfer\"}\n\n\ndef needs_approval(call):\n    return call.tool in SENSITIVE\n\n\ndef request_approval(call):\n    ticket = queue.put({\"tool\": call.tool, \"args\": call.args})\n    decision = wait_for_decision(ticket)\n    audit_log.write({\n        \"tool\": call.tool,\n        \"verdict\": decision.verdict,\n        \"approved_by\": decision.reviewer_id,\n        \"decision_latency_ms\": decision.latency_ms,\n        \"shown_diff\": decision.rendered_digest,\n        \"edited_args\": decision.edited_args is not None,\n    })\n    if decision.verdict == \"approve\":\n        return call.execute()\n    return {\"status\": \"rejected\", \"tool\": call.tool}\n",
+        "server/oversight_metrics.py": "\"\"\"Turn recorded approval decisions into calibration signals.\n\nA reviewer whose reject_rate is zero and whose decision_latency is under a second\nis not overseeing anything, and this is the only place that becomes visible.\n\"\"\"\n\n\ndef reject_rate(decisions):\n    if not decisions:\n        return None\n    return sum(1 for d in decisions if d[\"verdict\"] == \"reject\") / len(decisions)\n\n\ndef override_rate(decisions):\n    \"\"\"Share of approvals where the human changed the arguments before allowing.\"\"\"\n    if not decisions:\n        return None\n    return sum(1 for d in decisions if d[\"edited_args\"]) / len(decisions)\n\n\ndef fast_approvals(decisions, floor_ms=1500):\n    \"\"\"Approvals returned too fast for the diff to have been read.\"\"\"\n    return [d for d in decisions\n            if d[\"verdict\"] == \"approve\" and d[\"decision_latency_ms\"] < floor_ms]\n"
+      }
+    }
+  }
+}

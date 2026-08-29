@@ -145,6 +145,14 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
         "tests/test_verify_bounded_selection.py",
     ),
     (
+        # The re-anchored format test must still fail on a real format change.
+        "list_row_format_changed",
+        "src/agent_gap_radar/cli.py",
+        'f"{gap.id}  p={pri:>4.1f}  c={conf}  {gap.title}"',
+        'f"{gap.id} p={pri:>4.1f} c={conf} {gap.title}"',
+        "tests/test_iter01_behavior.py",
+    ),
+    (
         "advisory_prints_pair_twice",
         "tools/promote.py",
         "        pair = frozenset((gid, partner))\n        if pair in seen:\n            continue",

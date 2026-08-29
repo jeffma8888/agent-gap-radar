@@ -1,0 +1,118 @@
+{
+  "id": "GAP-063",
+  "title": "One greedy sample is treated as a reproducible answer, so exact-match evals assert on a property no layer of the stack guarantees",
+  "layer": "eval-verification",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "Our eval suite sets temperature to zero and compares the model's output to an expected string, so it passes or fails on a property that neither the provider nor the serving engine guarantees, and I cannot tell a real regression from a re-roll.",
+  "symptom": "Evals flake with no code change. A test that passed all week fails once in CI, passes on re-run, and gets marked flaky and retried; a genuine regression hiding in the same noise band is retried away with it.",
+  "why_now": "Greedy decoding is widely believed to be deterministic, and it is at the sampling layer, but the nondeterminism lives below sampling in batch-dependent kernel reduction order, so it is not something a caller-side parameter can switch off. Providers and engines now say this in writing, and eval harnesses still default to one sample plus string equality.",
+  "existing": [
+    "Setting temperature to zero removes sampling randomness only. The measured run-to-run variation survives it, because the cause is the reduction order in the serving stack, not the sampler.",
+    "Retry-on-flake hides the variance instead of measuring it, and it discards exactly the signal that would separate noise from a regression.",
+    "Batch invariance work exists but is opt-in, engine-side and version-specific, so an eval suite cannot assume the property holds for the endpoint it is pointed at."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "Non-Determinism of \"Deterministic\" LLM Settings",
+      "locator": "https://arxiv.org/abs/2408.04667",
+      "date": "2025-04-02",
+      "quote": "LLM (large language model) practitioners commonly notice that outputs can vary for the same inputs under settings expected to be deterministic.",
+      "note": "Measured study over five LLMs, eight tasks, ten runs, reporting accuracy swings of up to 15 percent between runs of an identically configured system. Deliberately classified practitioner-report rather than peer-reviewed: it is an arXiv preprint (v5 of 2025-04-02, first posted 2024-08-06) and this pass did not verify a publication venue."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Defeating Nondeterminism in LLM Inference",
+      "locator": "https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/",
+      "date": "2025-09-10",
+      "quote": "Nevertheless, from the perspective of anybody using the inference server, the results are nondeterministic",
+      "note": "The key asymmetry for an eval author: every kernel in the forward pass is run-to-run deterministic, and the caller still cannot get the same answer twice, because the reduction order depends on what else was in the batch. Nothing the caller can set fixes this."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "The same prompt might work perfectly on one request and fail on the next.",
+      "note": "A first-party incident report from a model provider, describing the defect class an exact-match assertion on one sample cannot see and cannot reproduce."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Reproducibility - vLLM",
+      "locator": "https://docs.vllm.ai/en/latest/usage/reproducibility.html",
+      "date": "2026-08-22",
+      "quote": "vLLM does not guarantee the reproducibility of the results by default, for the sake of performance.",
+      "note": "Living document, dated the day it was fetched. Self-hosting does not buy determinism either: it is off by default in the most widely deployed OSS engine, so an eval asserting exact equality is asserting something the engine declines to promise."
+    }
+  ],
+  "build_hypothesis": "An assertion helper that refuses to compare one sample: it runs N samples, reports the agreement rate across them, and fails only when the agreement rate itself moves. The number to store per eval case is the agreement rate, not the single answer, so noise becomes a measured baseline instead of a retried nuisance.",
+  "tags": [
+    "reproducibility",
+    "nondeterminism",
+    "evals",
+    "flaky-tests",
+    "greedy-decoding"
+  ],
+  "check": {
+    "id": "CHK-062",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "\\.chat\\.completions\\.create\\(|\\.messages\\.create\\(|\\.responses\\.create\\(|invoke_model\\(|generate_content\\(|litellm\\.completion\\(|client\\.generate\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "temperature\\s*=\\s*0(?:\\.0+)?(?![.0-9])"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/test_*.py",
+            "**/*_test.py",
+            "tests/**/*.py",
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/*_eval.py"
+          ],
+          "pattern": "assert\\s+[^\\n]*\\b(?:response|completion|output|answer|content|result|text)\\b[^\\n]*==|assertEqual\\s*\\("
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)batch[_-]?invarian|majority[_ ]?vot|self[_-]?consistency|pass@|n_samples|num_samples|num_trials|n_runs|repeat_runs|agreement_rate|similarity_threshold|semantic_similarity|llm[_-]?judge|judge_model"
+    },
+    "manual_question": "Take one eval case that asserts an exact output string. How many samples does it draw, and what is the measured run-to-run agreement rate for that case on the endpoint you actually call? If the answer is one sample and nobody has measured the rate, the pass/fail is not a measurement.",
+    "rationale": "The signature pairs greedy decoding in the calling code with exact-equality assertions on model output in the suite, which together mean the suite treats one sample as the answer. What it can get wrong: temperature zero may be set on a call whose output is never asserted, and an equality assertion may be on a parsed field that really is stable (a JSON key, a tool name), in which case the finding is a prompt to check rather than a defect. The mitigation vocabulary is multi-sample or agreement-based grading, so a repo that grades semantically or samples N times reads as ABSENT.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\n\ndef capital_of(country: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": f\"Capital of {country}? One word.\"}],\n        temperature=0,\n    )\n    return resp.choices[0].message.content.strip()\n",
+        "tests/test_agent.py": "from app.agent import capital_of\n\n\ndef test_capital():\n    response = capital_of(\"France\")\n    assert response == \"Paris\"\n"
+      },
+      "good": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\n\ndef capital_of(country: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": f\"Capital of {country}? One word.\"}],\n        temperature=0,\n    )\n    return resp.choices[0].message.content.strip()\n",
+        "app/grader.py": "from collections import Counter\n\nfrom app.agent import capital_of\n\nnum_samples = 5\n\n\ndef agreement_rate(country: str) -> float:\n    \"\"\"Draw several samples and report how often the modal answer recurred.\n\n    One sample is not an answer: greedy decoding is not a determinism\n    guarantee, so the stable quantity is the agreement rate, not the string.\n    \"\"\"\n    draws = [capital_of(country) for _ in range(num_samples)]\n    modal, hits = Counter(draws).most_common(1)[0]\n    return hits / float(num_samples)\n",
+        "tests/test_agent.py": "from app.grader import agreement_rate\n\n\ndef test_capital_is_stable():\n    assert agreement_rate(\"France\") >= 0.8\n"
+      }
+    }
+  }
+}

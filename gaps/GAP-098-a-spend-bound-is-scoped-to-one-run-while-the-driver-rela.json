@@ -1,0 +1,146 @@
+{
+  "id": "GAP-098",
+  "title": "A spend bound is scoped to one run while the driver relaunches the run forever, so nothing carries consumption across run boundaries",
+  "layer": "cost-governance",
+  "gap_type": "scaling-cliff",
+  "status": "open",
+  "problem": "Every one of my runs finished inside its budget and I still got a bill forty times the budget, because the thing I bounded was the run and the thing that was actually running was a scheduler that starts a fresh run, from zero, forever.",
+  "symptom": "Every log line reports a compliant run that terminated within its allocation, no single run looks anomalous, and the overrun is visible only on the provider invoice or when a shared account-level cap trips and takes down every other workload with it. Nothing in the system holds a spend-to-date number, so there is no artifact you can compare against an authorised total.",
+  "why_now": "Continuous unattended operation became the normal way to run an agent faster than the accounting did. The bounds that runtimes expose are all process-scoped, so they reset with the process, and the driver that relaunches the process is a shell loop, a cron entry or a supervisor that knows nothing about consumption. Providers have already learned this lesson on their own side and responded by adding longer-horizon aggregate windows on top of short resetting ones, which is exactly the primitive the application layer still lacks: consumption state that outlives one run and is charged before the next one is admitted.",
+  "existing": [
+    "A per-run budget or cost cap: correct and insufficient, because it resets with the process. Under a relaunching driver it bounds a single sample of an unbounded series, and each sample truthfully reports compliance.",
+    "A provider monthly spend cap: the right shape at the wrong scope and the wrong horizon. It is account-wide, so it cannot bound one workload, and when it trips it denies every other workload on the same account rather than the one that overspent.",
+    "Usage dashboards and budget alerts: after the fact and addressed to a human, so they cannot refuse to start the next scheduled run.",
+    "A concurrency limit on the driver: bounds how many runs are in flight at once, not how many run in sequence, and a serial loop over a long horizon is exactly the shape that defeats it.",
+    "Wall-clock or iteration caps on the driver loop: bound the number of relaunches, which is a proxy for spend only if run cost is constant, and run cost varies with context growth, tool output size and model choice."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "secondary-summary",
+      "title": "Anthropic unveils new rate limits to curb Claude Code power users | TechCrunch",
+      "locator": "https://techcrunch.com/2025/07/28/anthropic-unveils-new-rate-limits-to-curb-claude-code-power-users/",
+      "date": "2025-07-28",
+      "quote": "Anthropic says its existing usage limits, which reset every five hours, will remain in place. The company is also introducing two new weekly rate limits that reset every seven days",
+      "note": "A public report of the exact failure this gap names, observed at provider scale: a short resetting window was defeated by users running the agent, in the article's words, continuously in the background, and the remedy was to add a longer-horizon aggregate on top of it. The report is news rather than a postmortem, so it is classed as a secondary summary, but it quotes the provider directly and the change it describes is independently visible in the provider's own documentation. It is the clearest available demonstration that bounding a session does not bound a workload that restarts."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Rate limits",
+      "locator": "https://docs.anthropic.com/en/api/rate-limits.md",
+      "date": "2026-08-17",
+      "quote": "set a maximum monthly cost an organization can incur for API usage",
+      "note": "The only cross-run spend enforcement a provider offers is scoped to the whole organisation and to a calendar month, and the same page states that when it is reached usage pauses until the next month. So the sole existing backstop against cumulative overspend is both too coarse to attribute to a workload and too blunt to use, because tripping it is an outage for every other consumer of the account. That is why the accounting has to exist in the application, and it is what makes its absence a gap rather than a preference. The page carries no visible publication date; the date recorded here is the date it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How do usage and length limits work?",
+      "locator": "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work",
+      "date": "2026-07-13",
+      "quote": "Note that your usage of all different Claude product surfaces (claude.ai, Claude Code, Claude Desktop) counts towards the same usage limit.",
+      "note": "Allowance is pooled across every surface drawing on the account and metered only over a resetting period. Two consequences follow for an unattended loop: its consumption is indistinguishable from a human's at the accounting layer, so a spend-to-date figure for the loop alone does not exist anywhere upstream; and because the window resets on a clock rather than on work completed, repetition is free from the client's point of view. The application is the only place a per-workload running total can live."
+    }
+  ],
+  "build_hypothesis": "A persisted allocation ledger that the driver consults before it starts a run: it holds spend-to-date over a rolling window keyed by workload, hands the next run only the remainder of the allocation, records the actual charge when the run ends, and refuses to launch with a message naming the amount already spent, so cumulative spend is bounded by construction rather than by how often the run happens to be relaunched.",
+  "tags": [
+    "budget",
+    "scheduler",
+    "unattended",
+    "runaway"
+  ],
+  "check": {
+    "id": "CHK-097",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "client\\.(?:messages|responses)\\.create|chat\\.completions\\.create|Runner\\.run|create_react_agent|AgentExecutor|agent\\.invoke\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.sh",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)while\\s+true|schedule\\.every|BackgroundScheduler|BlockingScheduler|crontab|StartInterval|systemd|launchd|nohup\\s|relaunch|respawn|restart_loop|supervisord"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.sh",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)while\\s+true|schedule\\.every|BackgroundScheduler|BlockingScheduler|crontab|StartInterval|systemd|launchd|nohup\\s|relaunch|respawn|restart_loop|supervisord"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "max_turns|max_iterations|max_steps|recursion_limit|max_cost|max_tokens|budget"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.sh",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)cumulative|spend_to_date|spent_to_date|total_spent|lifetime_spend|spend_ledger|budget_ledger|usage_ledger|spend_state|budget_state|rolling_(?:spend|budget|window)|(?:daily|weekly|monthly)_(?:spend|budget|cap|cost)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.sh",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go"
+      ],
+      "pattern": "(?i)cumulative|spend_to_date|spent_to_date|total_spent|lifetime_spend|spend_ledger|budget_ledger|usage_ledger|spend_state|budget_state|rolling_(?:spend|budget|window)|(?:daily|weekly|monthly)_(?:spend|budget|cap|cost)"
+    },
+    "manual_question": "Your driver relaunches the agent unattended and each run carries its own bound. What holds spend-to-date across those runs, and what refuses to start run number four hundred when the allocation for the window is already gone?",
+    "rationale": "The signature is a relaunching or scheduled driver plus a per-run bound plus no identifier anywhere in the tree for a running total: consumption is bounded within a process and forgotten between processes. Both halves matter, which is why the relaunch term is required rather than assumed. The rule can be wrong in two ways. A project may keep its running total in an external system, a billing gateway or a metrics backend, and spell none of these identifiers, which reads as PRESENT when the accounting genuinely exists elsewhere. And spelling a cumulative identifier is not proof that the total gates the launch decision, which is why a match yields ABSENT only as a positively identified mitigation and both signatures together escalate to MANUAL. The absence rule is deliberately broad, so any project that so much as names a rolling or daily spend figure escapes a PRESENT verdict rather than being accused.",
+    "fixtures": {
+      "bad": {
+        "runner/loop.sh": "#!/bin/sh\n# Unattended driver: relaunch the agent forever, one bounded run at a time.\nwhile true; do\n  python3 -m app.run\n  sleep 900\ndone\n",
+        "app/run.py": "\"\"\"One bounded agent run. The bound is per run and nothing outlives the process.\"\"\"\n\nfrom langgraph.prebuilt import create_react_agent\n\nfrom app.tools import TOOLS\n\nMAX_COST_USD_PER_RUN = 2.50\n\nagent = create_react_agent(model=\"claude-sonnet-4-5\", tools=TOOLS)\n\n\ndef main() -> None:\n    # This run cannot exceed its own allocation. The driver starts a fresh\n    # process every fifteen minutes, and each fresh process starts at zero.\n    agent.invoke(\n        {\"messages\": [(\"user\", \"continue the roadmap\")]},\n        config={\"recursion_limit\": 120, \"max_cost\": MAX_COST_USD_PER_RUN},\n    )\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "app/tools.py": "TOOLS = []\n"
+      },
+      "good": {
+        "runner/loop.sh": "#!/bin/sh\n# Unattended driver: relaunch the agent forever, one bounded run at a time.\nwhile true; do\n  python3 -m app.run\n  sleep 900\ndone\n",
+        "app/run.py": "\"\"\"One bounded agent run that charges against an allocation outliving the process.\"\"\"\n\nfrom langgraph.prebuilt import create_react_agent\n\nfrom app.ledger import SpendLedger\nfrom app.tools import TOOLS\n\nMAX_COST_USD_PER_RUN = 2.50\n\nagent = create_react_agent(model=\"claude-sonnet-4-5\", tools=TOOLS)\n\n\ndef main() -> None:\n    ledger = SpendLedger.load()\n    allowance = ledger.remaining_for_next_run(MAX_COST_USD_PER_RUN)\n    if allowance <= 0:\n        raise SystemExit(ledger.explain_refusal())\n    agent.invoke(\n        {\"messages\": [(\"user\", \"continue the roadmap\")]},\n        config={\"recursion_limit\": 120, \"max_cost\": allowance},\n    )\n    ledger.record(allowance)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "app/ledger.py": "\"\"\"Spend accounting that survives the process, because the process is not the unit.\n\nA per-run bound is only a bound if the run happens once. Under a scheduler, a\nsupervisor, or a self-relaunching driver, N runs of a bounded allocation is an\nunbounded bill, and each fresh process honestly reports itself as compliant.\nSo the allocation has to be held somewhere that outlives any single run and be\ncharged before the next one is admitted.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport json\nimport os\nimport tempfile\nimport time\nfrom dataclasses import dataclass, field\n\nSTATE = os.environ.get(\"AGENT_SPEND_STATE\", \"var/spend.json\")\nWINDOW_SECONDS = 7 * 24 * 3600\nWEEKLY_CAP_USD = 40.0\n\n\n@dataclass\nclass SpendLedger:\n    entries: list[dict] = field(default_factory=list)\n\n    @classmethod\n    def load(cls) -> \"SpendLedger\":\n        try:\n            with open(STATE, encoding=\"utf-8\") as fh:\n                return cls(entries=json.load(fh))\n        except FileNotFoundError:\n            return cls()\n\n    def spend_to_date(self) -> float:\n        floor = time.time() - WINDOW_SECONDS\n        return sum(e[\"usd\"] for e in self.entries if e[\"at\"] >= floor)\n\n    def remaining_for_next_run(self, requested_usd: float) -> float:\n        left = WEEKLY_CAP_USD - self.spend_to_date()\n        return min(requested_usd, max(left, 0.0))\n\n    def explain_refusal(self) -> str:\n        return (\n            f\"refusing to start: {self.spend_to_date():.2f} USD already spent in the \"\n            f\"current window against a cap of {WEEKLY_CAP_USD:.2f} USD\"\n        )\n\n    def record(self, usd: float) -> None:\n        self.entries.append({\"at\": time.time(), \"usd\": usd})\n        os.makedirs(os.path.dirname(STATE) or \".\", exist_ok=True)\n        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(STATE) or \".\")\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as fh:\n            json.dump(self.entries, fh)\n        os.replace(tmp, STATE)\n",
+        "app/tools.py": "TOOLS = []\n"
+      }
+    }
+  }
+}

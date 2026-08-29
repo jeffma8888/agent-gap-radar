@@ -1,0 +1,116 @@
+{
+  "id": "GAP-085",
+  "title": "A benchmark harness cannot tell its own infrastructure failure from an agent capability failure, so both land in one denominator",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My harness caught every exception and scored it zero, so the afternoon the container registry was rate-limited my agent lost eight points, and the number I published cannot distinguish a model that failed the task from a task that never ran.",
+  "symptom": "A score moves without any change to the agent or the prompt; re-running a subset recovers the points; the results file has one field per task saying pass or fail and no field saying the environment never came up, so the only way to find out is to read logs the harness did not keep.",
+  "why_now": "An agent task executes a container, a network, a tool server and a grader, so the number of ways a run can fail for reasons that are not the agent grew by an order of magnitude, while the outcome vocabulary inherited from single-turn benchmarks stayed binary. Benchmark maintainers have fixed instances of this by hand-curating task sets, which proves the problem is real and leaves the harness contract unchanged: there is still no standard slot in which a run can say I was never validly attempted.",
+  "existing": [
+    "Human-curated benchmark subsets that remove unsolvable or badly specified tasks: they fix one task list at one point in time, and say nothing about a run that fails on a healthy task because the environment did not come up on that attempt.",
+    "Containerised evaluation harnesses: reduce the rate of environment failures without giving the outcome a name, so the residual failures are still counted against the agent.",
+    "Retry-on-exception in the runner: hides the transient case and hides the count with it, so a task that needed nine attempts and a task that needed one are indistinguishable in the published score.",
+    "Reading the logs afterwards: works for a person debugging one run and does not survive into the artifact anyone else reads, which is where the claim about capability is actually made."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "From benchmarks to deployment: a comprehensive review of agentic AI evaluation",
+      "locator": "https://link.springer.com/article/10.1007/s10462-026-11571-0",
+      "date": "2026-04-24",
+      "quote": "This review is unique in its positioning of evaluation methodology, but not model capability, as the principal constraint to reliable agent deployment.",
+      "note": "Peer-reviewed systematic review of 15 agent benchmarks (Artificial Intelligence Review, Springer; journal-article per Crossref, created 2026-04-24). It places the binding constraint on evaluation methodology rather than on model capability, which is the premise of this record: the harness, not the agent, decides what a failure means."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Introducing SWE-bench Verified",
+      "locator": "https://openai.com/index/introducing-swe-bench-verified/",
+      "date": "2025-02-24",
+      "quote": "It is sometimes difficult to reliably set up the SWE-bench development environments for the agents, inadvertently causing unit tests to fail regardless of the solution.",
+      "note": "The exact mechanism, stated by the team that had to correct for it: an environment that does not come up produces a failing test, and the harness records that as the agent failing. Date is the Updated date printed on the page I fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Introducing SWE-bench Verified",
+      "locator": "https://openai.com/index/introducing-swe-bench-verified/",
+      "date": "2025-02-24",
+      "quote": "We see that 38.3% of samples were flagged for underspecified problem statements, and 61.1% were flagged for unit tests that may unfairly mark valid solutions as incorrect.",
+      "note": "Magnitude, measured by 93 annotators over 1,699 samples of the most-cited agent benchmark. A majority of graded outcomes were decided by something other than whether the agent solved the problem, and the harness had no way to say so."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "However, we show that many agentic benchmarks have issues in task setup or reward design.",
+      "note": "Independent audit finding the same class of defect across many benchmarks rather than one. Classed practitioner-report and not peer-reviewed on purpose: the arXiv page I fetched names no accepted venue, and its own abstract describes guidelines synthesised from the authors' benchmark-building experience."
+    }
+  ],
+  "build_hypothesis": "A five-valued run outcome in the results schema - passed, failed, graded-invalid, harness-error, not-attempted - plus a runner that only maps an exception to failed when the exception came from the agent process, and a scorer that reports the denominator it used. The smallest useful version is the schema plus a scorer that refuses to divide by the full task count when any run is harness-error.",
+  "tags": [
+    "evals",
+    "benchmarks",
+    "attribution",
+    "harness"
+  ],
+  "check": {
+    "id": "CHK-084",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)def\\s+\\w*(eval|benchmark|grade|score|resolve)\\w*\\s*\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "except\\s+(Exception|BaseException)\\s*(as\\s+\\w+\\s*)?:"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.md"
+          ],
+          "pattern": "(?i)(harness[_ -]?error|infra(structure)?[_ -]?error|environment[_ -]?error|setup[_ -]?(error|fail)|Outcome\\.ERROR|ERRORED|infeasible|unresolvable|invalid[_ -]task|not[_ -]attempted|excluded[_ -]from[_ -]denominator)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(harness[_ -]?error|infra(structure)?[_ -]?error|environment[_ -]?error|setup[_ -]?(error|fail)|Outcome\\.ERROR|ERRORED|infeasible|unresolvable|invalid[_ -]task|not[_ -]attempted|excluded[_ -]from[_ -]denominator)"
+    },
+    "manual_question": "When a task run fails because the environment, the tool server or the grader failed rather than the agent, what value does the results file record, and is that value excluded from the denominator of the published score?",
+    "rationale": "A scoring or grading function plus a catch-all except clause, in a tree that never spells any name for a non-agent failure (harness error, environment error, infeasible, not attempted), is the signature: every failure mode collapses into the agent's score because no other outcome exists to record. It can be wrong two ways. A project may attribute correctly using vocabulary this list does not know, which reads PRESENT when it is not - hence the manual question. And a project may merely define such a name in a config or an enum it never reaches on the failure path, which reads as mitigated when the mitigation is dead code, so the mitigated side is a claim to verify by hand rather than a pass.",
+    "fixtures": {
+      "bad": {
+        "evals/runner.py": "from harness import run_agent, grade, load_tasks\n\n\ndef score_task(task):\n    try:\n        trace = run_agent(task)\n    except Exception:\n        return 0.0\n    return 1.0 if grade(task, trace) else 0.0\n\n\ndef score_all():\n    tasks = load_tasks()\n    return sum(score_task(t) for t in tasks) / len(tasks)\n",
+        "README.md": "Scores each task pass or fail and prints the mean.\n"
+      },
+      "good": {
+        "evals/runner.py": "import enum\n\nfrom harness import EnvironmentSetupError, run_agent, grade, load_tasks\n\n\nclass Outcome(str, enum.Enum):\n    PASS = \"pass\"\n    FAIL = \"fail\"\n    HARNESS_ERROR = \"harness_error\"\n\n\ndef score_task(task):\n    try:\n        trace = run_agent(task)\n    except EnvironmentSetupError:\n        return Outcome.HARNESS_ERROR\n    except Exception:\n        return Outcome.FAIL\n    return Outcome.PASS if grade(task, trace) else Outcome.FAIL\n\n\ndef score_all():\n    outcomes = [score_task(t) for t in load_tasks()]\n    attempted = [o for o in outcomes if o is not Outcome.HARNESS_ERROR]\n    broken = len(outcomes) - len(attempted)\n    passed = sum(1 for o in attempted if o is Outcome.PASS)\n    return {\"accuracy\": passed / max(len(attempted), 1),\n            \"attempted\": len(attempted), \"harness_error\": broken}\n",
+        "README.md": "Scores each task and reports how many runs never validly started, excluded from the denominator.\n"
+      }
+    }
+  }
+}

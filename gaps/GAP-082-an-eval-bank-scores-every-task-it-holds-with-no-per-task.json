@@ -1,0 +1,158 @@
+{
+  "id": "GAP-082",
+  "title": "An eval bank scores every task it holds with no per-task validity attestation, so a defective task is billed to the agent",
+  "layer": "eval-verification",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent scores 41 percent on my task bank and I cannot tell you how many of the 59 percent it missed were tasks that no correct agent could ever have passed, because nothing in the bank records whether a task was ever checked for being solvable.",
+  "symptom": "A pass rate that moves when someone rewrites a task or a grader rather than when the agent changes; recurring failures that on inspection turn out to be an ambiguous prompt or a grader asserting a detail the prompt never stated, and no record of which tasks were already known to be like that.",
+  "why_now": "The two largest public audits of agentic benchmarks both found task validity, not agent capability, to be the dominant error term, and both had to add a human attestation pass to fix it. Yet the attestation is a property of THEIR dataset release, not a field any in-house bank carries, so every team that builds its own bank re-inherits the defect and has no way to report which tasks were vetted.",
+  "existing": [
+    "Publishing a curated subset such as a verified split: fixes one public dataset at one point in time and does nothing for an in-house bank, and the attestation is not carried per task in a form a harness can enforce.",
+    "Flakiness quarantine borrowed from CI: catches a task that fails intermittently, but a consistently unsolvable task is not flaky, it is stably wrong, so quarantine never fires on it.",
+    "Manual triage of failures each release: finds defective tasks, but the finding lives in a ticket or a person's head rather than in the task record, so the next run scores the same broken task again."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Introducing SWE-bench Verified",
+      "locator": "https://openai.com/index/introducing-swe-bench-verified/",
+      "date": "2024-08-13",
+      "quote": "We see that 38.3% of samples were flagged for underspecified problem statements, and 61.1% were flagged for unit tests that may unfairly mark valid solutions as incorrect.",
+      "note": "A first-party measurement of the size of the error term. 93 developers annotated 1,699 samples of a benchmark in wide production use, and the majority of samples carried a validity defect; the same page states that 68.3% of samples were filtered out. That is the quantity an unattested bank silently attributes to the agent."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "However, we show that many agentic benchmarks have issues in task setup or reward design. For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "Classified survey-aggregate rather than peer-reviewed deliberately: the arXiv abstract page lists no venue, only page and figure counts, and the paper describes itself as synthesised from a survey of best practices and previously reported issues. It establishes that the defect survives curation - the already-verified split is one of its examples - so a one-off human pass is not a substitute for a per-task attestation the harness enforces."
+    }
+  ],
+  "build_hypothesis": "One required field on the task record plus one refusal in the harness. Every task carries a validity attestation (who checked it, when, solvable yes or no, and the reason if not), and the harness refuses to put an unattested or attested-unsolvable task in the denominator, reporting the held-out set alongside the score. The smallest useful version is a linter over an existing bank that prints what fraction of tasks carry no attestation and what the pass rate becomes when those are excluded.",
+  "tags": [
+    "evals",
+    "benchmark-gap",
+    "task-validity",
+    "measurement",
+    "denominator"
+  ],
+  "check": {
+    "id": "CHK-081",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "**/evals/**/*.py",
+        "**/eval/**/*.py",
+        "**/*eval*.py",
+        "**/*grader*.py",
+        "**/*scorer*.py",
+        "**/*benchmark*.py",
+        "**/*harness*.py",
+        "evals/**/*.json",
+        "evals/**/*.jsonl",
+        "evals/**/*.yaml",
+        "evals/**/*.yml",
+        "eval/**/*.json",
+        "eval/**/*.jsonl",
+        "**/tasks/**/*.json",
+        "**/tasks/**/*.jsonl"
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "**/*eval*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*benchmark*.py",
+            "**/*harness*.py",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "eval/**/*.json",
+            "eval/**/*.jsonl",
+            "**/tasks/**/*.json",
+            "**/tasks/**/*.jsonl"
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:human[_-]?(?:verified|validated|annotated)|task[_-]?validity|validity[_-]?(?:label|flag|status|score)|underspecified|under[_-]?specified|unsolvable|not[_-]?solvable|solvable|annotator|invalid[_-]?task|task[_-]?invalid|exclud\\w*[_-]?reason|exclusion[_-]?reason|known[_-]?bad[_-]?task|verified[_-]?subset|sample[_-]?quality|task[_-]?reviewed)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:human[_-]?(?:verified|validated|annotated)|task[_-]?validity|validity[_-]?(?:label|flag|status|score)|underspecified|under[_-]?specified|unsolvable|not[_-]?solvable|solvable|annotator|invalid[_-]?task|task[_-]?invalid|exclud\\w*[_-]?reason|exclusion[_-]?reason|known[_-]?bad[_-]?task|verified[_-]?subset|sample[_-]?quality|task[_-]?reviewed)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:(?:skip|exclud|filter|drop|quarantin)\\w*[^\\n]{0,60}(?:invalid|unsolvable|underspecified|unverified|not[_-]?solvable|validity)|(?:invalid|unsolvable|underspecified|unverified|validity)[^\\n]{0,60}(?:skip|exclud\\w*|filter|drop|raise|assert|continue))"
+        }
+      ]
+    },
+    "manual_question": "For your eval bank: which tasks has a human attested are actually solvable and unambiguously specified, and where is that attestation recorded? If the answer is nowhere, you cannot tell a failing agent from a broken task, and your denominator is wrong by an unknown amount.",
+    "rationale": "A repo that ships an eval bank but carries no validity vocabulary anywhere in its code or data has no per-task attestation, so its denominator includes tasks nobody ever checked. The mitigation deliberately requires two things: the attestation vocabulary AND evidence that something acts on it, because a field nobody enforces leaves the broken task in the score. Markdown is excluded from the absence search on purpose - a README discussing task quality is not a recorded per-task label. Known failure modes: a bank that names the field outside this vocabulary reads as mitigated when it is not, and a repo that uses the word solvable or annotator for an unrelated purpose while also having enforcement-shaped text reads as mitigated, which is why the manual question asks where the attestation is recorded rather than trusting the lexical hit.",
+    "fixtures": {
+      "bad": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Fix the crash reported in issue 4120\", \"expect\": \"tests_pass\"}\n{\"id\": \"t2\", \"prompt\": \"Make the parser accept trailing commas\", \"expect\": \"tests_pass\"}\n{\"id\": \"t3\", \"prompt\": \"Resolve the regression in the billing report\", \"expect\": \"tests_pass\"}\n",
+        "evals/run_bank.py": "\"\"\"Score every task in the bank and report one pass rate.\"\"\"\nimport json\n\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\"):\n    tasks = load(path)\n    hits = 0\n    for task in tasks:\n        if agent(task[\"prompt\"]) == task[\"expect\"]:\n            hits += 1\n    # Every task counts the same. A task whose grader can never pass is\n    # charged to the agent exactly like a task the agent simply failed.\n    return {\"pass_rate\": hits / len(tasks), \"n\": len(tasks)}\n"
+      },
+      "good": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Fix the crash reported in issue 4120\", \"expect\": \"tests_pass\", \"validity\": {\"human_verified\": true, \"solvable\": true, \"reviewers\": 3}}\n{\"id\": \"t2\", \"prompt\": \"Make the parser accept trailing commas\", \"expect\": \"tests_pass\", \"validity\": {\"human_verified\": true, \"solvable\": true, \"reviewers\": 3}}\n{\"id\": \"t3\", \"prompt\": \"Resolve the regression in the billing report\", \"expect\": \"tests_pass\", \"validity\": {\"human_verified\": true, \"solvable\": false, \"reviewers\": 3, \"exclude_reason\": \"underspecified prompt, grader requires a detail the prompt never states\"}}\n",
+        "evals/run_bank.py": "\"\"\"Score only tasks a human attested are solvable, and report what was held out.\"\"\"\nimport json\n\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\"):\n    tasks = load(path)\n    scored, held_out = [], []\n    for task in tasks:\n        v = task.get(\"validity\") or {}\n        if not v.get(\"human_verified\") or not v.get(\"solvable\"):\n            # Filter invalid tasks out of the denominator instead of billing\n            # them to the agent, and keep the reason so the bank is auditable.\n            held_out.append({\"id\": task[\"id\"], \"reason\": v.get(\"exclude_reason\", \"unverified\")})\n            continue\n        scored.append(agent(task[\"prompt\"]) == task[\"expect\"])\n    return {\n        \"pass_rate\": sum(scored) / len(scored),\n        \"n_scored\": len(scored),\n        \"held_out\": held_out,\n    }\n"
+      }
+    }
+  }
+}

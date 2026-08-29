@@ -1,0 +1,109 @@
+{
+  "id": "GAP-096",
+  "title": "Context compaction is irreversible by default, so a span the summariser drops leaves no handle the agent can read back",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My run hit the context limit, a summariser rewrote the history, and the constraint that was keeping it safe is simply gone -- there is no handle in the new window that lets the agent go and read the span that was discarded.",
+  "symptom": "After a compaction boundary the agent contradicts a decision it made earlier, re-does work it already did, or violates a rule that was stated once before the boundary; the summary reads plausibly and names nothing that is missing.",
+  "why_now": "Compaction shipped as the first lever for long-horizon work, and the vendors that ship it describe it as a lossy judgement call rather than a reversible transform. The loss is not detectable from the new window: the summary is fluent, and the only artifact that would show what went missing is the pre-compaction transcript, which most stacks do not keep addressably. Nothing in the message-history APIs carries a span identity a later turn could resolve.",
+  "existing": [
+    "Tuning the compaction prompt for recall first: improves what the summariser keeps on the traces you tested, but it is still a one-way transform with no contract about what must survive.",
+    "Tool-result clearing: the lightest-touch form, and the safest because the call remains visible, but it covers tool output only and not reasoning, decisions or instructions.",
+    "Sub-agent architectures that return a distilled summary: this relocates the loss to a boundary instead of removing it, and the lead agent still cannot read what the sub-agent discarded.",
+    "Restorable compression as a hand-rolled convention (drop a page body, keep its URL; drop a file body, keep its path): this is the actual fix, and it is a per-project discipline rather than a primitive any framework enforces or verifies."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later",
+      "note": "The vendor that ships compaction in Claude Code states the failure mode directly, and states it as a tuning problem: the recommended remedy is prompt tuning on complex traces, not a restorable handle. The same page defines compaction as summarising a conversation and reinitiating a new context window with the summary, which is what makes the drop unaddressable."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "locator": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "date": "2025-07-18",
+      "quote": "From a logical standpoint, any irreversible compression carries risk.",
+      "note": "A production agent team reaches the contract this gap asks for and states it as a design rule: the same page says overly aggressive compression inevitably leads to information loss, that you cannot predict which observation becomes critical ten steps later, and that their compression strategies are always designed to be restorable. That the fix has to be re-derived per project is the gap."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Don't Build Multi-Agents",
+      "locator": "https://cognition.ai/blog/dont-build-multi-agents",
+      "date": "2025-06-12",
+      "quote": "we introduce a new LLM model whose key purpose is to compress a history of actions & conversation into key details, events, and decisions. This is hard to get right.",
+      "note": "An independent team building a long-running agent describes history compression as a separate model that is hard to get right and may need fine-tuning, i.e. a probabilistic component in the path, with no mention of a restorable reference for what it drops."
+    }
+  ],
+  "build_hypothesis": "A restorability contract for compaction: before any span leaves the window, persist it and leave a resolvable handle (path, URL or span id) inside the summary, plus a restore(handle) tool the agent may call. Then a compaction that cannot emit a handle for what it dropped fails loudly instead of silently, and the check becomes decidable.",
+  "tags": [
+    "compaction",
+    "context-window",
+    "long-horizon",
+    "irreversible"
+  ],
+  "check": {
+    "id": "CHK-095",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(compact|summari[sz]e|condense|trim|prune)_?(context|history|messages|conversation|transcript|window)|(context|history|messages|conversation|transcript)_?(compact|summari[sz]e|condense)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(compact|summari[sz]e|condense|trim|prune)_?(context|history|messages|conversation|transcript|window)|(context|history|messages|conversation|transcript)_?(compact|summari[sz]e|condense)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md"
+          ],
+          "pattern": "(?i)restor|rehydrat|re-?read|raw_transcript|full_transcript|transcript_path|pre_?compact|archive_path|replay_log|span_id"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)restor|rehydrat|raw_transcript|full_transcript|transcript_path|pre_?compact|archive_path|replay_log"
+    },
+    "manual_question": "When your run compacts its history, what handle does the new window carry that lets the agent read back a span the summariser discarded? If the answer is nothing, the compaction is irreversible and its losses are undetectable from inside the run.",
+    "rationale": "The signature is a compaction or history-summarisation call site with no vocabulary anywhere for restoring, rehydrating or addressing the pre-compaction transcript. It can be wrong in two ways worth naming: a project that keeps a restorable handle under a name outside this vocabulary reads as PRESENT (a false positive an operator resolves in one look), and a project that merely stores a full transcript for offline debugging without exposing it to the agent reads as mitigated when the agent still cannot reach it, so the mitigation is credited generously and this check under-reports rather than over-reports.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "MAX_TOKENS = 180000\n\n\ndef compact_history(messages, model):\n    \"\"\"Summarise the conversation and begin a new window from the summary.\"\"\"\n    summary = model.summarize(messages)\n    return [{\"role\": \"user\", \"content\": summary}] + messages[-2:]\n\n\ndef step(messages, model):\n    if count_tokens(messages) > MAX_TOKENS:\n        messages = compact_history(messages, model)\n    return model.call(messages)\n",
+        "README.md": "An agent loop that summarises its conversation when the window fills.\n"
+      },
+      "good": {
+        "app/loop.py": "MAX_TOKENS = 180000\n\n\ndef compact_history(messages, model, store):\n    \"\"\"Summarise the conversation, but leave every dropped span addressable.\"\"\"\n    transcript_path = store.persist(messages)\n    summary = model.summarize(messages)\n    summary += f\"\\ndropped spans remain readable at: {transcript_path}\"\n    return [{\"role\": \"user\", \"content\": summary}] + messages[-2:]\n\n\ndef restore_span(store, transcript_path, span):\n    \"\"\"Tool the agent may call to rehydrate what compaction discarded.\"\"\"\n    return store.read(transcript_path, span)\n",
+        "README.md": "An agent loop whose compaction is restorable: dropped spans keep a transcript_path handle.\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "id": "GAP-100",
+  "title": "The only brake on a runaway agent counts steps, not progress, so a loop repeating one identical action spends its entire allowance and every step looks valid",
+  "layer": "cost-governance",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent called the same tool with the same arguments forty times, and because each call was individually legal and under the step cap, nothing stopped it until the allowance was gone.",
+  "symptom": "A run consumes its whole step, token or dollar allowance and returns nothing useful. The transcript shows a small number of distinct actions repeated many times, no error is raised, no limit is breached before the last one, and the only observable is the invoice or the exhausted quota. An operator who reads the trace can see the repetition in seconds, which is exactly what makes the absence of a machine check galling.",
+  "why_now": "Every mainstream agent loop terminates on a counter or a clock. LangChain decides whether to continue from the iteration count and elapsed time only, and its own field documentation warns that removing the cap can lead to an infinite loop, which concedes that the loop has no other termination argument. Nothing in the loop compares the current action to the actions already taken, so the cheapest possible runaway signal, the same action with the same arguments N times in a row, is unavailable to the thing paying for it. Frameworks treat repetition as a prompt-quality problem to be fixed with better instructions, so the brake lives in text the model may ignore rather than in the driver.",
+  "existing": [
+    "Step and turn caps (LangChain max_iterations default 15, max_execution_time, agent-SDK turn limits, graph recursion limits). These bound the WORST CASE cost and nothing else: a loop that makes no progress spends the entire cap before stopping, and a loop doing genuinely varied work is cut off at the same number.",
+    "A reported bug against llama_index shows the cap is not even reliably terminal in practice, which makes a progress-based brake the only independent stop condition.",
+    "Prompt-level guidance (do not repeat a failed tool call, scale effort to the task) puts the brake in text the model is free to ignore, and the operator cannot audit whether it fired.",
+    "Framework-level caching of identical tool calls suppresses the COST of a repeat while leaving the loop running, so it can make a livelock cheaper and longer rather than stopping it, and it does nothing when the tool is non-deterministic or side-effecting."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_classic/agents/agent.py (LangChain, master)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/langchain/langchain_classic/agents/agent.py",
+      "date": "2026-08-18",
+      "quote": "def _should_continue(self, iterations: int, time_elapsed: float) -> bool:",
+      "note": "Fetched from the LangChain repository. This is the whole continuation decision for AgentExecutor: its only arguments are a step count and elapsed time. No property of the trajectory, such as whether the last action repeated an earlier one, is available to it, which is the missing primitive this record names."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_classic/agents/agent.py (LangChain, master)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/langchain/langchain_classic/agents/agent.py",
+      "date": "2026-08-18",
+      "quote": "Setting to 'None' could lead to an infinite loop.",
+      "note": "The docstring of the max_iterations field, immediately below its declaration with a default of 15. It states plainly that the counter is the only thing between the loop and non-termination, so the counter is simultaneously the runaway brake and the spend cap, and neither job is done well by a number of steps."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[Bug]: Infinite ReAct loop when setting max_iterations as 1",
+      "locator": "https://github.com/run-llama/llama_index/issues/16499",
+      "date": "2024-10-14",
+      "quote": "When I set max_iterations to 1, my ReAct Agent stuck in infinite loop.",
+      "note": "A user bug report on the llama_index repository: the step cap was set to its tightest possible value and the loop still did not terminate, reported for version 0.11.14 as shown on the fetched page. Direct evidence that a counter is a weak brake, so a progress-based stop is not redundant with it. Date is approximate, inferred from the issue number sequence and the reported version rather than from a machine-readable timestamp on the page."
+    }
+  ],
+  "build_hypothesis": "A repetition brake in the driver, not the prompt: fingerprint each proposed action as a hash of the tool name plus canonicalised arguments, count fingerprints within the run, and refuse the call once a fingerprint exceeds a small allowance, raising a distinct no-progress error that names the offending action. Under a hundred lines as a wrapper around one framework tool-dispatch hook, with the count exported so an operator can see how much of a run was repetition.",
+  "tags": [
+    "cost",
+    "runaway",
+    "loop",
+    "no-progress",
+    "brake"
+  ],
+  "check": {
+    "id": "CHK-099",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "while\\s+True|for\\s+\\w+\\s+in\\s+range\\(|max_iterations\\s*[=:]|max_turns\\s*[=:]|max_steps\\s*[=:]|maxSteps\\s*[=:]|recursion_limit\\s*[=:]|MAX_STEPS|MAX_ITERATIONS|MAX_TURNS"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "tool_calls|tool_use|function_call|messages\\.create|chat\\.completions\\.create|responses\\.create|invoke_model|generate_content|AgentExecutor|create_react_agent|Runner\\.run|create_tool_calling_agent"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "while\\s+True|for\\s+\\w+\\s+in\\s+range\\(|max_iterations\\s*[=:]|max_turns\\s*[=:]|max_steps\\s*[=:]|maxSteps\\s*[=:]|recursion_limit\\s*[=:]|MAX_STEPS|MAX_ITERATIONS|MAX_TURNS"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "tool_calls|tool_use|function_call|messages\\.create|chat\\.completions\\.create|responses\\.create|invoke_model|generate_content|AgentExecutor|create_react_agent|Runner\\.run|create_tool_calling_agent"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)no[_-]?progress|loop[_-]?detect\\w*|stagnat\\w*|oscillat\\w*|livelock|(?:repeat|repeated|duplicate|identical|redundant)[_-]?(?:action|call|tool|step|state|invocation)s?|(?:action|call|tool|step|state)[_-]?(?:hash|fingerprint|signature|digest)|seen[_-]?(?:actions|calls|states|steps|tool_calls|invocations)|progress[_-]?(?:check|guard|metric|monitor|budget|assertion)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)no[_-]?progress|loop[_-]?detect\\w*|stagnat\\w*|oscillat\\w*|livelock|(?:repeat|repeated|duplicate|identical|redundant)[_-]?(?:action|call|tool|step|state|invocation)s?|(?:action|call|tool|step|state)[_-]?(?:hash|fingerprint|signature|digest)|seen[_-]?(?:actions|calls|states|steps|tool_calls|invocations)|progress[_-]?(?:check|guard|metric|monitor|budget|assertion)"
+    },
+    "manual_question": "In this agent loop, what stops it if the model proposes the same tool call with the same arguments over and over? Point at the line that compares a proposed action against the actions already taken. If the only stop conditions are a step count and a clock, the cost of a livelock is the full allowance every time.",
+    "rationale": "A project that runs a bounded tool-calling loop and never names repetition, a per-action fingerprint, a set of seen actions, or a no-progress condition anywhere in its tracked source has no brake other than the counter. The mitigation side looks for the vocabulary of a progress check in code that runs, and test files are excluded from it so a suite that merely mentions loop detection cannot credit the target. What it can get wrong: the brake may be enforced outside the repository, in a gateway or in a framework version the project pins, which this lexical check cannot see, so PRESENT means the repo shows no in-tree progress brake and the manual question needs an answer rather than that a livelock is proven. Conversely a variable named seen_actions that is never consulted would read as mitigated, which is why the manual question asks for the line that refuses the call.",
+    "fixtures": {
+      "bad": {
+        "app/react_loop.py": "\"\"\"ReAct-style tool loop. The step cap is the only thing that can stop it.\"\"\"\n\nimport json\nimport os\n\nfrom openai import OpenAI\n\nclient = OpenAI(api_key=os.environ[\"OPENAI_API_KEY\"])\nMAX_STEPS = 50\nTOOLS = [{\"type\": \"function\", \"function\": {\"name\": \"web_search\"}}]\n\n\ndef dispatch(name: str, args: dict) -> str:\n    \"\"\"Run one tool. Nothing here or above cares whether we ran this before.\"\"\"\n    return TOOL_IMPLS[name](**args)\n\n\ndef run(question: str) -> str:\n    messages = [{\"role\": \"user\", \"content\": question}]\n    for _ in range(MAX_STEPS):\n        reply = client.chat.completions.create(\n            model=\"gpt-4.1\", messages=messages, tools=TOOLS\n        )\n        choice = reply.choices[0].message\n        if not choice.tool_calls:\n            return choice.content\n        messages.append(choice)\n        for call in choice.tool_calls:\n            args = json.loads(call.function.arguments)\n            result = dispatch(call.function.name, args)\n            messages.append(\n                {\"role\": \"tool\", \"tool_call_id\": call.id, \"content\": result}\n            )\n    # Fifty turns of whatever the model chose to do, billed in full.\n    return messages[-1][\"content\"]\n"
+      },
+      "good": {
+        "app/react_loop.py": "\"\"\"ReAct-style tool loop with a no-progress brake, not only a step cap.\"\"\"\n\nimport hashlib\nimport json\nimport os\nfrom collections import Counter\n\nfrom openai import OpenAI\n\nclient = OpenAI(api_key=os.environ[\"OPENAI_API_KEY\"])\nMAX_STEPS = 50\nIDENTICAL_ACTION_ALLOWANCE = 3\nTOOLS = [{\"type\": \"function\", \"function\": {\"name\": \"web_search\"}}]\n\n\nclass NoProgress(RuntimeError):\n    \"\"\"The loop is spending money without changing state.\"\"\"\n\n\ndef action_fingerprint(name: str, args: dict) -> str:\n    payload = json.dumps([name, args], sort_keys=True).encode(\"utf-8\")\n    return hashlib.sha256(payload).hexdigest()\n\n\ndef dispatch(name: str, args: dict) -> str:\n    return TOOL_IMPLS[name](**args)\n\n\ndef run(question: str) -> str:\n    messages = [{\"role\": \"user\", \"content\": question}]\n    seen_actions: Counter[str] = Counter()\n    for _ in range(MAX_STEPS):\n        reply = client.chat.completions.create(\n            model=\"gpt-4.1\", messages=messages, tools=TOOLS\n        )\n        choice = reply.choices[0].message\n        if not choice.tool_calls:\n            return choice.content\n        messages.append(choice)\n        for call in choice.tool_calls:\n            args = json.loads(call.function.arguments)\n            fingerprint = action_fingerprint(call.function.name, args)\n            seen_actions[fingerprint] += 1\n            if seen_actions[fingerprint] > IDENTICAL_ACTION_ALLOWANCE:\n                raise NoProgress(\n                    f\"{call.function.name} called {seen_actions[fingerprint]} times \"\n                    \"with identical arguments: halting before the step cap\"\n                )\n            result = dispatch(call.function.name, args)\n            messages.append(\n                {\"role\": \"tool\", \"tool_call_id\": call.id, \"content\": result}\n            )\n    return messages[-1][\"content\"]\n"
+      }
+    }
+  }
+}

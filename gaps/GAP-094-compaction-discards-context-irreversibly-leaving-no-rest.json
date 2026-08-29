@@ -1,0 +1,107 @@
+{
+  "id": "GAP-094",
+  "title": "Compaction discards context irreversibly, leaving no restorable handle to what it dropped",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "Compaction summarised my run an hour ago, the one detail I now need is gone, and there is no pointer back to the message it came from, so I cannot get it back at any price.",
+  "symptom": "After a compaction event the agent asks for something it was already told, contradicts a decision it made earlier, or redoes finished work. The pre-compaction transcript contained the answer and the post-compaction context does not, and nothing raised an error, so the loss is only ever diagnosed backwards from the wrong behaviour.",
+  "why_now": "Compaction is the default long-horizon lever in shipped agent products and it is implemented as a summarisation prompt tuned for recall. A summariser cannot know which observation becomes load-bearing ten steps later, so every lossy compaction is a bet placed on the operator's behalf. The engineering answer is not a better prompt but a restorability contract - never drop a block without leaving a handle to it - and that contract is absent from most implementations, so the failure is unrecoverable rather than merely likely.",
+  "existing": [
+    "Tuning the compaction prompt for recall: lowers the loss rate, remains best-effort, and nothing asserts what actually survived.",
+    "Tool-result clearing: safe precisely because a tool result can be called again, so it is the restorable special case rather than a general answer.",
+    "Larger context windows: postpone the compaction event without removing it, and long inputs degrade on their own terms.",
+    "Structured note-taking to a file: preserves what the agent thought to write down, which is the same judgement call that just failed.",
+    "Logging the raw transcript for humans: recovers the bytes for an operator reading logs, but the agent has no handle it can dereference mid-run."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "locator": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "date": "2025-07-18",
+      "quote": "you can't reliably predict which observation might become critical ten steps later",
+      "note": "First-party field report from a production agent. States the mechanism directly: the compactor cannot know what will matter later, so lossy compaction is unavoidably a bet. The post's next sentence generalises it - any irreversible compression carries risk."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "locator": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "date": "2025-07-18",
+      "quote": "the content of a web page can be dropped from the context as long as the URL is preserved",
+      "note": "The same team names the contract that closes the gap: drop the payload, keep a dereferenceable handle. This is evidence the fix is known and cheap, which is why its absence elsewhere is a gap rather than an open research problem."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later",
+      "note": "Vendor-primary description of compaction as implemented in a shipped agent. The recommended remedy is prompt tuning for recall, not a restorability guarantee, which is exactly the missing contract this record names. Publication date read from Anthropic's own engineering index, which lists this post as Sep 29, 2025."
+    }
+  ],
+  "build_hypothesis": "A compaction wrapper that refuses to drop a block without leaving a handle: write the pre-compaction message list to a content-addressed file, replace each dropped span with a one-line reference to its archive id and offsets, and expose a restore(ref, first, last) tool the agent can call. Compaction then degrades to a cache miss instead of a permanent loss, and the property is testable - for a sample of dropped spans, assert the agent can recover the original bytes.",
+  "tags": [
+    "compaction",
+    "context-window",
+    "long-horizon",
+    "irreversible"
+  ],
+  "check": {
+    "id": "CHK-093",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "def\\s+compact|compact_(?:context|history|messages)|summari[sz]e_(?:history|messages|conversation|context)|trim_messages|truncate_(?:history|messages|context)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "def\\s+compact|compact_(?:context|history|messages)|summari[sz]e_(?:history|messages|conversation|context)|trim_messages|truncate_(?:history|messages|context)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "restorable|restore_from|raw_transcript|full_transcript|archive_transcript|pre_compaction|transcript_offset"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "restorable|restore_from|raw_transcript|full_transcript|archive_transcript|pre_compaction|transcript_offset"
+    },
+    "manual_question": "When your agent compacts or summarises its history, can it still get back a message the summary dropped? Name the handle it dereferences to do that. If the only copy is a human-readable log, the agent cannot recover mid-run and the compaction is irreversible.",
+    "rationale": "A compaction path is easy to identify lexically, and the presence of a restorable handle has a small, stable vocabulary (an archived transcript, an offset, a restore entry point). The check pairs a positive match on the compaction code with the absence of any restorability vocabulary in shipping source. It can be wrong in two ways worth stating: a project that keeps a handle under a name outside this vocabulary reads as PRESENT (a false positive resolved by the manual question), and a project whose only restorable path is an external log store its agent cannot call may match the vocabulary and read as mitigated when it is not. The mitigation half is evaluated with test files excluded, so a restore helper that exists only in a test cannot earn an ABSENT.",
+    "fixtures": {
+      "bad": {
+        "app/compaction.py": "\"\"\"Keep the run under the context limit.\"\"\"\n\nMAX_TOKENS = 150000\n\n\ndef summarize_history(client, messages):\n    \"\"\"Replace the message list with a model-written summary of it.\"\"\"\n    text = \"\\n\".join(m[\"content\"] for m in messages)\n    summary = client.complete(\"Summarize this agent run, keeping what matters:\\n\" + text)\n    return [{\"role\": \"user\", \"content\": summary}]\n\n\ndef maybe_compact(client, messages, used_tokens):\n    if used_tokens < MAX_TOKENS:\n        return messages\n    return summarize_history(client, messages)\n"
+      },
+      "good": {
+        "app/compaction.py": "\"\"\"Keep the run under the context limit, without losing anything.\"\"\"\n\nimport json\nimport pathlib\nimport uuid\n\nMAX_TOKENS = 150000\nARCHIVE = pathlib.Path(\"state/transcripts\")\n\n\ndef _archive(messages):\n    \"\"\"Persist the pre-compaction messages and return a handle to them.\"\"\"\n    ref = uuid.uuid4().hex\n    ARCHIVE.mkdir(parents=True, exist_ok=True)\n    (ARCHIVE / (ref + \".json\")).write_text(json.dumps(messages))\n    return ref\n\n\ndef restore_from(ref, first, last):\n    \"\"\"Read back a span of messages a compaction dropped.\"\"\"\n    raw_transcript = json.loads((ARCHIVE / (ref + \".json\")).read_text())\n    return raw_transcript[first:last]\n\n\ndef summarize_history(client, messages):\n    \"\"\"Summarize, but leave a restorable handle to every dropped message.\"\"\"\n    ref = _archive(messages)\n    text = \"\\n\".join(m[\"content\"] for m in messages)\n    summary = client.complete(\"Summarize this agent run, keeping what matters:\\n\" + text)\n    pointer = \"Dropped %d messages. restore_from(%r, first, last) to read any of them.\" % (\n        len(messages), ref)\n    return [{\"role\": \"user\", \"content\": summary + \"\\n\" + pointer}]\n\n\ndef maybe_compact(client, messages, used_tokens):\n    if used_tokens < MAX_TOKENS:\n        return messages\n    return summarize_history(client, messages)\n"
+      }
+    }
+  }
+}

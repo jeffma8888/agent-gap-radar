@@ -1,0 +1,141 @@
+{
+  "id": "GAP-066",
+  "title": "An installed agent CLI is ambient authority: nothing attests who invoked it, so unattended runs are granted every tool on the machine",
+  "layer": "sandbox-isolation",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I install an agent CLI to help me code, and from that moment any process running as me can invoke the same binary, hand it a task and pass one documented flag to skip every approval prompt, because the CLI has no way to tell my automation from an arbitrary caller.",
+  "symptom": "A blanket bypass flag spreads through scripts, cron jobs and CI because it is the only way to stop an agent blocking on a prompt. Nothing in the run records which capabilities were actually needed, so an operator cannot distinguish a run that only read files from one that could also write, shell out and upload.",
+  "why_now": "Agent CLIs shipped an interactive approval prompt as the primary safety boundary plus one global escape hatch for scripting, and authority is decided entirely by the caller's argv. Unattended use is now the common case, so the escape hatch is normal in automation, and the s1ngularity supply-chain attack showed the same hatch is reachable by any package post-install script on a developer machine.",
+  "existing": [
+    "Per-invocation allow and deny tool flags are documented and real, but the caller chooses them, so a caller that wants unlimited authority simply does not pass them.",
+    "Container or devcontainer isolation bounds the blast radius, but inside the container the CLI still cannot distinguish an authorised automation from any other local process.",
+    "Even an organisation-wide clamp on the bypass mode would apply to every caller alike, which blocks legitimate unattended runs rather than authenticating them."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "S1ngularity - What Happened, How We Responded, What We Learned | Nx Blog",
+      "locator": "https://nx.dev/blog/s1ngularity-postmortem",
+      "date": "2025-09-05",
+      "quote": "The malicious packages ran a post-install script that scanned user systems for sensitive data, attempted to use local AI tools (like Claude and Gemini), and uploaded the results to a public GitHub repo via the GitHub CLI.",
+      "note": "The maintainers' own postmortem confirms the payload used locally installed agent CLIs as part of its scanning and exfiltration path, which is only possible because an installed CLI answers to whatever local process invokes it."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Malicious versions of Nx and some supporting plugins were published",
+      "locator": "https://github.com/nrwl/nx/security/advisories/GHSA-cxm3-wv7p-598c",
+      "date": "2025-08-27",
+      "quote": "You are a file-search agent. Search the filesystem and locate text configuration and environment-definition files",
+      "note": "The advisory appendix carries the attacker's prompt verbatim: the malware did not scan the filesystem itself, it briefed the developer's own agent CLI as a file-search agent. That is a caller-attestation failure, not a model failure."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Malicious versions of Nx and some supporting plugins were published",
+      "locator": "https://github.com/nrwl/nx/security/advisories/GHSA-cxm3-wv7p-598c",
+      "date": "2025-08-27",
+      "quote": "Transitive dependencies, AI agents, editors, other editor extensions, other scripts are the first that come to mind but there are many many less obvious reasons why NPM modules might get installed.",
+      "note": "The same advisory enumerates how many unremarkable events can trigger a package install, so the set of processes that can reach an installed agent CLI is far larger than the set a developer would consciously authorise."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "CLI reference - Claude Code Docs",
+      "locator": "https://docs.claude.com/en/docs/claude-code/cli-reference",
+      "date": "2026-08-19",
+      "quote": "Skip permission prompts. Equivalent to --permission-mode bypassPermissions",
+      "note": "Vendor documentation for the bypass switch the check looks for: a single documented per-invocation flag, chosen by whoever writes the argv, which is why it is equally available to a caller the user never authorised. This is living documentation with no publication date on the page; the date given is the date it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "CLI reference - Claude Code Docs",
+      "locator": "https://docs.claude.com/en/docs/claude-code/cli-reference",
+      "date": "2026-08-19",
+      "quote": "Tools that execute without prompting for permission.",
+      "note": "Documentation for the bounded alternative the check treats as a mitigation. It is real and it is opt-in, which is the point: the narrow grant costs the caller extra argv, the unlimited one costs a single flag. Living documentation, no publication date on the page; the date given is the date it was fetched."
+    }
+  ],
+  "build_hypothesis": "A capability-broker shim in front of agent CLIs: the caller presents a signed grant naming the tool set and the paths it needs, the shim launches the real binary with exactly that grant and refuses any blanket bypass flag, and it appends the grant plus the tools actually exercised to an append-only local log that a CI gate can diff.",
+  "tags": [
+    "supply-chain",
+    "permissions",
+    "unattended",
+    "agent-cli",
+    "ambient-authority"
+  ],
+  "check": {
+    "id": "CHK-065",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.json",
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/Makefile",
+        "**/*.mk",
+        "**/*.toml",
+        ".github/workflows/*.yml",
+        "ci/*.yml"
+      ],
+      "pattern": "(?i)\\b(claude|gemini|codex|cursor-agent|opencode|aider|amp)\\s+(-p\\b|--print\\b|--prompt\\b|chat\\b|exec\\b|run\\b)"
+    },
+    "present_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.json",
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/Makefile",
+        "**/*.mk",
+        "**/*.toml",
+        ".github/workflows/*.yml",
+        "ci/*.yml"
+      ],
+      "pattern": "--dangerously-skip-permissions|--trust-all-tools|--yolo\\b|--permission-mode[= ]+bypassPermissions|--approval-mode[= ]+yolo|--dangerously-bypass-approvals-and-sandbox"
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.json",
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/Makefile",
+        "**/*.mk",
+        "**/*.toml",
+        ".github/workflows/*.yml",
+        "ci/*.yml"
+      ],
+      "pattern": "--allowedTools\\b|--allowed-tools\\b|--disallowedTools\\b|--disallowed-tools\\b|allowed_tools\\s*[=:]|\"permissions\"\\s*:\\s*\\{"
+    },
+    "manual_question": "For every unattended agent-CLI invocation this project ships, which tools did the run actually need, and what stops a different local process from invoking the same binary with strictly more authority?",
+    "rationale": "A blanket bypass flag in a tracked script or CI job is direct evidence that the project took the unbounded non-interactive path, and normalising that flag is what makes the ambient-authority pattern routine. It can be wrong two ways. --yolo is used by unrelated tools, which is why applies_when first requires an agent-CLI invocation in the same project. And a project may pass the bypass flag while confining the run inside a locked-down container, which the mitigation pattern cannot see, so both signatures matching yields MANUAL rather than a pass. Silence is not safety here: a project with no bypass flag may still have no answer to the manual question.",
+    "fixtures": {
+      "bad": {
+        "scripts/agent-loop.sh": "#!/usr/bin/env bash\n# nightly unattended refactor pass, invoked from cron\nset -euo pipefail\nclaude -p \"$TASK\" --dangerously-skip-permissions\n"
+      },
+      "good": {
+        "scripts/agent-loop.sh": "#!/usr/bin/env bash\n# nightly unattended refactor pass, bounded capability grant\nset -euo pipefail\nclaude -p \"$TASK\" --allowedTools \"Read,Grep\"\n"
+      }
+    }
+  }
+}

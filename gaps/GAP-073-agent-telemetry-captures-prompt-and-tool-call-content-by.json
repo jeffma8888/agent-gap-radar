@@ -1,0 +1,128 @@
+{
+  "id": "GAP-073",
+  "title": "Agent telemetry captures prompt and tool-call content by default, and redaction is an opt-in nothing requires",
+  "layer": "observability",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I switched on tracing to debug my agent, and now every credential, secret and personal detail my prompts and tool calls touched is sitting verbatim in a span store nobody ever classified as a data store.",
+  "symptom": "Spans and logs hold full prompts, tool arguments and tool results; no one can say which of them contain PII or API keys, and the redaction hook the SDK offers was never wired, so the leak is discovered by an auditor or by an exposed collector rather than by the team.",
+  "why_now": "The GenAI telemetry conventions make message content, system instructions and tool-call arguments first-class span attributes, and the popular instrumentation libraries capture that content unless told not to, while masking is a callback the application must supply. The leaky configuration therefore requires no action and the safe one requires per-SDK work at every exporter, so tracing adoption outran anyone owning what the spans hold.",
+  "existing": [
+    "Per-SDK content switches and mask hooks exist (TRACELOOP_TRACE_CONTENT, Langfuse mask_otel_spans) but they are opt-in, vendor-specific, and unverified: nothing tells an operator whether the flag was set in the process that is actually exporting.",
+    "Masking that runs inside one client's exporter does not cover a second exporter on the same spans, which Langfuse documents explicitly, so a repo can be masked and leaking at the same time.",
+    "Scrubbing at the collector or the log sink is downstream of the leak: the plaintext already crossed a network boundary and is retained by whoever owns that hop."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Wiz Research Uncovers Exposed DeepSeek Database Leaking Sensitive Information, Including Chat History",
+      "locator": "https://www.wiz.io/blog/wiz-research-uncovers-exposed-deepseek-database-leak",
+      "date": "2025-01-29",
+      "quote": "The exposure includes over a million lines of log streams containing chat history, secret keys, backend details, and other highly sensitive information.",
+      "note": "A realised instance of the harm this gap describes: the AI application's own log stream held chat history and secret keys in plaintext, so the telemetry pipeline was itself the sensitive data store. Publication date taken from the article:published_time metadata on the page."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Prompts, Completions and Embeddings - traceloop",
+      "locator": "https://www.traceloop.com/docs/openllmetry/privacy/traces",
+      "date": "2026-08-25",
+      "quote": "By default, OpenLLMetry logs prompts, completions, and embeddings to span attributes.",
+      "note": "The wrong-default half of the gap, stated by the instrumentation vendor: content capture is on until an environment variable turns it off. The same page says you may want to disable this logging for privacy reasons. The page carries no publication date, so the date recorded is the date it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Masking - Langfuse",
+      "locator": "https://langfuse.com/docs/observability/features/masking",
+      "date": "2026-08-25",
+      "quote": "To prevent sensitive data from being sent to Langfuse, you can provide a mask function to the LangfuseSpanProcessor.",
+      "note": "The opt-in half: redaction is a function the application supplies to one client's span processor. The same page states that a separate exporter receives its own unmodified copy of the spans, which is why masking in one place is not repo-wide safety. No publication date on the page; date recorded is the fetch date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Gen AI | OpenTelemetry",
+      "locator": "https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/",
+      "date": "2026-08-25",
+      "quote": "The system message or instructions provided to the GenAI model separately from the chat history.",
+      "note": "Shows the telemetry standard itself defines content-bearing attributes (system instructions, input and output messages, tool call arguments and results), so a conformant instrumentation has a sanctioned place to put every secret a prompt contains. Registry page is versioned, not dated; date recorded is the fetch date."
+    }
+  ],
+  "build_hypothesis": "A fail-closed span-attribute policy: a declarative allowlist naming every span attribute key an exporter may carry plus a required sensitivity label per key, enforced by a processor that DROPS any content-bearing attribute with no label, and a CI assertion that the processor is installed on every exporter registered in the process rather than on one client.",
+  "tags": [
+    "observability",
+    "tracing",
+    "secrets",
+    "pii",
+    "redaction"
+  ],
+  "check": {
+    "id": "CHK-072",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.go",
+        "**/*.java"
+      ],
+      "pattern": "(?i)(traceloop|langfuse|langsmith|openinference|openllmetry|opentelemetry|arize|phoenix\\.otel|braintrust|langwatch|helicone)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.java"
+          ],
+          "pattern": "(?i)(gen_ai\\.(?:prompt|completion|input\\.messages|output\\.messages|system_instructions|tool\\.call)|set_attribute\\(\\s*[\\\"'](?:gen_ai|llm|input|output|prompt)|Traceloop\\.init\\(|LangfuseSpanProcessor|LANGSMITH_TRACING|LANGCHAIN_TRACING)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)(mask_otel_spans|mask\\s*=\\s*\\w|redact|scrub|anonymi[sz]|presidio|AnalyzerEngine|TRACELOOP_TRACE_CONTENT|trace_content|sanitiz)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.go",
+        "**/*.java",
+        "**/*.env*",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/Dockerfile*"
+      ],
+      "pattern": "(?i)(mask_otel_spans|mask\\s*=\\s*\\w|redact|scrub|anonymi[sz]|presidio|AnalyzerEngine|TRACELOOP_TRACE_CONTENT|trace_content|sanitiz)"
+    },
+    "manual_question": "For every exporter registered in this process, not just the vendor SDK you configured: what stops a prompt, tool argument or tool result containing a credential or personal data from being written into a span attribute, and who can name the retention period of the store those spans land in?",
+    "rationale": "The signature is an LLM tracing SDK plus code that writes model or tool content into span attributes, with no redaction or content-disable token anywhere in the tracked tree. It can be wrong in two directions: a repo whose provider SDK captures content implicitly, with no explicit set_attribute call, will read as not applicable even though it leaks, and a repo that merely names a redaction helper somewhere will read as mitigated even if that helper is attached to only one of several exporters, which is why the manual question asks per exporter.",
+    "fixtures": {
+      "bad": {
+        "app/tracing.py": "\"\"\"Agent tracing wiring. Every LLM call is exported to a hosted span store.\"\"\"\n\nimport os\n\nfrom traceloop.sdk import Traceloop\nfrom opentelemetry import trace\n\nTraceloop.init(app_name=\"support-agent\", api_key=os.environ[\"TRACELOOP_API_KEY\"])\ntracer = trace.get_tracer(__name__)\n\n\ndef answer(user_message: str, system_prompt: str, tools: list) -> str:\n    with tracer.start_as_current_span(\"chat\") as span:\n        span.set_attribute(\"gen_ai.prompt.0.content\", system_prompt)\n        span.set_attribute(\"gen_ai.prompt.1.content\", user_message)\n        result = call_model(system_prompt, user_message, tools)\n        span.set_attribute(\"gen_ai.completion.0.content\", result[\"text\"])\n        span.set_attribute(\"gen_ai.tool.call.arguments\", json.dumps(result[\"tool_args\"]))\n        return result[\"text\"]\n",
+        "pyproject.toml": "[project]\nname = \"support-agent\"\ndependencies = [\"traceloop-sdk\", \"opentelemetry-sdk\"]\n"
+      },
+      "good": {
+        "app/tracing.py": "\"\"\"Agent tracing wiring. Every LLM call is exported to a hosted span store.\"\"\"\n\nimport os\n\nfrom traceloop.sdk import Traceloop\nfrom opentelemetry import trace\n\nTraceloop.init(app_name=\"support-agent\", api_key=os.environ[\"TRACELOOP_API_KEY\"])\ntracer = trace.get_tracer(__name__)\n\n\ndef answer(user_message: str, system_prompt: str, tools: list) -> str:\n    with tracer.start_as_current_span(\"chat\") as span:\n        span.set_attribute(\"gen_ai.prompt.0.content\", system_prompt)\n        span.set_attribute(\"gen_ai.prompt.1.content\", user_message)\n        result = call_model(system_prompt, user_message, tools)\n        span.set_attribute(\"gen_ai.completion.0.content\", result[\"text\"])\n        span.set_attribute(\"gen_ai.tool.call.arguments\", json.dumps(result[\"tool_args\"]))\n        return result[\"text\"]\n\n\n# Export-stage attribute policy: content-bearing span attributes are rewritten\n# before any exporter sees them. Installed on every exporter in this process.\nfrom langfuse import Langfuse\nfrom langfuse.types import MaskOtelSpansResult, OtelSpanPatch\n\nCONTENT_KEYS = (\"gen_ai.prompt\", \"gen_ai.completion\", \"gen_ai.tool.call.arguments\")\n\n\ndef mask_otel_spans(*, params):\n    patches = {}\n    for identifier, span in params.spans.items():\n        drop = tuple(k for k in span.attributes if k.startswith(CONTENT_KEYS))\n        if drop:\n            patches[identifier] = OtelSpanPatch(delete_attributes=drop)\n    return MaskOtelSpansResult(span_patches=patches)\n\n\nlangfuse = Langfuse(mask_otel_spans=mask_otel_spans)\n",
+        "pyproject.toml": "[project]\nname = \"support-agent\"\ndependencies = [\"traceloop-sdk\", \"opentelemetry-sdk\", \"langfuse\"]\n"
+      }
+    }
+  }
+}

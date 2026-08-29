@@ -1,0 +1,107 @@
+{
+  "id": "GAP-060",
+  "title": "Agent tracing records the raw prompt, tool arguments and tool output, and redaction is an opt-in hook",
+  "layer": "observability",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I added tracing so I could debug my agent, and in doing so I built a second, permanent copy of every customer secret and every piece of personal data that ever passed through a prompt, in a system with different access control from the one the data came from.",
+  "symptom": "A trace viewer shows a full system prompt with an API key in it, or a tool result containing a customer record, and the same payload is now in a third-party SaaS backend, a log index and whatever else the OpenTelemetry pipeline fans out to.",
+  "why_now": "Observability is the first thing an agent team adds and the redaction hook is the last: every major tracing SDK ships full-payload capture ON and a masking callback OFF, so the instrumented path is the leaking path and nothing in the SDK fails when the hook is absent.",
+  "existing": [
+    "Masking and scrubbing callbacks exist in the tracing SDKs, but they are constructor arguments the integrator must supply; omitting one is silent and looks identical to a correctly configured client.",
+    "Provider-side zero-retention and log-redaction settings cover the model vendor's copy, not the copy the app's own tracing pipeline writes.",
+    "PII detectors such as Presidio can be wired into a masking hook, but nothing in the default install points them at the span attributes that carry the prompt."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "Wiz Research Uncovers Exposed DeepSeek Database Leaking Sensitive Information, Including Chat History",
+      "locator": "https://www.wiz.io/blog/wiz-research-uncovers-exposed-deepseek-database-leak",
+      "date": "2026-08-19",
+      "quote": "over a million lines of log streams containing chat history, secret keys, backend details, and other highly sensitive information",
+      "note": "Direct evidence that the leaked artifact was the TELEMETRY, not the model: log streams carrying plaintext prompts and API secrets together. Retrieved 2026-08-19; the page as fetched prints no publication date, so the date field is the retrieval date. The page does state the exposed logs date from January 6, 2025."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Masking - Langfuse",
+      "locator": "https://langfuse.com/docs/observability/features/masking",
+      "date": "2026-08-19",
+      "quote": "To prevent sensitive data from being sent to Langfuse, you can provide a mask function to the LangfuseSpanProcessor.",
+      "note": "The maintainer documents redaction as a hook the integrator CAN provide, which makes recording the raw payload the default path. Retrieved 2026-08-19; the page carries no publication date, so the date field is the retrieval date rather than an asserted publication date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2026-08-19",
+      "quote": "This includes personal identifiable information (PII), financial details, health records, confidential business data, security credentials, and legal documents.",
+      "note": "The OWASP GenAI Top 10 entry that defines the data class at risk; names security credentials alongside PII, which is the pairing this gap is about. Retrieved 2026-08-19; the page carries no publication date, so the date field is the retrieval date rather than an asserted publication date."
+    }
+  ],
+  "build_hypothesis": "A tracing wrapper that refuses to initialise without an explicit payload policy: the client takes a required argument that is either a redaction callable or the literal opt-out token, so the leaking configuration has to be typed out on purpose and is greppable in review.",
+  "tags": [
+    "observability",
+    "traces",
+    "redaction",
+    "secrets",
+    "pii",
+    "wrong-default"
+  ],
+  "check": {
+    "id": "CHK-059",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)langfuse|langsmith|LANGCHAIN_TRACING|openinference|traceloop|braintrust|helicone|arize|phoenix\\.otel|opentelemetry"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)Langfuse\\s*\\(|@observe\\s*\\(|@traceable|LangChainInstrumentor|OpenAIInstrumentor|Traceloop\\.init|LANGCHAIN_TRACING_V2|LangfuseSpanProcessor|wrap_openai\\s*\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)mask|redact|scrub|sanitiz|anonymi|presidio|hide_inputs|hide_outputs|\\bpii\\b"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(?:mask|mask_otel_spans|hide_inputs|hide_outputs|redact\\w*|scrub\\w*)\\s*[=:]|def\\s+\\w*(?:mask|redact|scrub|sanitiz|anonymi)\\w*\\s*\\(|presidio"
+    },
+    "manual_question": "Name the code path that removes secrets and personal data from a span before it leaves this process. If tracing is enabled and no such path exists, what is in the trace of a request that carried a bearer token or a customer record?",
+    "rationale": "A tracing SDK is initialised and no masking, redaction or scrubbing hook appears anywhere in the shipped code, which means spans carry whatever the prompt and the tool output contained. It can be wrong two ways: a collector-side processor or a gateway can strip payloads outside this repo, and a repo may capture only metadata by configuration rather than by a named hook, so a target with no signature and no mitigation is reported MANUAL rather than clean.",
+    "fixtures": {
+      "bad": {
+        "app/tracing.py": "from langfuse import Langfuse, observe\n\nlangfuse = Langfuse()\n\n\n@observe()\ndef answer(user_email, question):\n    prompt = \"User \" + user_email + \" asks: \" + question\n    return call_model(prompt)\n"
+      },
+      "good": {
+        "app/tracing.py": "import re\n\nfrom langfuse import Langfuse, observe\n\nEMAIL = re.compile(r\"[\\w.-]+@[\\w.-]+\")\n\n\ndef mask_contact_details(*, data, **kwargs):\n    if isinstance(data, str):\n        return EMAIL.sub(\"[REMOVED EMAIL]\", data)\n    return data\n\n\nlangfuse = Langfuse(mask=mask_contact_details)\n\n\n@observe()\ndef answer(user_email, question):\n    prompt = \"User \" + user_email + \" asks: \" + question\n    return call_model(prompt)\n"
+      }
+    }
+  }
+}

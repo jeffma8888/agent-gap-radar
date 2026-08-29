@@ -1,0 +1,122 @@
+{
+  "id": "GAP-065",
+  "title": "The injection screen sits on the operator's prompt while tool results re-enter the context unscreened on every later turn",
+  "layer": "orchestration",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I bought an injection filter and wired it where the text arrives from my user, which is the one boundary an indirect injection never crosses; the hostile sentence comes back on turn four inside a fetched page and goes straight into the context.",
+  "symptom": "The guard's counters show it running on every request and refusing almost nothing, because it only ever inspects operator text. Meanwhile the loop appends fetched pages, issue threads and retrieved documents to the message list untouched, and the successful attack leaves no trace in the guard's metrics at all.",
+  "why_now": "Input validation on the user-facing edge is the reflex every web-security-trained team brings, and the libraries encourage it: a screen function is easy to call once at the top of a handler and awkward to thread through an agent loop that appends tool output on each iteration. Indirect injection inverts the threat model, so the boundary worth defending is the one where tool output re-enters the context, and in 2026 no mainstream agent framework makes screening that boundary the default or fails loudly when it is unscreened.",
+  "existing": [
+    "Input-boundary filters and jailbreak classifiers applied to the user's prompt: correct for direct injection, and structurally unable to see an instruction that arrives on a tool result.",
+    "Provider-side classifiers over the whole context: Anthropic reports them cutting targeted attack success from 23.6 percent to 11.2 percent rather than to zero, so a screen on the right boundary is still probabilistic and the residual has to be assumed rather than eliminated.",
+    "Delimiters and spotlighting around fetched content: they mark the span for the model to notice, they do not run a decision over it, and the attacker controls the bytes inside the fence.",
+    "Screening only what a retriever returns: covers the RAG path and misses tool results generally, which is where MCP servers, browsers and mail readers deliver.",
+    "This is distinct from the register's existing provenance gap, which asks whether any component knows a span is untrusted. Here a decision procedure exists and is deliberately wired to the wrong edge, so the finding and its fix are different: the repo does not need a taint system, it needs the call it already owns moved inside the loop."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Piloting Claude in Chrome",
+      "locator": "https://www.anthropic.com/news/claude-for-chrome",
+      "date": "2025-12-18",
+      "quote": "malicious actors hide instructions in websites, emails, or documents to trick AIs into harmful actions",
+      "note": "Date is the latest update stamp printed on the page. States the delivery channel: the hostile instruction arrives inside fetched pages, mail and documents, i.e. on a tool result, not in the operator's prompt."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Piloting Claude in Chrome",
+      "locator": "https://www.anthropic.com/news/claude-for-chrome",
+      "date": "2025-12-18",
+      "quote": "When we added safety mitigations to autonomous mode, we reduced the attack success rate of 23.6% to 11.2%, which represents a meaningful improvement over our existing Computer Use capability",
+      "note": "Date is the latest update stamp printed on the page. The vendor's own measured residual: with permissions, hardened system prompts, category blocks and classifiers all enabled, roughly one in nine targeted attacks still succeeded."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "The lethal trifecta for AI agents: private data, untrusted content, and external communication",
+      "locator": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/",
+      "date": "2025-06-16",
+      "quote": "They will happily follow any instructions that make it to the model, whether or not they came from their operator or from some other source.",
+      "note": "States why the boundary choice is the whole question: origin carries no weight inside the model, so a screen that only inspects operator text leaves the channel the attack actually uses undefended."
+    }
+  ],
+  "build_hypothesis": "Make the unscreened path the one that is hard to write: a single append_untrusted(context, span, origin) entry point that every tool result must pass through, a loop that refuses to append raw strings, and a test that walks the loop's call graph and fails if any tool return value reaches the message list without transiting the screen. Small, mechanical, and it converts a convention into a build error.",
+  "tags": [
+    "prompt-injection",
+    "indirect-injection",
+    "agent-loop",
+    "tool-results",
+    "wrong-boundary"
+  ],
+  "check": {
+    "id": "CHK-064",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx"
+      ],
+      "pattern": "messages\\.create|chat\\.completions\\.create|invoke_model|generate_content|llm\\.(?:invoke|complete|generate)|client\\.responses\\.create"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx"
+          ],
+          "pattern": "def\\s+\\w*(?:sanitiz|sanitis|scrub|screen|detect_injection|check_injection|injection_(?:guard|screen|filter|check)|filter_prompt|guard_prompt)\\w*\\s*\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx"
+          ],
+          "pattern": "tool_result|tool_output|tool_response|observation|function_result|retrieved_docs"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx"
+          ],
+          "pattern": "(?:sanitiz|sanitis|scrub|screen|detect_injection|check_injection|injection_guard|injection_screen|injection_filter|injection_check|guard)\\w*\\s*\\(\\s*(?:tool_result|tool_output|tool_response|observation|function_result|retrieved|retrieved_docs|document|page_text|fetched)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx"
+      ],
+      "pattern": "(?:sanitiz|sanitis|scrub|screen|detect_injection|check_injection|injection_guard|injection_screen|injection_filter|injection_check|guard)\\w*\\s*\\(\\s*(?:tool_result|tool_output|tool_response|observation|function_result|retrieved|retrieved_docs|document|page_text|fetched)"
+    },
+    "manual_question": "You have an injection screen. Name every span of text it inspects. Does a page your agent fetched on turn four pass through it before it is appended to the message list, or does the screen only ever see what your user typed on turn one?",
+    "rationale": "A repo that defines an injection or sanitisation screen, feeds tool results back into a model context, and never applies the screen to a tool-result-shaped identifier has put its decision procedure on the direct-injection boundary only. What it can get wrong: a project may screen via a wrapper or a decorator whose call site does not name the tool result, which reads as PRESENT when the boundary is in fact covered; and a screen applied to a tool result but only in a logging branch matches the mitigation without gating anything. The manual question is the fallback for both.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"Agent loop. The injection screen runs once, on the operator prompt.\"\"\"\n\n\ndef screen_for_injection(text):\n    return \"ignore previous instructions\" not in text.lower()\n\n\ndef run(user_prompt, client, tools):\n    if not screen_for_injection(user_prompt):\n        raise ValueError(\"refused: injected operator prompt\")\n    messages = [{\"role\": \"user\", \"content\": user_prompt}]\n    while True:\n        reply = client.messages.create(messages=messages)\n        if not reply.tool_calls:\n            return reply\n        for call in reply.tool_calls:\n            tool_result = tools[call.name](**call.arguments)\n            messages.append({\"role\": \"tool\", \"content\": tool_result})\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"Agent loop. Every tool result transits the screen before it is appended.\"\"\"\n\n\ndef screen_for_injection(text):\n    return \"ignore previous instructions\" not in text.lower()\n\n\ndef run(user_prompt, client, tools):\n    if not screen_for_injection(user_prompt):\n        raise ValueError(\"refused: injected operator prompt\")\n    messages = [{\"role\": \"user\", \"content\": user_prompt}]\n    while True:\n        reply = client.messages.create(messages=messages)\n        if not reply.tool_calls:\n            return reply\n        for call in reply.tool_calls:\n            tool_result = tools[call.name](**call.arguments)\n            if not screen_for_injection(tool_result):\n                tool_result = \"[withheld: tool result failed the injection screen]\"\n            messages.append({\"role\": \"tool\", \"content\": tool_result})\n"
+      }
+    }
+  }
+}

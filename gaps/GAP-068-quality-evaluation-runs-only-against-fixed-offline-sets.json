@@ -1,0 +1,117 @@
+{
+  "id": "GAP-068",
+  "title": "Quality evaluation runs only against fixed offline sets, so a serving-path regression is invisible until users complain",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My eval suite passed on every commit and my users still got degraded answers for four weeks, because the suite never once exercised the path that actually serves them.",
+  "symptom": "Benchmarks green, canaries green, and a rising volume of user reports that no internal signal reproduces. Each report looks like normal variation, and the investigation starts only when the volume becomes undeniable.",
+  "why_now": "Eval tooling in 2026 is built around a static dataset run in CI against a pinned endpoint. The defects that actually degrade production are in the serving path itself, which CI does not touch: request routing, per-platform kernel and compiler behaviour, load-balancer changes, and per-shard misconfiguration. There is no widely available primitive for continuously scoring the live path, so the gate and the failure live in different systems.",
+  "existing": [
+    "CI eval suites against a fixed dataset: they pin the endpoint and the config, which is exactly what removes the variable that broke.",
+    "Canary deploys with spot checks: they sample a small group briefly and were explicitly insufficient in the incident cited below.",
+    "Latency and error-rate SLOs: a misrouted or miscompiled request returns HTTP 200 with a plausible body, so no availability metric moves."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Although we run regular evaluations on our systems, we will run them continuously on true production systems to catch issues such as the context window load balancing error.",
+      "note": "The vendor names the missing primitive itself as a remediation: evaluation existed and ran regularly, but not continuously against the true production system, which is why a routing bug degraded responses for weeks."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "More fundamentally, we relied too heavily on noisy evaluations.",
+      "note": "Same postmortem, the diagnosis rather than the remedy: the offline signal was too noisy to separate a real regression from variation, so the absence of a live-path measurement had nothing to fall back on."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Sycophancy in GPT-4o: What happened and what we are doing about it",
+      "locator": "https://openai.com/index/sycophancy-in-gpt-4o/",
+      "date": "2025-04-29",
+      "quote": "Expanding ways for more users to test and give direct feedback before deployment.",
+      "note": "Independent instance of the same class at another vendor: a behavioural regression shipped past the existing evaluation set, and the remediation is to widen the population that exercises the real system rather than to add another offline case."
+    }
+  ],
+  "build_hypothesis": "A continuous production-path prober: a small fixed set of graded prompts replayed against the SAME endpoint, region, and routing tier that real traffic uses, at a cadence, with per-shard and per-platform labels on every score, so that a score drop localises to a route rather than to a model. The primitive that is missing is not the grader, it is the binding of a score to the serving identity that produced it.",
+  "tags": [
+    "eval",
+    "production",
+    "serving",
+    "regression",
+    "postmortem"
+  ],
+  "check": {
+    "id": "CHK-067",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|invoke_model|generate_content|litellm\\.completion)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(eval(uation)?[_-]?(set|suite|dataset|harness|runner)|golden[_-]?(set|file|output)|\\bevals?\\b)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)(shadow[_-]?traffic|traffic[_-]?replay|replay[_-]?traffic|canary[_-]?eval|online[_-]?eval|production[_-]?eval|prod[_-]?eval|continuous[_-]?eval|live[_-]?prob|synthetic[_-]?(canary|prob)|prod[_-]?traffic[_-]?sampl)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)(shadow[_-]?traffic|traffic[_-]?replay|replay[_-]?traffic|canary[_-]?eval|online[_-]?eval|production[_-]?eval|continuous[_-]?eval|live[_-]?prob|synthetic[_-]?(canary|prob)|prod[_-]?traffic[_-]?sampl)"
+    },
+    "manual_question": "Does any scheduled job score model output by calling the same endpoint, region, and routing tier that production traffic uses, and is each score labelled with the serving identity that produced it?",
+    "rationale": "Fires when a project has an evaluation discipline but nowhere names any mechanism that scores the live serving path. What it can get wrong: a project may run a live prober from a separate repository or from an external monitoring product, in which case the signature is absent from this tree and the finding is a false positive; and a project with no evaluation discipline at all does not fire here, because that is a different gap.",
+    "fixtures": {
+      "bad": {
+        "app/llm.py": "from openai import OpenAI\n\nclient = OpenAI()\n\ndef answer(prompt: str) -> str:\n    r = client.chat.completions.create(model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}])\n    return r.choices[0].message.content\n",
+        "evals/run_eval_suite.py": "import json\n\nfrom app.llm import answer\n\n# The whole eval discipline: a fixed dataset, a pinned client, run in CI.\ndef main():\n    cases = json.load(open(\"evals/cases.json\"))\n    passed = 0\n    for case in cases:\n        got = answer(case[\"prompt\"])\n        passed += int(case[\"expect\"] in got)\n    print(f\"{passed}/{len(cases)} passed\")\n",
+        "evals/cases.json": "[{\"prompt\": \"capital of France\", \"expect\": \"Paris\"}]\n",
+        ".github/workflows/ci.yml": "on: [push]\njobs:\n  eval:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python evals/run_eval_suite.py\n"
+      },
+      "good": {
+        "app/llm.py": "from openai import OpenAI\n\nclient = OpenAI()\n\ndef answer(prompt: str) -> str:\n    r = client.chat.completions.create(model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}])\n    return r.choices[0].message.content\n",
+        "evals/run_eval_suite.py": "import json\n\nfrom app.llm import answer\n\ndef main():\n    cases = json.load(open(\"evals/cases.json\"))\n    for case in cases:\n        assert case[\"expect\"] in answer(case[\"prompt\"])\n",
+        "evals/cases.json": "[{\"prompt\": \"capital of France\", \"expect\": \"Paris\"}]\n",
+        "app/quality/online_eval.py": "\"\"\"Continuous production-path prober. Runs against the SAME endpoint real traffic uses.\n\nEvery score is labelled with the serving identity so a drop localises to a route.\n\"\"\"\nimport os\n\nfrom app.llm import answer\n\nPROBE_INTERVAL_SECONDS = 300\n\n\ndef run_online_eval_probe(case):\n    got = answer(case[\"prompt\"])\n    return {\n        \"case_id\": case[\"id\"],\n        \"scored\": case[\"expect\"] in got,\n        \"region\": os.environ[\"SERVING_REGION\"],\n        \"routing_tier\": os.environ[\"ROUTING_TIER\"],\n        \"upstream_shard\": os.environ[\"UPSTREAM_SHARD\"],\n    }\n",
+        "deploy/prober.yaml": "schedule: \"*/5 * * * *\"\ncommand: python -m app.quality.online_eval\ndescription: continuous_eval against the live production endpoint\n"
+      }
+    }
+  }
+}

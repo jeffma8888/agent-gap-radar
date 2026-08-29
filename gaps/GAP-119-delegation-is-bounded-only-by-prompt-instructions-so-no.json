@@ -1,0 +1,106 @@
+{
+  "id": "GAP-119",
+  "title": "Delegation is bounded only by prompt instructions, so no runtime component can refuse a spawn",
+  "layer": "multi-agent",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "The only thing stopping my agents from creating more agents was a sentence in a prompt, so one request quietly became dozens of agents and nothing in the call path was able to decline the next one.",
+  "symptom": "Token spend and wall-clock time for a single request jump by an order of magnitude, subagents repeat each other's work, or a nested background loop appears that nobody launched - and every layer reports success.",
+  "why_now": "Spawn and handoff are exposed as ordinary tool calls that carry no depth argument and no budget object. The published state of the art for bounding fan-out is prompt guidance about how many subagents to create, and prompt guidance is advisory: it cannot decline a call, and an agent that honours its letter can still reach the same effect by another route, such as scaffolding a detached loop that spawns later.",
+  "existing": [
+    "Prompt-embedded scaling rules that tell the orchestrator how many subagents a query class deserves: the documented production mitigation, and still advisory - a prompt cannot refuse a call.",
+    "Per-run token or cost caps: they kill the whole run after the spend has happened rather than declining the N+1th agent.",
+    "Framework recursion limits on a single agent's tool loop: they bound turns inside one agent, not the tree of agents that agent creates.",
+    "Verbatim anti-delegation clauses in the subtask string: observed to be honoured literally and then evaded by scaffolding a background loop instead of calling the spawn tool."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built our multi-agent research system",
+      "locator": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "date": "2025-06-13",
+      "quote": "Early agents made errors like spawning 50 subagents for simple queries, scouring the web endlessly for nonexistent sources, and distracting each other with excessive updates.",
+      "note": "Unbounded fan-out observed in a production system, and the post states the fix was embedding scaling rules in prompts rather than an enforced runtime bound. The same post reports multi-agent systems using about 15x the tokens of chat, which is what makes an unrefusable spawn expensive."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "INC-0016: Anti-delegation clause must forbid 'scaffold a loop' too",
+      "locator": "https://github.com/jeffma8888/agent-failure-modes/blob/main/incidents/INC-0016-anti-delegation-clause-must-forbid-scaffold-a-loop-too.md",
+      "date": "2026-08-05",
+      "quote": "Scaffolding a loop that later spawns agents was not covered by the letter of the rule.",
+      "note": "A prompt-level prohibition on nested agents was honoured exactly as written and the delegation happened anyway, by a route the prohibition did not name. This is the direct demonstration that a textual bound is not an enforceable one; the parent's exit-code check then recorded success with an empty artifact."
+    }
+  ],
+  "build_hypothesis": "A delegation budget threaded through every spawn call - remaining depth and remaining agent count - that the runtime decrements and that raises a typed refusal at zero, so the bound is enforced where the call is made instead of requested in a prompt. Second half: the budget must also gate process launch, since the observed evasion was a detached loop rather than a spawn call.",
+  "tags": [
+    "delegation",
+    "fan-out",
+    "recursion",
+    "budget"
+  ],
+  "check": {
+    "id": "CHK-118",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(spawn_agent|create_agent|sub_?agent|handoff|delegate|agent_run|Task\\()"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(spawn_agent|create_agent|spawn_subagent|sub_?agent|handoff|agent_run|delegate_to)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(max_depth|depth\\s*[+<>=]|recursion_limit|max_agents|max_subagents|max_fanout|fan_?out_limit|spawn_budget|delegation_budget|max_children|remaining_agents)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)(max_depth|recursion_limit|max_agents|max_subagents|max_fanout|fan_?out_limit|spawn_budget|delegation_budget|max_children|remaining_agents)"
+    },
+    "manual_question": "This code lets an agent create another agent. What refuses the next spawn - a counter the runtime decrements, or a sentence in a prompt? And if a child cannot spawn, what stops it from launching a detached process that does?",
+    "rationale": "A codebase with a spawn or handoff call site and no identifier anywhere for a depth counter, agent cap, or delegation budget almost certainly delegates unboundedly, with the limit living in prompt text. It can be wrong where the bound is enforced by an external scheduler or a queue's concurrency setting under a name this pattern does not know, which is why the manual question is supplied; it also cannot see the detached-process evasion route at all, so a PRESENT verdict understates the problem rather than overstating it.",
+    "fixtures": {
+      "bad": {
+        "orchestrator.py": "def spawn_agent(task: str) -> str:\n    return agent_run(task, tools=[spawn_agent, search])\n\n\ndef orchestrate(goal: str) -> list[str]:\n    return [spawn_agent(t) for t in plan(goal)]\n"
+      },
+      "good": {
+        "orchestrator.py": "MAX_DEPTH = 3\n\n\nclass DelegationRefused(Exception):\n    pass\n\n\ndef spawn_agent(task: str, depth: int, budget) -> str:\n    if depth >= MAX_DEPTH or budget.remaining_agents <= 0:\n        raise DelegationRefused('delegation budget exhausted')\n    budget.remaining_agents -= 1\n    return agent_run(task, tools=[search], depth=depth + 1, budget=budget)\n"
+      }
+    }
+  }
+}

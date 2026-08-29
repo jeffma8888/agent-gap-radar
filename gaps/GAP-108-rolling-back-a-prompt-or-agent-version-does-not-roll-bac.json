@@ -1,0 +1,195 @@
+{
+  "id": "GAP-108",
+  "title": "Rolling back a prompt or agent version does not roll back the durable state that version wrote, so the rollback restores the code path and not the behaviour",
+  "layer": "lifecycle-deploy",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I reverted the bad prompt and the agent still behaves badly, because the summaries and long-term memories the bad version wrote are still in the store and the old prompt reads them on the next turn.",
+  "symptom": "The deploy is green and the version pointer is back to the previous release, and the regression persists for exactly the users who had a session during the bad window. Behaviour returns only after somebody manually deletes rows, and nobody can say which rows.",
+  "why_now": "Durable agent state stopped being an optional extra: checkpointers and cross-thread stores are the documented default for conversation continuity and long-term memory. But the version identity lives in the deploy artifact while the state lives in a database that no deploy touches, and framework writes carry no stamp for the prompt, policy or model version that produced them. So a rollback has no addressable set of state to roll back with it, and the one primitive that would make it possible, a producer-version tag on every durable write, is not in any mainstream store schema.",
+  "existing": [
+    "Checkpointer time travel can rewind ONE thread to an earlier checkpoint, which is a debugging affordance a human drives per thread. It is not a fleet-wide undo scoped to the set of writes a bad version produced across every thread.",
+    "Deleting the store wholesale does undo the bad writes, and every good write with them, so the only available remedy is disproportionate and nobody runs it.",
+    "Vendor memory controls exist but put the burden on the end user to review and clean up their own memories after the vendor has shipped its fix.",
+    "Database point-in-time restore rolls back everything in the database, including unrelated tenants and any legitimate state written in the same window, so it is not a version-scoped undo either."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Persistence - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "date": "2026-08-18",
+      "quote": "Persistence lets LangGraph applications keep useful information beyond a single graph run.",
+      "note": "Establishes that agent state outlives the run, and therefore outlives the deploy of the version that wrote it. Continuously-published docs page with no publication date shown; the date recorded is the date it was fetched."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Persistence - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "date": "2026-08-18",
+      "quote": "Stores persist application-defined data outside the graph state.",
+      "note": "Long-term memory is written to a store keyed by application data, not by the agent version that produced it, so after a rollback there is no predicate that selects the bad version's writes. Date is the fetch date."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Spyware Injection Into Your ChatGPT's Long-Term Memory (SpAIware)",
+      "locator": "https://embracethered.com/blog/posts/2024/chatgpt-macos-app-persistent-data-exfiltration/",
+      "date": "2024-09-20",
+      "quote": "all new conversation going forward will contain the attackers instructions and continuously send all chat conversation messages, and replies, to the attacker",
+      "note": "A concrete, documented case of durable state written during one bad window governing every later session. The mechanism that made it durable is the memory write, which no later code deploy touches."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Spyware Injection Into Your ChatGPT's Long-Term Memory (SpAIware)",
+      "locator": "https://embracethered.com/blog/posts/2024/chatgpt-macos-app-persistent-data-exfiltration/",
+      "date": "2024-09-20",
+      "quote": "ChatGPT users should regularly review the memories the system stores about them, for suspicious or incorrect ones and clean them up.",
+      "note": "This is the lifecycle point, independent of the security framing: the vendor shipped a fix, and removing the state the broken behaviour had already written was left to a manual human review. Shipping the fix did not undo the writes, which is precisely the missing primitive."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "We later noticed user reports of problems with Opus 3 that were compatible with this bug, and rolled it back on September 12.",
+      "note": "Supports the weaker half of the claim only, that a rollback is a staggered sequence of partial reverts rather than one atomic return to a known-good state. It is not evidence about persisted state, and is cited for the rollback-is-not-atomic point alone."
+    }
+  ],
+  "build_hypothesis": "A writer-version stamp plus a revocation verb. Wrap the store and checkpointer write path so every durable record carries the prompt, policy and model version that produced it, then ship one command that takes a version identifier and lists, quarantines or drops exactly the records that version wrote. Quarantine before delete, because the reversible operation is the one an operator will actually run mid-incident. That makes rollback of an agent a two-part operation with a state half, instead of a code-only revert that silently leaves the damage in the database.",
+  "tags": [
+    "rollback",
+    "persistence",
+    "memory",
+    "deploy",
+    "state"
+  ],
+  "check": {
+    "id": "CHK-107",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.go"
+      ],
+      "pattern": "(?i)(SqliteSaver|PostgresSaver|AsyncPostgresSaver|MemorySaver|InMemorySaver|checkpointer\\s*=|InMemoryStore|BaseStore|store\\.put\\s*\\(|SQLiteSession|\\bmem0\\b|add_memory|save_memory|upsert_memory|write_memory|conversation_summary|summary_buffer)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go"
+          ],
+          "pattern": "(?i)(SqliteSaver|PostgresSaver|AsyncPostgresSaver|MemorySaver|InMemorySaver|checkpointer\\s*=|InMemoryStore|BaseStore|store\\.put\\s*\\(|SQLiteSession|\\bmem0\\b|add_memory|save_memory|upsert_memory|write_memory|conversation_summary|summary_buffer)"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "all_of",
+            "rules": [
+              {
+                "kind": "content_matches",
+                "globs": [
+                  "**/*.py",
+                  "**/*.ts",
+                  "**/*.js",
+                  "**/*.tsx",
+                  "**/*.go",
+                  "**/*.yaml",
+                  "**/*.yml",
+                  "**/*.json",
+                  "**/*.tf",
+                  "**/*.hcl",
+                  "**/*.toml",
+                  "**/*.sql"
+                ],
+                "pattern": "(?i)(prompt_version|promptVersion|agent_version|agentVersion|policy_version|policyVersion|state_schema_version|stateSchemaVersion|written_by_version|writtenByVersion|produced_by_version|producedByVersion|writer_version|version_stamp|versionStamp)"
+              },
+              {
+                "kind": "content_matches",
+                "globs": [
+                  "**/*.py",
+                  "**/*.ts",
+                  "**/*.js",
+                  "**/*.tsx",
+                  "**/*.go",
+                  "**/*.yaml",
+                  "**/*.yml",
+                  "**/*.json",
+                  "**/*.tf",
+                  "**/*.hcl",
+                  "**/*.toml",
+                  "**/*.sql"
+                ],
+                "pattern": "(?i)(invalidate_(memory|memories|state|checkpoints?)|purge_(memory|memories|state|checkpoints?)|quarantine_(memory|memories|state)|migrate_(state|checkpoints?|memories)|revert_(state|memories|checkpoints?)|rollback_state|state_rollback|restore_checkpoint|drop_memories_written_by)"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.tf",
+            "**/*.hcl",
+            "**/*.toml",
+            "**/*.sql"
+          ],
+          "pattern": "(?i)(prompt_version|promptVersion|agent_version|agentVersion|policy_version|policyVersion|state_schema_version|stateSchemaVersion|written_by_version|writtenByVersion|produced_by_version|producedByVersion|writer_version|version_stamp|versionStamp)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.tf",
+            "**/*.hcl",
+            "**/*.toml",
+            "**/*.sql"
+          ],
+          "pattern": "(?i)(invalidate_(memory|memories|state|checkpoints?)|purge_(memory|memories|state|checkpoints?)|quarantine_(memory|memories|state)|migrate_(state|checkpoints?|memories)|revert_(state|memories|checkpoints?)|rollback_state|state_rollback|restore_checkpoint|drop_memories_written_by)"
+        }
+      ]
+    },
+    "manual_question": "You have just rolled back a prompt, policy or model version. Which durable records did that version write, how would you enumerate them, and what command drops or quarantines exactly those records without also destroying state written by the version you rolled back to?",
+    "rationale": "Fires when a repo configures durable agent state (a checkpointer, a cross-thread store, or a memory write path) and does NOT contain both halves of a version-scoped undo: a producer-version stamp on writes, and a verb that invalidates, purges, quarantines or migrates state by version. Both halves are required because a stamp with no revocation verb still leaves an operator with nothing to run, and a purge with no stamp cannot select the bad writes. What it can get wrong: a team may implement the undo in ops runbooks, a migration tool or a separate data service that this repo never names, which reads as PRESENT here and is a false positive, so the manual question asks for the actual command. In the other direction the vocabulary is generous, so a match on the mitigation side means a human should confirm the stamp is written on the SAME path the store writes, not that the gap is closed. Distinct from a memory-retention or context-window check: this is about a version boundary, not about size or age.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"Support agent with durable thread state and cross-thread memory.\"\"\"\nfrom langgraph.checkpoint.postgres import PostgresSaver\nfrom langgraph.store.memory import InMemoryStore\n\nSYSTEM_PROMPT = \"You are a support agent. Prefer what you already learned about the user.\"\n\ncheckpointer = PostgresSaver.from_conn_string(DB_URL)\nstore = InMemoryStore()\ngraph = builder.compile(checkpointer=checkpointer, store=store)\n\n\ndef remember(user_id: str, text: str) -> None:\n    \"\"\"Persist a fact the current prompt decided was worth keeping, forever.\"\"\"\n    store.put((\"memories\", user_id), new_id(), {\"text\": text})\n\n\ndef recall(user_id: str) -> list[str]:\n    return [i.value[\"text\"] for i in store.search((\"memories\", user_id))]\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"Support agent with durable thread state and cross-thread memory.\"\"\"\nfrom langgraph.checkpoint.postgres import PostgresSaver\nfrom langgraph.store.memory import InMemoryStore\n\nSYSTEM_PROMPT = \"You are a support agent. Prefer what you already learned about the user.\"\n\ncheckpointer = PostgresSaver.from_conn_string(DB_URL)\nstore = InMemoryStore()\ngraph = builder.compile(checkpointer=checkpointer, store=store)\n\n\ndef remember(user_id: str, text: str) -> None:\n    \"\"\"Persist a fact the current prompt decided was worth keeping, forever.\"\"\"\n    store.put((\"memories\", user_id), new_id(), {\"text\": text})\n\n\ndef recall(user_id: str) -> list[str]:\n    return [i.value[\"text\"] for i in store.search((\"memories\", user_id))]\n",
+        "app/state_rollback.py": "\"\"\"State written under a version we roll back has to be revocable.\n\nEvery durable write is stamped with the agent version that produced it, so a\ndeploy rollback has an addressable set of state to drop with it.\n\"\"\"\nAGENT_VERSION = \"2026-08-18.3\"\n\n\ndef remember(store, user_id: str, text: str) -> None:\n    store.put(\n        (\"memories\", user_id),\n        new_id(),\n        {\"text\": text, \"written_by_version\": AGENT_VERSION},\n    )\n\n\ndef purge_memories(store, bad_version: str) -> int:\n    \"\"\"Drop every durable memory a rolled-back agent version wrote.\"\"\"\n    dropped = 0\n    for item in store.search((\"memories\",)):\n        if item.value.get(\"written_by_version\") == bad_version:\n            store.delete((\"memories\", item.namespace[1]), item.key)\n            dropped += 1\n    return dropped\n"
+      }
+    }
+  }
+}

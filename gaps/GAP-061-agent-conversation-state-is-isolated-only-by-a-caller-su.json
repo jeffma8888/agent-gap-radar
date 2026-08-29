@@ -1,0 +1,142 @@
+{
+  "id": "GAP-061",
+  "title": "Agent conversation state is isolated only by a caller-supplied key, so a process-global store merges two users with nothing failing",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent service holds conversation state in the process, and the only thing keeping one customer's transcript out of another customer's prompt is that every call site remembered to pass the right identifier, which is an unenforced convention rather than a boundary the runtime checks.",
+  "symptom": "A user sees a reply that references a conversation they never had, or an operator reads a trace whose context window contains another tenant's document. There is no error, no exception and no access-denied entry, because from the runtime's point of view a lookup with a missing or reused key is a perfectly valid lookup that returned state.",
+  "why_now": "The memory primitives shipped in 2025-2026 are keyed dictionaries whose key is supplied by the caller: a thread id in a config object, a session id argument, a store namespace tuple. None of them takes an authenticated principal, so there is no layer at which the framework can compare the key against who is actually asking. Multi-tenant SaaS solved this a decade ago with row-level security and tenant-scoped connections; the agent stack has the analogous problem and no analogous primitive, and the failure is silent rather than loud, which is why it survives testing with one user.",
+  "existing": [
+    "LangGraph checkpointers scope short-term state to a thread and stores scope long-term data across threads, but the thread id and the store namespace are values the application passes in, so a wrong or absent value is indistinguishable from a correct one.",
+    "Framework memory classes such as ConversationBufferMemory are ordinary objects, so instantiating one at module scope in a web server gives every request the same buffer, and nothing in the type or the API signals that this is now shared mutable state.",
+    "Application-level middleware can inject a tenant id, but it is bespoke per codebase and unverifiable from outside: no scanner, test harness or runtime assertion in the ecosystem checks that a memory read was scoped to the caller.",
+    "Provider-hosted conversation state moves the same problem behind an API without removing it, since the caller still chooses which conversation or thread identifier to send."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "a bug in an open-source library which allowed some users to see titles from another active user",
+      "note": "The canonical public postmortem of cross-tenant conversation bleed in a production LLM product. The leak came from shared infrastructure state rather than from the model, which is exactly the class this gap describes: the isolation was an implementation detail, so when it broke nothing in the request path could tell that a returned record belonged to someone else."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "We have reached out to notify affected users that their payment information may have been exposed.",
+      "note": "Establishes the blast radius of the same mechanism: cross-tenant state bleed in a conversational product escalated into notifiable exposure of payment data, so the severity rating is anchored in a disclosed outcome rather than in speculation."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Persistence - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "date": "2026-08-20",
+      "quote": "Stores persist application-defined data outside the graph state. Use them for long-term, cross-thread memory, including user preferences, facts, and shared knowledge.",
+      "note": "Documents the primitive whose whole purpose is to survive across threads. Cross-thread memory is desirable and cross-tenant memory is a breach, and the framework offers no way to distinguish them, because the scoping key is application-defined rather than derived from an authenticated principal."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2025-01-01",
+      "quote": "Limit model access to external data sources, and ensure runtime data orchestration is securely managed to avoid unintended data leakage.",
+      "note": "OWASP names runtime data orchestration, not just training data, as the thing that has to be managed to avoid leakage. That is the orchestration layer this check inspects."
+    }
+  ],
+  "build_hypothesis": "Make the isolation key non-optional and non-caller-supplied: a memory adapter that will only resolve a store handle from a request-scoped principal object, so reading conversation state without a principal raises instead of returning an empty history. Ship it with a test double that fails a suite if two different principals ever observe the same store instance, which converts a silent bleed into a red test.",
+  "tags": [
+    "multi-tenant",
+    "context-memory",
+    "cross-tenant",
+    "isolation",
+    "silent",
+    "data-leak"
+  ],
+  "check": {
+    "id": "CHK-060",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(?:FastAPI\\(|from\\s+fastapi|from\\s+flask|Flask\\(|starlette|aiohttp\\.web|@app\\.(?:get|post|route)|express\\(\\)|http\\.createServer)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(?:langchain|langgraph|openai|anthropic|litellm|bedrock|llm\\.invoke|chat\\.completions|crewai|autogen)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?:\\n(?!\\s)\\w+\\s*(?::[^=\\n]+)?=\\s*(?:ConversationBufferMemory|ConversationBufferWindowMemory|ConversationSummaryMemory|ConversationSummaryBufferMemory|InMemoryChatMessageHistory|ChatMessageHistory|InMemorySaver|MemorySaver|InMemoryStore|InMemoryVectorStore)\\s*\\()|(?i:\\n(?!\\s)(?:_?(?:history|messages|conversation|conversations|chat_history|chathistory|memory|transcript|context_store)\\w*)\\s*(?::[^=\\n]+)?=\\s*(?:\\[\\]|\\{\\}|list\\(\\)|dict\\(\\)|defaultdict\\())"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(?:session_id|thread_id|tenant_id|conversation_id|user_id|principal_id|org_id|get_session_history|per[_-]user|per[_-]tenant|namespace)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)(?:session_id|thread_id|tenant_id|conversation_id|user_id|principal_id|org_id|get_session_history|per[_-]user|per[_-]tenant|namespace)"
+    },
+    "manual_question": "This service serves requests and holds agent conversation state. Is every read of that state scoped by an identifier derived from the authenticated caller, and would a request that omitted the identifier fail rather than fall through to shared or empty state?",
+    "rationale": "The signature is a conversation or memory store constructed at module scope, meaning column zero and therefore once per process, in a codebase that also serves requests, combined with the complete absence of per-principal keying vocabulary. Column-zero anchoring is deliberate: an indented construction is per-request and safe, so matching only unindented assignments is what separates the shared object from the safe one. Known limits, both stated rather than hidden. False negative: a codebase that mentions user_id anywhere at all suppresses the signature even if its memory reads are unkeyed, so this under-reports; it is a screen for the obvious shape, not a taint analysis. False positive: a single-tenant CLI or a batch job legitimately holds one global buffer, which is why the applies_when gate requires a request-serving entrypoint and why the honest verdict for a match is that isolation is unproven and a human should read the request path.",
+    "fixtures": {
+      "bad": {
+        "app/server.py": "from fastapi import FastAPI\nfrom langchain.memory import ConversationBufferMemory\nfrom langchain_openai import ChatOpenAI\n\napp = FastAPI()\nllm = ChatOpenAI(model='gpt-4o-mini')\nmemory = ConversationBufferMemory(return_messages=True)\n\n\n@app.post('/chat')\ndef chat(prompt: str):\n    memory.chat_memory.add_user_message(prompt)\n    reply = llm.invoke(memory.chat_memory.messages).content\n    memory.chat_memory.add_ai_message(reply)\n    return {'reply': reply}\n",
+        "requirements.txt": "fastapi\nlangchain\nlangchain-openai\n"
+      },
+      "good": {
+        "app/server.py": "from fastapi import Depends, FastAPI\nfrom langchain_core.chat_history import InMemoryChatMessageHistory\nfrom langchain_openai import ChatOpenAI\n\nfrom app.auth import current_principal\n\napp = FastAPI()\nllm = ChatOpenAI(model='gpt-4o-mini')\n\n_store: dict[str, InMemoryChatMessageHistory] = {}\n\n\ndef get_session_history(session_id: str) -> InMemoryChatMessageHistory:\n    return _store.setdefault(session_id, InMemoryChatMessageHistory())\n\n\n@app.post('/chat')\ndef chat(prompt: str, session_id: str = Depends(current_principal)):\n    history = get_session_history(session_id)\n    history.add_user_message(prompt)\n    reply = llm.invoke(history.messages).content\n    history.add_ai_message(reply)\n    return {'reply': reply}\n",
+        "requirements.txt": "fastapi\nlangchain\nlangchain-openai\n"
+      }
+    }
+  }
+}

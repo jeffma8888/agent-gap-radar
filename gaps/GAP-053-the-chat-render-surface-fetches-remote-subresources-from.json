@@ -1,0 +1,126 @@
+{
+  "id": "GAP-053",
+  "title": "The chat render surface fetches remote subresources from model output, so exfiltration needs no tool call and no tool-level egress control is on the path",
+  "layer": "human-interface",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "I put an approval prompt and an egress allowlist in front of every tool my agent can call, and the data still left through an image my own UI fetched while rendering the model's answer.",
+  "symptom": "Nothing appears in the tool-call log and no approval dialog fires; the operator sees a broken image in the transcript, while the attacker's server logs one GET carrying the context in the URL.",
+  "why_now": "Agent security in 2026 is built around the tool-call boundary - approvals, allowlists, capability tokens - and all of it sits on the path from the model to a tool. Markdown rendering is a second, older path from the model to the network that no agent framework treats as an action: the client fetches the subresource itself, so there is no tool name to approve, no argument to inspect and no entry in the trace. The mitigations shipped for it so far are per-product patches (stop rendering images, or an ad-hoc domain allowlist) rather than a reusable control any team can install.",
+  "existing": [
+    "Redacting links in model output: the mitigation of record at Microsoft, and it was bypassed because it matched inline markdown link syntax while reference-style links and reference-style images were rendered unchanged.",
+    "A browser Content-Security-Policy on the render surface: real and load-bearing, and EchoLeak still got out by naming an allowlisted first-party domain that would fetch an arbitrary URL on the client's behalf, so the policy was satisfied and the data still left.",
+    "Deleting the capability (GitHub Copilot Chat stopped interpreting and rendering markdown images after the report): effective and terminal, which is why it is not a general answer - it removes a feature rather than governing it, and every product re-litigates the trade.",
+    "Per-call human approval and tool allowlists: structurally unable to see this path, because no tool is called. The fetch is performed by the renderer.",
+    "Output secret scanners: they look for known secret shapes, and the exfiltrated payload here is ordinary business text plus whatever the model chose to append."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "GitHub Copilot Chat: From Prompt Injection to Data Exfiltration",
+      "locator": "https://embracethered.com/blog/posts/2024/github-copilot-chat-prompt-injection-data-exfiltration/",
+      "date": "2024-06-14",
+      "quote": "an attacker can cause the LLM to return hyperlinks to images which will then be automatically retrieved",
+      "note": "The discoverer's own report of a shipped product. The exfiltration channel is the extension's markdown renderer, not a tool the agent called, which is exactly the path a tool-call approval or allowlist cannot see."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "GitHub Copilot Chat: From Prompt Injection to Data Exfiltration",
+      "locator": "https://embracethered.com/blog/posts/2024/github-copilot-chat-prompt-injection-data-exfiltration/",
+      "date": "2024-06-14",
+      "quote": "The fix seems to be that Copilot Chat does not interpret/render markdown images anymore.",
+      "note": "The vendor's shipped remedy was to delete the rendering capability outright, and the same page recommends a connect-domain allowlist if rendering must stay. Both are render-surface controls, which is evidence that the missing primitive lives at the render surface rather than at the tool boundary."
+    },
+    {
+      "source_class": "secondary-summary",
+      "title": "EchoLeak: The First Real-World Zero-Click Prompt Injection Exploit in a Production LLM System",
+      "locator": "https://arxiv.org/html/2509.10540v1",
+      "date": "2025-09-12",
+      "quote": "the client interface (e.g., Outlook or Teams) automatically fetches the external image URL included by the attacker",
+      "note": "CVE-2025-32711 in M365 Copilot. The zero-click property comes entirely from the renderer performing the fetch; a case study of public data rather than a reproduction, so it is filed as secondary."
+    },
+    {
+      "source_class": "secondary-summary",
+      "title": "EchoLeak: The First Real-World Zero-Click Prompt Injection Exploit in a Production LLM System",
+      "locator": "https://arxiv.org/html/2509.10540v1",
+      "date": "2025-09-12",
+      "quote": "link redaction, and CSP rules each failed under modest adversarial pressure, enabling a zero-click exfiltration that left no opportunity for human intervention",
+      "note": "Names the two mitigations that were deployed on this path and still failed, which is the part of the incident this gap records."
+    }
+  ],
+  "build_hypothesis": "A render-surface egress broker: one function every client calls before displaying model output that (a) rewrites every remote subresource URL to a first-party proxy, (b) refuses any host not on an explicit fetch allowlist, and (c) emits an audit record per fetch with the same shape as a tool call, so the render path shows up in the same trace and the same policy engine as the tools. Ship it with a conformance test that asserts reference-style images and reference-style links are covered, since that spelling is what defeated the deployed redaction.",
+  "tags": [
+    "injection",
+    "exfiltration",
+    "render",
+    "egress",
+    "markdown"
+  ],
+  "check": {
+    "id": "CHK-052",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|generate_content|invoke_model|litellm\\.|ollama\\.|\\.createMessage\\(|openai\\.OpenAI\\()"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.jsx",
+            "**/*.svelte",
+            "**/*.vue",
+            "**/*.html"
+          ],
+          "pattern": "(?i)(dangerouslySetInnerHTML|ReactMarkdown|markdown-it|marked\\s*\\(|mistune|markdown\\.markdown\\s*\\(|render_markdown|unsafe_allow_html\\s*=\\s*True|\\.innerHTML\\s*=|v-html|@html)"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*"
+            ],
+            "pattern": "(?i)(img-src|content[_-]security[_-]policy|DOMPurify|sanitize_html|bleach\\.clean|FORBID_TAGS|ALLOWED_TAGS|allow_images\\s*=\\s*False|disable_images?|strip_images?|image_proxy|proxy_image|remote_(?:images?|subresources?)_(?:blocked|disabled)|no_remote_images)"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(img-src|content[_-]security[_-]policy|DOMPurify|sanitize_html|bleach\\.clean|FORBID_TAGS|ALLOWED_TAGS|allow_images\\s*=\\s*False|disable_images?|strip_images?|image_proxy|proxy_image|remote_(?:images?|subresources?)_(?:blocked|disabled)|no_remote_images)"
+    },
+    "manual_question": "Your UI renders the model's answer as markdown or HTML. When the model emits an image or a stylesheet pointing at a host you have never heard of, which component refuses the fetch, and where does that fetch appear in the same trace as your tool calls? If the answer is that the browser just loads it, your egress policy does not cover the path the model can reach without calling a tool.",
+    "rationale": "Fires when a project both invokes an LLM and renders model-controlled text through a markdown or HTML renderer that resolves remote subresources, while nothing in the tree positively identifies a render-surface egress control (CSP img-src, a sanitiser that forbids img, an image proxy, or images disabled). What it can get wrong: a project may set its CSP in infrastructure this scan cannot see (a load balancer, a CDN rule, an Electron switch), which reads as PRESENT when the control exists out of tree - that is why the mitigation side is deliberately broad and matches config as well as code. It also cannot tell a renderer that resolves remote URLs from one configured to inline only local assets.",
+    "fixtures": {
+      "bad": {
+        "app/chat.py": "import openai\n\nclient = openai.OpenAI()\n\n\ndef answer(question: str, retrieved: list[str]) -> str:\n    prompt = question + chr(10) + chr(10).join(retrieved)\n    out = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n    )\n    return out.choices[0].message.content\n",
+        "web/Transcript.tsx": "import ReactMarkdown from \"react-markdown\";\n\nexport function Transcript({ reply }: { reply: string }) {\n  // The model reply goes straight into the transcript.\n  return <div className=\"turn\"><ReactMarkdown>{reply}</ReactMarkdown></div>;\n}\n"
+      },
+      "good": {
+        "app/chat.py": "import openai\n\nclient = openai.OpenAI()\n\n\ndef answer(question: str, retrieved: list[str]) -> str:\n    prompt = question + chr(10) + chr(10).join(retrieved)\n    out = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n    )\n    return out.choices[0].message.content\n",
+        "web/Transcript.tsx": "import ReactMarkdown from \"react-markdown\";\nimport { safeHtml } from \"./markdown\";\n\nexport function Transcript({ reply }: { reply: string }) {\n  return <div className=\"turn\" dangerouslySetInnerHTML={{ __html: safeHtml(reply) }} />;\n}\n",
+        "web/markdown.ts": "import DOMPurify from \"dompurify\";\n\n// A remote subresource in model output is an outbound request nobody approved,\n// so the renderer drops every tag that can fetch one.\nexport function safeHtml(html: string): string {\n  return DOMPurify.sanitize(html, {\n    FORBID_TAGS: [\"img\", \"picture\", \"source\", \"video\", \"iframe\", \"link\"],\n  });\n}\n",
+        "server/headers.py": "CSP = \"default-src 'self'; img-src 'self' data:; connect-src 'self'\"\n\n\ndef apply_security_headers(response):\n    response.headers[\"Content-Security-Policy\"] = CSP\n    return response\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "id": "GAP-045",
+  "title": "Retrieval APIs take the tenant predicate as an optional keyword argument, so the shortest working call reads the whole shared index and nothing refuses it",
+  "layer": "context-memory",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "Every customer's documents live in one shared index for cost reasons, and the argument that limits a search to the calling customer is an optional keyword I have to remember on every call site, in every retriever, forever.",
+  "symptom": "Retrieval returns fluent, well-formed, entirely plausible context that belongs to a different customer, so the answer looks correct, no exception is raised, no error rate moves, and the only detector is a human who happens to recognise a name that is not theirs.",
+  "why_now": "Single-collection multitenancy became the recommended cost pattern precisely as retrieval moved from a handwritten function into agent frameworks and hosted connectors, and every one of those vector APIs spells scoping as an optional kwarg: filter, namespace, where, search_kwargs. The insecure call is therefore strictly shorter than the secure one, it type-checks, it passes tests written with one tenant of fixture data, and no layer of the stack can distinguish a deliberately global search from a forgotten predicate. In 2025 this shape reached production connectors: Asana ran a cross-organization exposure in its MCP server for over a month, which is the same failure wearing an agent label.",
+  "existing": [
+    "Vector databases document the mitigation well: Qdrant tells you to add a tenant payload field and filter on it, Pinecone offers namespaces, pgvector users reach for row-level security. All of them are correct and all of them are opt-in per call, so they close the gap only for a team that never forgets.",
+    "Separate collection or index per tenant does make scoping structural, but vendors actively discourage it above a small tenant count because per-collection overhead does not amortise, so the pattern that is safe by construction is the one operators are told not to use.",
+    "Framework retriever objects can be constructed with a fixed filter, which helps, but the filter is then bound at construction time in application code and a request handler that builds a retriever per request can still build one without it, or reuse a cached global retriever built for someone else.",
+    "Row-level security in Postgres does enforce this at the engine, and is the closest thing to a real answer, but it only covers stores that have it, and does not extend to the agent's own conversation memory, cache or summarised context, which are usually plain files or key-value entries."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here’s what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-20",
+      "quote": "which allowed some users to see titles from another active user",
+      "note": "First-party postmortem of shared-infrastructure bleed in a production LLM product: one caching and connection-reuse bug served one user's conversation data to another, and the same bug also exposed names, email and payment addresses of Plus subscribers. It is the reference case that the leak path here is data-plane confusion in shared infrastructure rather than a model behaviour, so no amount of prompt or model work detects it. The page carries no publication date in the fetched text; dated to the outage date its own title states."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Multitenancy - Qdrant",
+      "locator": "https://qdrant.tech/documentation/guides/multiple-partitions/",
+      "date": "2026-08-17",
+      "quote": "To partition data in a shared collection, add a payload field that identifies the tenant to each point. You can then filter by this field to ensure that each tenant only sees their own data.",
+      "note": "The vendor's own guidance shows exactly where the burden sits: correctness depends on the application adding a field and then remembering to filter on it at query time. The same page discourages a collection per tenant on cost grounds, which is what pushes teams onto the shared index in the first place, so the documented cheap path is the one whose safety is a per-call convention. Living document with no publication date, so dated to the day it was fetched."
+    },
+    {
+      "source_class": "secondary-summary",
+      "title": "Asana warns MCP AI feature exposed customer data to other orgs",
+      "locator": "https://www.bleepingcomputer.com/news/security/asana-warns-mcp-ai-feature-exposed-customer-data-to-other-orgs/",
+      "date": "2025-06-04",
+      "quote": "a software bug in the MCP server exposed data from Asana instances to other MCP users",
+      "note": "The agent-era instance of the same failure and the reason this is not a solved problem: a vendor-run MCP server serving an LLM returned one organization's task data, comments and uploaded files to another for over a month before anyone noticed, which is the detection problem in the symptom field. Reported by a news outlet rather than by Asana in a postmortem, so it is filed as a secondary summary and weighted accordingly. No publication date appeared in the fetched text; dated to the June 4 discovery date the article states."
+    }
+  ],
+  "build_hypothesis": "A retrieval wrapper that takes the tenant scope from an ambient request context rather than an argument, and raises rather than querying when that context is unset: one constructor, no optional kwarg, so the shortest call is the scoped one. Ship it with a lint rule that fails the build on a direct call to the underlying client, which is what makes the wrapper unbypassable rather than merely available.",
+  "tags": [
+    "multi-tenant",
+    "retrieval",
+    "cross-tenant",
+    "data-leak",
+    "rag"
+  ],
+  "check": {
+    "id": "CHK-044",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)\\b(tenant_id|tenantId|org_id|orgId|organization_id|workspace_id|customer_id|account_id|group_id)\\b"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(vector_?store|VectorStore|similarity_search|as_retriever|get_relevant_documents|pinecone|weaviate|qdrant|chromadb|Chroma\\b|pgvector|PGVector|OpenSearchVectorSearch|FAISS|LanceDB|Milvus|from_documents\\s*\\()"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)\\b(tenant_id|tenantId|org_id|orgId|organization_id|workspace_id|customer_id|account_id|group_id)\\b"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(vector_?store|VectorStore|similarity_search|as_retriever|get_relevant_documents|pinecone|weaviate|qdrant|chromadb|Chroma\\b|pgvector|PGVector|OpenSearchVectorSearch|FAISS|LanceDB|Milvus|from_documents\\s*\\()"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?:similarity_search(?:_with_score|_by_vector)?|max_marginal_relevance_search|get_relevant_documents|as_retriever)\\s*\\((?![^()\\n]*(?:filter|namespace|where|tenant|org_id|orgId|user_id|workspace|customer|account|partition|scope|group_id|search_kwargs))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.sql",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)(row[_ ]?level[_ ]?security|ENABLE ROW LEVEL SECURITY|set_config\\s*\\(\\s*[\\\"']app\\.(?:current_)?tenant|require_tenant|assert_tenant|tenant_scoped|scoped_retriever|def\\s+\\w*tenant_filter|tenant_filter\\s*\\(|namespace\\s*=\\s*\\w*(?:tenant|org|workspace|customer|account)|filter\\s*=\\s*\\{\\s*[\\\"'](?:tenant|org|workspace|customer|account|group)|is_tenant\\s*=\\s*True|payload_filter|must=\\[\\s*FieldCondition)"
+    },
+    "manual_question": "This project carries per-tenant identifiers and a shared vector store. For every retrieval call site, what guarantees the results are limited to the calling tenant, and what happens if that scope is missing: does the query fail, or does it silently return everything?",
+    "rationale": "The check only applies to a project that has both per-tenant identifiers and a vector store, and then looks for a retrieval call whose argument list contains no scoping term at all. That combination means the project is multi-tenant and at least one query is unscoped in the source. It is deliberately syntactic and it can be wrong in three ways, all named. It over-reports on a legitimately global search, an admin path or an index that holds only public documents, which is why the manual question asks what happens when scope is missing rather than assuming a bug. It over-reports when scope is applied by a wrapper whose own internals look unscoped, which is the correct fix and the reason the mitigation vocabulary includes wrapper and enforcement names, not just the kwargs. It under-reports on native client calls the pattern does not name, on non-Python code, and on scoping inside a variable whose name carries none of the scope words. Because a project with one scoped call and one unscoped call matches both sides, it lands as MANUAL rather than as a pass, which is the intended handling of a partial mitigation.",
+    "fixtures": {
+      "bad": {
+        "app/rag.py": "\"\"\"Answer support questions from the shared knowledge index.\"\"\"\nfrom langchain_community.vectorstores import Chroma\nfrom langchain_openai import OpenAIEmbeddings\n\nstore = Chroma(collection_name=\"kb\", embedding_function=OpenAIEmbeddings())\n\n\ndef build_context(question: str, k: int = 5) -> str:\n    docs = store.similarity_search(question, k=k)\n    return \"\\n\\n\".join(d.page_content for d in docs)\n",
+        "app/api.py": "\"\"\"Request handler. Every request belongs to exactly one paying organisation.\"\"\"\nfrom fastapi import FastAPI, Header\n\nfrom app.rag import build_context\n\napp = FastAPI()\n\n\n@app.post(\"/ask\")\ndef ask(question: str, tenant_id: str = Header(...)) -> dict:\n    # tenant_id identifies the caller and is used for billing and audit.\n    context = build_context(question)\n    return {\"tenant_id\": tenant_id, \"context\": context}\n"
+      },
+      "good": {
+        "app/rag.py": "\"\"\"Answer support questions from the shared knowledge index, scoped to the caller.\"\"\"\nfrom langchain_community.vectorstores import Chroma\nfrom langchain_openai import OpenAIEmbeddings\n\nstore = Chroma(collection_name=\"kb\", embedding_function=OpenAIEmbeddings())\n\n\ndef tenant_filter(tenant: str) -> dict:\n    \"\"\"The only supported way to reach the index. Refuses an unscoped read.\"\"\"\n    if not tenant:\n        raise ValueError(\"refusing to query the shared index without a tenant scope\")\n    return {\"tenant_id\": tenant}\n\n\ndef build_context(question: str, tenant: str, k: int = 5) -> str:\n    docs = store.similarity_search(question, k=k, filter=tenant_filter(tenant))\n    return \"\\n\\n\".join(d.page_content for d in docs)\n",
+        "app/api.py": "\"\"\"Request handler. Every request belongs to exactly one paying organisation.\"\"\"\nfrom fastapi import FastAPI, Header\n\nfrom app.rag import build_context\n\napp = FastAPI()\n\n\n@app.post(\"/ask\")\ndef ask(question: str, tenant_id: str = Header(...)) -> dict:\n    context = build_context(question, tenant=tenant_id)\n    return {\"tenant_id\": tenant_id, \"context\": context}\n"
+      }
+    }
+  }
+}

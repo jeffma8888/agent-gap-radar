@@ -1,0 +1,136 @@
+{
+  "id": "GAP-107",
+  "title": "A prompt or agent-config change deploys as an all-or-nothing label flip, so there is no fraction of traffic to canary it on and the first users to meet a bad version are all of them",
+  "layer": "lifecycle-deploy",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I changed one line of a prompt and it went to every user on the next request, because the only deploy primitive my prompt registry gives me is moving a label, and a label cannot point at two versions with a weight.",
+  "symptom": "A prompt or tool-description edit is promoted, quality drops across all traffic at once, and the team learns from user complaints rather than from a bounded cohort; the fix is a human noticing and flipping the label back.",
+  "why_now": "Weighted traffic splitting is a solved primitive one layer down (Kubernetes rollouts, model endpoints with a traffic split), but the artifact that now decides agent behaviour is the prompt and agent config, and the registries that version those expose promotion as a pointer move with no weight, no cohort key and no automatic abort. Teams therefore ship the highest-variance part of the system with the least progressive-delivery machinery.",
+  "existing": [
+    "Prompt registries version prompts and make rollback cheap (move the production label back), but rollback is a manual human action after the damage is global; nothing bounds exposure beforehand.",
+    "Environment labels (staging, production) and offline experiments on a dataset compare versions before promotion, which is a pre-deploy check, not a fraction of live traffic.",
+    "Weighted rollout exists for containers and for model endpoints, but it keys on the deployment or endpoint, not on which prompt version a single request resolved, so it cannot canary a prompt change inside one service."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Version Control - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/features/prompt-version-control",
+      "date": "2026-08-17",
+      "quote": "When a prompt has a production label, then that version will be served by default in the SDKs. You can quickly rollback to a previous version by setting the production label to that previous version in the Langfuse UI.",
+      "note": "The maintainer's own description of the deploy primitive: one label points at one version and the SDK serves it to everyone. Rollback is a label move, so it is cheap but wholly manual and post-hoc; there is no weight, so there is no canary. Page carries no visible publication date, so the date recorded is the date it was fetched."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Version Control - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/features/prompt-version-control",
+      "date": "2026-08-17",
+      "quote": "Labels can be used to assign prompts to environments (staging, production), tenants (tenant-1, tenant-2), or experiments (prod-a, prod-b).",
+      "note": "Labels can name an experiment arm, which shows the registry deliberately stops at naming: deciding which request gets prod-a versus prod-b, at what percentage, and when to abort is left entirely to the caller. That undelegated split is the missing primitive."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2026-08-17",
+      "quote": "Once we believe a model is potentially a good improvement for our users, including running our safety checks, we run an A/B test with a small number of our users.",
+      "note": "Even a provider that does run a small-cohort A/B before promotion still shipped a behaviour regression to all traffic, because the cohort stage lacked the signals that would have aborted it. Evidence that the primitive has to carry an abort criterion, not just a percentage. The page is JS-rendered and carries no machine-readable publication date, and the date could not be confirmed from an independent source in this run (search backend down, SearXNG proxy returned 429), so the date recorded is the retrieval date. The page's own text places the incident in late April: the update rolled out on April 25th and the rollback began April 28th."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2026-08-17",
+      "quote": "The full rollback took around 24 hours to manage stability and avoid introducing new issues across the deployment.",
+      "note": "Rollback of a behaviour change is not instantaneous even for the provider itself, which is why bounding exposure up front is worth more than a fast revert path. The page is JS-rendered and carries no machine-readable publication date, and the date could not be confirmed from an independent source in this run (search backend down, SearXNG proxy returned 429), so the date recorded is the retrieval date. The page's own text places the incident in late April: the update rolled out on April 25th and the rollback began April 28th."
+    }
+  ],
+  "build_hypothesis": "A tiny resolver that sits between the app and the prompt registry: it takes a stable cohort key (session or tenant id), a percentage, and a named abort metric, resolves which prompt version that request gets, records the resolved version id on the trace, and demotes the candidate label automatically when the abort metric crosses a threshold. No registry change is needed because promotion stays a label move; the missing piece is a weighted, self-aborting resolver plus the version id on every span.",
+  "tags": [
+    "canary",
+    "prompt-deploy",
+    "progressive-delivery",
+    "rollout"
+  ],
+  "check": {
+    "id": "CHK-106",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.tf",
+        "**/*.cfg",
+        "**/*.sh",
+        "**/*.md"
+      ],
+      "pattern": "(?i)(get_prompt|pull_prompt|hub\\.pull|prompt\\.get|prompt_label|PROMPT_LABEL|langfuse|langsmith|promptlayer|agent_alias|AGENT_ALIAS_ID)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(?:get_prompt|pull_prompt|hub\\.pull|prompt\\.get)\\s*\\([^)]*(?:label|environment)\\s*=\\s*[\\\"'][^\\\"']+[\\\"']"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*"
+            ],
+            "pattern": "(?i)\\b(?:canary|traffic_split|trafficSplit|traffic_weight|rollout_percent(?:age)?|rollout_fraction|percent_of_traffic|progressive_(?:rollout|delivery)|shadow_traffic|blue_?green)\\b"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.tf",
+        "**/*.cfg",
+        "**/*.sh",
+        "**/*.md"
+      ],
+      "pattern": "(?i)\\b(?:canary|traffic_split|trafficSplit|traffic_weight|rollout_percent(?:age)?|rollout_fraction|percent_of_traffic|progressive_(?:rollout|delivery)|shadow_traffic|blue_?green)\\b"
+    },
+    "manual_question": "When a prompt or agent-config version is promoted, what fraction of live traffic sees it first, which metric decides whether it advances, and what demotes it without a human?",
+    "rationale": "A runtime prompt fetch pinned to an environment label is the signature of promote-by-pointer: the served version changes for every request at once, so no request-level cohort exists to canary on. The absence clause looks for any weighted-exposure vocabulary anywhere in the tree, so a repo that does split traffic is not reported. What it can get wrong: the word canary in a comment, a changelog or an unrelated CI job suppresses the finding, and a repo that names canary only inside tests yields MANUAL rather than a pass, because mitigated_when is evaluated with test files excluded. It also cannot see a split implemented in a gateway outside the repo, which is exactly what the manual_question asks a human.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from langfuse import Langfuse\n\nlangfuse = Langfuse()\n\n\ndef build_messages(session_id: str, user_input: str) -> list[dict]:\n    # \"Deploying\" a new prompt means moving the production label onto a new\n    # version. Every request picks it up on the next fetch, all at once.\n    prompt = langfuse.get_prompt(\"support-agent\", label=\"production\")\n    return prompt.compile(question=user_input)\n"
+      },
+      "good": {
+        "app/agent.py": "import hashlib\nimport os\n\nfrom langfuse import Langfuse\n\nlangfuse = Langfuse()\n\n# Fraction of sessions that see a new prompt version before it is promoted.\nCANARY_PERCENT = int(os.environ.get(\"PROMPT_CANARY_PERCENT\", \"0\"))\n\n\ndef _in_canary(session_id: str) -> bool:\n    bucket = int(hashlib.sha256(session_id.encode()).hexdigest(), 16) % 100\n    return bucket < CANARY_PERCENT\n\n\ndef build_messages(session_id: str, user_input: str) -> list[dict]:\n    if _in_canary(session_id):\n        prompt = langfuse.get_prompt(\"support-agent\", label=\"canary\")\n    else:\n        prompt = langfuse.get_prompt(\"support-agent\", label=\"production\")\n    return prompt.compile(question=user_input)\n"
+      }
+    }
+  }
+}

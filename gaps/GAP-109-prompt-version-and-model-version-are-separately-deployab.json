@@ -1,0 +1,158 @@
+{
+  "id": "GAP-109",
+  "title": "Prompt version and model version are separately deployable, so nothing names the combination that was tested",
+  "layer": "lifecycle-deploy",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I rolled the prompt back to the version that was working, but the model deployment had moved to a new default in the meantime, so what is serving users now is a pair that was never evaluated together.",
+  "symptom": "An incident timeline shows two independent levers moved hours apart, a system-prompt edit and a model version change, and no single version string identifies what users actually received; the eval run that approved the change cannot be matched to the state that shipped.",
+  "why_now": "Each leg acquired its own lifecycle in 2025 and 2026 and they are owned by different systems: prompt-management products version and label prompts outside the code deploy, providers version model deployments on their own upgrade policy, and tool surfaces are versioned by their own servers. Every leg is individually versioned, which is why the gap is easy to miss, and no widely used framework emits a single release identity for the tuple that determines behaviour.",
+  "existing": [
+    "Prompt-management products version the prompt and can carry model parameters in a prompt config, but the model deployment those parameters name is owned by the provider and can change without any prompt release.",
+    "Provider-side pinning fixes the model leg only. A pinned snapshot says nothing about which prompt version was validated against it, and the provider offers no place to record that.",
+    "Managed agent products do have the primitive: a Bedrock agent is deployed as an alias over an agent version, which snapshots the configuration. A self-hosted agent assembled from a framework plus a prompt store plus an SDK has no equivalent artifact, so the primitive exists only inside one vendor's boundary.",
+    "GAP-009 in this register covers a running process not picking up shipped code. This record is the opposite direction: the legs update independently and on their own schedules, and the composite is never written down at all."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "We took immediate action by pushing updates to the system prompt late Sunday night to mitigate much of the negative impact quickly",
+      "note": "During the incident the system prompt and the model version were moved as two separate levers, hours apart. The state users met between those two actions was a prompt-and-model pair that no launch review had evaluated, which is exactly the composite this gap says nobody names."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "The full rollback took around 24 hours to manage stability and avoid introducing new issues across the deployment",
+      "note": "A rollback of one leg is not instantaneous, so the period during which the running configuration is a mixture of old and new legs is measured in hours even at an organisation with a dedicated deployment team."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Model versioning in Microsoft Foundry Models (classic) - Microsoft Foundry (classic) portal",
+      "locator": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/model-versions",
+      "date": "2026-08-19",
+      "quote": "Deployments set to Upgrade once new default version becomes available automatically update to use the new default version",
+      "note": "The model leg can advance with no action by the application team and no deploy of the application, which is what makes a prompt-only rollback land on an untested pair. The page also states that customers might notice changes in model behavior after a version upgrade."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Open Source Prompt Management - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/overview",
+      "date": "2026-08-19",
+      "quote": "non-technical team members update them directly in the UI while your application automatically fetches the latest version",
+      "note": "The prompt leg is designed to move without a code deploy, and the product states this as the benefit. The decoupling is genuinely useful and it is also precisely why no deploy artifact records which prompt was paired with which model."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Version Control - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/features/prompt-version-control",
+      "date": "2026-08-19",
+      "quote": "You can quickly rollback to a previous version by setting the production label to that previous version in the Langfuse UI",
+      "note": "States the rollback unit directly: it is one label on one leg. Rolling the prompt back moves the prompt and nothing else, which is the mechanism by which a rollback lands on a prompt-and-model pair that was never evaluated."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Deploy and use an Amazon Bedrock agent in your application",
+      "locator": "https://docs.aws.amazon.com/bedrock/latest/userguide/agents-deploy.html",
+      "date": "2026-08-19",
+      "quote": "Before you can use an agent, you must deploy the agent by creating an alias",
+      "note": "Cited as the partial approach, not as the gap: a managed product does make a deployable agent version a first-class artifact, which shows the primitive is buildable. Self-hosted stacks have no such object."
+    }
+  ],
+  "build_hypothesis": "A release manifest for an agent, plus one assertion. The manifest is a small tracked file naming the prompt version, the resolved model version, the tool or MCP manifest hash and the eval run that accepted them. At startup the process resolves each leg from the manifest and refuses to serve if a resolved value differs from the manifest, and every trace carries the manifest id. That is a day of work and it converts an unnamed tuple into a rollback unit.",
+  "tags": [
+    "lifecycle",
+    "versioning",
+    "rollback",
+    "prompt",
+    "model"
+  ],
+  "check": {
+    "id": "CHK-108",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)(openai|anthropic|bedrock|litellm|langchain|langgraph|langfuse|crewai|chat\\.completions|messages\\.create|invoke_model|generate_content)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(get_prompt|getprompt|pull_prompt|hub\\.pull|system[_ ]?prompt\\s*=|prompts?/[\\w.-]+\\.(?:txt|md|jinja|j2|prompt))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)\\bmodel(?:_id|_name|id)?[\\\"']?\\s*[=:]\\s*[\\\"'][\\w.:@/-]+[\\\"']"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?s)^(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?s)^(?=[\\s\\S]*(?i:prompt[_. -]?(?:version|sha|hash|commit|id)\\b))(?=[\\s\\S]*(?i:model[_. -]?(?:version|snapshot|id)\\b|-20\\d\\d-\\d\\d-\\d\\d\\b))"
+    },
+    "manual_question": "Name the single identifier that tells you which prompt version, which resolved model version and which tool manifest served a given request, and show where that identifier is written down. If answering needs two systems and a timestamp comparison, the composite release identity does not exist.",
+    "rationale": "The signature is a repo that resolves its prompt from a versioned source and its model from an id, while no single tracked file names both a prompt version and a model version or dated snapshot. That absence is the gap: the legs are individually versioned and the pair is not. What it can get wrong: a team may keep the composite in an external deploy system such as a Helm values file or a Terraform variable outside this repo, in which case the honest answer comes from the manual question; and a repo that happens to mention prompt_id and model_id in unrelated files will read as mitigated, which is the safe direction for a false reading because a human then confirms rather than being told the gap is present.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"Support agent. The prompt lives in a prompt store; the model lives here.\"\"\"\nfrom langfuse import Langfuse\nfrom openai import OpenAI\n\nlf = Langfuse()\nclient = OpenAI()\n\n\ndef answer(question: str) -> str:\n    # An editor ships a new prompt from the UI and this process picks it up on\n    # the next fetch. Nothing anywhere names the pair that served the request.\n    prompt = lf.get_prompt(\"support-agent\", label=\"production\")\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=[\n            {\"role\": \"system\", \"content\": prompt.prompt},\n            {\"role\": \"user\", \"content\": question},\n        ],\n    )\n    return reply.choices[0].message.content\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"Support agent. One artifact names the whole tested combination.\"\"\"\nimport json\nimport pathlib\n\nfrom langfuse import Langfuse\nfrom openai import OpenAI\n\nRELEASE = json.loads(pathlib.Path(\"release/agent_release.json\").read_text())\nlf = Langfuse()\nclient = OpenAI()\n\n\ndef answer(question: str) -> str:\n    # Both legs are resolved from the release manifest, so the pair that serves\n    # traffic is the pair that was evaluated and a rollback moves both together.\n    prompt = lf.get_prompt(\"support-agent\", version=RELEASE[\"prompt_version\"])\n    reply = client.chat.completions.create(\n        model=RELEASE[\"model_id\"],\n        messages=[\n            {\"role\": \"system\", \"content\": prompt.prompt},\n            {\"role\": \"user\", \"content\": question},\n        ],\n    )\n    return reply.choices[0].message.content\n",
+        "release/agent_release.json": "{\n  \"agent_release\": \"2026-08-19.3\",\n  \"prompt_name\": \"support-agent\",\n  \"prompt_version\": 7,\n  \"model_id\": \"gpt-4o-2024-08-06\",\n  \"tool_manifest_sha\": \"9f2c1ab4\",\n  \"accepted_by_eval_run\": \"evals/run-4417\"\n}\n"
+      }
+    }
+  }
+}

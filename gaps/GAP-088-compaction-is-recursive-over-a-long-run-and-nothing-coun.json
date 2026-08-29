@@ -1,0 +1,113 @@
+{
+  "id": "GAP-088",
+  "title": "Compaction is recursive over a long run and nothing counts the generations, so a context that is a summary of a summary is indistinguishable from a first-generation one",
+  "layer": "context-memory",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My run has compacted five times, so what the model is now reading is a summary of a summary of a summary, and nothing in my stack records that depth, bounds it, or lets me ask which rewrite dropped the thing I needed.",
+  "symptom": "Late in a long run the agent contradicts a decision it took earlier or redoes finished work, while every visible signal looks healthy: input tokens are under the limit, no error was raised, and the only surviving artifact is the newest summary, which carries no marker of how many rewrites it is downstream of the real transcript.",
+  "why_now": "Recursive compaction is the documented behaviour of the current server-side feature, not an edge case: multiple compactions in one conversation are expected and each one replaces everything before it. The one counter the vendor documents around it counts compactions to estimate cumulative token spend, so the number exists in cost accounting and not in fidelity accounting. Because no generation term is carried in the context or the run record, no evaluation can condition on depth, no alarm can fire at generation N, and a degradation that is caused by accumulated rewriting is attributed to the model instead.",
+  "existing": [
+    "The provider's own budget example does count compactions, but the counter drives a cost wrap-up once a token budget is hit; it neither bounds depth nor measures what each rewrite lost.",
+    "Client-side frameworks offer summarisation as the remedy for the information loss that trimming causes, and reapply it every time the window fills, with no generation term of their own.",
+    "Retaining the pre-compaction transcript, where a harness does it, makes a single-step diff possible in principle, but a diff between two adjacent generations still does not say which of N rewrites dropped a fact, and nothing aggregates the loss across generations."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Compaction",
+      "locator": "https://docs.claude.com/en/docs/build-with-claude/compaction.md",
+      "date": "2026-08-20",
+      "quote": "A long-running conversation might result in multiple compactions. The last compaction block reflects the final state of the prompt, replacing content prior to it with the generated summary.",
+      "note": "The vendor states the recursion directly: several compactions per conversation, each one replacing what preceded it, with only the last surviving. Nothing in the documented request or response shape carries which generation the surviving summary is. The page has no publication date; the date here is the date it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Compaction is the practice of taking a conversation nearing the context window limit, summarizing its contents, and reinitiating a new context window with the summary.",
+      "note": "Defines the operation whose repetition is the problem: the new window is seeded by the summary, so the next compaction summarises a summary. The same page warns that aggressive compaction loses context whose importance appears only later, which is precisely the loss no generation counter is measuring."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Short-term memory - LangChain docs",
+      "locator": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+      "date": "2026-08-20",
+      "quote": "The problem with trimming or removing messages, as shown above, is that you may lose information from culling of the message queue.",
+      "note": "Shows the same shape outside one vendor's API: the framework's answer to trimming loss is repeated model summarisation of the history, applied whenever the window fills, with no depth or generation term exposed. Page carries no publication date; date is the date fetched."
+    }
+  ],
+  "build_hypothesis": "Carry a compaction generation integer in the run record and in the context header, increment it on every compaction event, and make it a first-class dimension: bound it with a configurable maximum that stops the run for a human instead of rewriting again, log it on every event so a trace can be grouped by depth, and label evaluation results with it so degradation-by-depth becomes measurable rather than anecdotal.",
+  "tags": [
+    "compaction",
+    "long-horizon",
+    "recursive",
+    "telemetry"
+  ],
+  "check": {
+    "id": "CHK-087",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.json",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "compact_20260112|SummarizationMiddleware|SummarizationNode|summarize_messages\\(|summarise_history|summarize_history|compact_history"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "compact_20260112|SummarizationMiddleware|SummarizationNode|summarize_messages\\(|summarise_history|summarize_history|compact_history"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)compaction[_ -]?(?:count|counter|generation|depth|index)|n_compactions|num_compactions|summar\\w*[_ -]?(?:generation|depth|count)|max[_ -]?compactions"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.md",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)compaction[_ -]?(?:count|counter|generation|depth|index)|n_compactions|num_compactions|summar\\w*[_ -]?(?:generation|depth|count)|max[_ -]?compactions"
+    },
+    "manual_question": "Your code compacts or summarises message history, and a long run will do that more than once. What number tells you the context the model is reading is the Nth summary rather than the first, where is that number recorded, and what happens when N gets large?",
+    "rationale": "The target configures or calls a history-summarising mechanism, and nowhere in the tree is there a name for the count or depth of those summarisations. What it can get wrong: a project may track depth under a name this pattern does not know, which reads as PRESENT wrongly; and a project that merely defines a compaction_count metric reads as mitigated even if nothing bounds or acts on it, which is why the mitigation is positive evidence for a human to confirm rather than a proof that depth is governed.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "\"\"\"Long-running task loop with server-side compaction enabled.\"\"\"\nimport anthropic\n\nclient = anthropic.Anthropic()\n\nCOMPACTION = {\"edits\": [{\"type\": \"compact_20260112\",\n                         \"trigger\": {\"type\": \"input_tokens\", \"value\": 150000}}]}\n\n\ndef run(task):\n    messages = [{\"role\": \"user\", \"content\": task}]\n    while True:\n        response = client.beta.messages.create(\n            betas=[\"compact-2026-01-12\"],\n            model=\"claude-opus-5\",\n            max_tokens=4096,\n            messages=messages,\n            context_management=COMPACTION,\n        )\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\n        if response.stop_reason == \"end_turn\":\n            return messages\n"
+      },
+      "good": {
+        "app/loop.py": "\"\"\"Long-running task loop with server-side compaction enabled.\n\nThe context the model reads after the Nth compaction is a summary of a summary,\nN deep. So the generation is counted, carried in the run record, and bounded:\npast the bound the run stops and asks for a human rather than continuing to\nrewrite a rewrite.\n\"\"\"\nimport anthropic\n\nclient = anthropic.Anthropic()\n\nCOMPACTION = {\"edits\": [{\"type\": \"compact_20260112\",\n                         \"trigger\": {\"type\": \"input_tokens\", \"value\": 150000},\n                         \"pause_after_compaction\": True}]}\n\nMAX_COMPACTION_GENERATIONS = 4\n\n\nclass CompactionDepthExceeded(RuntimeError):\n    \"\"\"The context is too many rewrites downstream of the real transcript.\"\"\"\n\n\ndef run(task, log):\n    messages = [{\"role\": \"user\", \"content\": task}]\n    compaction_generation = 0\n    while True:\n        response = client.beta.messages.create(\n            betas=[\"compact-2026-01-12\"],\n            model=\"claude-opus-5\",\n            max_tokens=4096,\n            messages=messages,\n            context_management=COMPACTION,\n        )\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\n        if response.stop_reason == \"compaction\":\n            compaction_generation += 1\n            log.event(\"compaction\", generation=compaction_generation)\n            if compaction_generation > MAX_COMPACTION_GENERATIONS:\n                raise CompactionDepthExceeded(\n                    \"context is generation %d of summarisation\" % compaction_generation\n                )\n            continue\n        if response.stop_reason == \"end_turn\":\n            return messages, compaction_generation\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "id": "GAP-056",
+  "title": "No restore point is taken before an agent's irreversible command, so detecting the mistake does not let you undo it",
+  "layer": "tool-action",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "The agent noticed within seconds that it had thrown away a session's work, and so did I, and neither of us could get it back, because nothing had been captured before the command ran.",
+  "symptom": "An agent runs a state-destroying command, the mistake is recognised immediately, and recovery is impossible: there is no snapshot, no stash, no pre-image, no soft delete anywhere in the path. The transcript contains an apology instead of a rollback, and the operator's only recourse is to redo the work by hand.",
+  "why_now": "Agent safety work in 2026 is concentrated almost entirely on the moment BEFORE the action, meaning approval prompts, allowlists and permission modes. That is a refusal contract, and it only helps for the calls a human happens to inspect. The action a long-running agent takes at 3am has no reviewer, so the property that actually bounds damage is whether the state it touched can be put back. Nothing in the common tool interfaces declares whether a call is reversible, and no framework takes a restore point on the operator's behalf, so reversibility is left to whatever the underlying tool happens to offer.",
+  "existing": [
+    "Human-in-the-loop approval gates try to prevent the call instead of making it recoverable, and they degrade with volume: approval fatigue means the destructive call is approved along with everything else.",
+    "Version control is assumed to be the undo, but the commands agents reach for most (a hard reset, a clean, a force push) destroy exactly the uncommitted state git is not keeping for you.",
+    "Managed platforms have added restore for their own primary datastore, which covers one product's database and nothing about the agent's filesystem, cloud or SaaS actions.",
+    "Dry-run flags exist per tool and are unenforced: nothing checks that the dry run was the thing that actually ran."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Gemini CLI Agent Caused Irrecoverable Data Loss, Repeatedly Violated Instructions, and Failed Core Engineering Task Due to Environmental Mismanagement.",
+      "locator": "https://github.com/google-gemini/gemini-cli/issues/14471",
+      "date": "2025-12-03",
+      "quote": "This command, without adequate caution or verification of the working directory state, irrevocably discarded all unstaged and uncommitted changes representing the entire sprint planning work",
+      "note": "A first-hand incident report filed against the vendor's own tracker. The destructive step was a hard reset, and the state it destroyed was precisely the uncommitted work that version control was not holding."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Gemini CLI Agent Caused Irrecoverable Data Loss, Repeatedly Violated Instructions, and Failed Core Engineering Task Due to Environmental Mismanagement.",
+      "locator": "https://github.com/google-gemini/gemini-cli/issues/14471",
+      "date": "2025-12-03",
+      "quote": "Mechanisms to prevent data loss when using powerful Git commands like git reset --hard.",
+      "note": "The reporter's own ask is for the missing primitive, stated as a mechanism rather than as a better prompt or another approval dialog."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Making Claude Code more secure and autonomous with sandboxing",
+      "locator": "https://www.anthropic.com/engineering/claude-code-sandboxing",
+      "date": "2025-10-20",
+      "quote": "Constantly clicking \"approve\" slows down development cycles and can lead to ‘approval fatigue’, where users might not pay close attention to what they're approving, and in turn making development less safe.",
+      "note": "The vendor's own reason that the pre-action refusal contract does not hold at volume, which is why recoverability rather than approval is the property that bounds blast radius on an unattended run."
+    }
+  ],
+  "build_hypothesis": "A restore-point wrapper for the handful of command families that actually destroy state: before the call, capture the minimum pre-image (a stash including untracked files, a tagged commit, a table snapshot, a copy-on-write directory clone), record it in a ledger keyed by the tool call, and expose one undo verb. Then a scanner that reports every destructive call site with no restore point in its path.",
+  "tags": [
+    "reversibility",
+    "undo",
+    "blast-radius",
+    "destructive"
+  ],
+  "check": {
+    "id": "CHK-055",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(@tool\\b|@mcp\\.tool|@function_tool|register_tool|tools\\s*=\\s*\\[|tool_calls|StructuredTool|FunctionTool)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sh"
+          ],
+          "pattern": "(?i)(reset[\\\"'\\s,\\[\\]]+--hard|clean[\\\"'\\s,\\[\\]]+-[a-z]*f\\b|push[\\\"'\\s,\\[\\]]+(--force|-f)\\b|rm[\\\"'\\s,\\[\\]]+-rf|shutil\\.rmtree|fs\\.rmSync|DROP[\\\"'\\s,\\[\\]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[\\\"'\\s,\\[\\]]+TABLE|DELETE[\\\"'\\s,\\[\\]]+FROM|terraform[\\\"'\\s,\\[\\]]+(apply|destroy)|kubectl[\\\"'\\s,\\[\\]]+delete|s3\\.delete_object|drop_collection)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sh",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(snapshot|backup|restore[_-]?point|restore\\(|rollback|roll_back|\\bundo\\b|\\bstash\\b|point[_-]?in[_-]?time|soft[_-]?delete|recycle_bin|\\btrash\\b|pg_dump|pre[_-]?image|savepoint|recover_)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.sh",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)(snapshot|backup|restore[_-]?point|restore\\(|rollback|roll_back|\\bundo\\b|\\bstash\\b|point[_-]?in[_-]?time|soft[_-]?delete|recycle_bin|\\btrash\\b|pg_dump|pre[_-]?image|savepoint|recover_)"
+    },
+    "manual_question": "Pick the most destructive command your agent can issue. If it fires wrongly at 3am and you notice at 9am, what do you restore from, and what captured it? If the answer is your version control system, say what holds the uncommitted state a hard reset or a clean removes.",
+    "rationale": "The signature is a state-destroying command family reachable from tool code, combined with the absence of any recovery vocabulary in the repository. The command patterns tolerate both a shell string and an argv list, because agent tool code overwhelmingly builds the latter. Recovery vocabulary is deliberately separate from approval vocabulary: a project can be full of approval gates and still have no way back, and that is the case this check is for. Known limitations: recovery may be provided by infrastructure the repository never names, which reads as PRESENT and needs the manual question; and a single unrelated mention of the word backup reads as a mitigation, which is why the verdict is a positively-identified mitigation rather than proof that the destructive path is covered.",
+    "fixtures": {
+      "bad": {
+        "tools/git_tools.py": "import subprocess\n\n\n@tool\ndef discard_local_changes(repo: str) -> str:\n    \"\"\"Drop the last commit and any local edits.\"\"\"\n    subprocess.run([\"git\", \"reset\", \"--hard\", \"HEAD~1\"], cwd=repo, check=True)\n    subprocess.run([\"git\", \"clean\", \"-fd\"], cwd=repo, check=True)\n    return \"working tree reset\"\n"
+      },
+      "good": {
+        "tools/git_tools.py": "import subprocess\n\n\ndef _restore_point(repo: str) -> str:\n    \"\"\"Capture a pre-image before anything destructive runs.\"\"\"\n    label = \"agent-restore-point\"\n    subprocess.run(\n        [\"git\", \"stash\", \"push\", \"--include-untracked\", \"-m\", label],\n        cwd=repo, check=True,\n    )\n    return label\n\n\n@tool\ndef discard_local_changes(repo: str) -> str:\n    \"\"\"Drop the last commit and any local edits, recoverably.\"\"\"\n    label = _restore_point(repo)\n    subprocess.run([\"git\", \"reset\", \"--hard\", \"HEAD~1\"], cwd=repo, check=True)\n    subprocess.run([\"git\", \"clean\", \"-fd\"], cwd=repo, check=True)\n    return \"working tree reset; undo with git stash apply \" + label\n"
+      }
+    }
+  }
+}

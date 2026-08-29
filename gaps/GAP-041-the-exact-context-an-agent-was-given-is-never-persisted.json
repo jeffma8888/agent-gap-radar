@@ -1,0 +1,128 @@
+{
+  "id": "GAP-041",
+  "title": "The exact context an agent was given is never persisted, so a reported failure cannot be replayed against the input that caused it",
+  "layer": "observability",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "A user reports that the agent did something wrong, and I cannot see what it actually saw: the retrieved chunks, the tool results and the assembled message list existed only in memory for the length of one request.",
+  "symptom": "The trace shows a model call, a token count and a final answer. Re-running the same question retrieves different chunks, so the failure will not reproduce and the investigation ends in a guess about which part of the context was wrong.",
+  "why_now": "The standard that would fix this makes it opt-in: OpenTelemetry's GenAI conventions mark the input messages, system instructions and tool definitions as Opt-In attributes and instruct instrumentations not to capture them by default, for real privacy and volume reasons. So the default posture of a correctly instrumented agent in 2026 is a trace that records the shape of a call but not its content, and the vendor postmortem below shows the same lack of access defeating an investigation at provider scale.",
+  "existing": [
+    "OpenTelemetry GenAI conventions define gen_ai.input.messages, gen_ai.system_instructions and gen_ai.tool.definitions, and also define an external-storage hook, but all of them are Opt-In and off by default, so the record exists only where someone deliberately turned it on.",
+    "LLM tracing products capture prompts by default, but capture is scoped to their own client wrapper: retrieval output and tool results assembled outside that wrapper are not in the record, and content retention windows are typically far shorter than the time it takes a report to arrive."
+  ],
+  "severity": 5,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "This protects user privacy but prevents engineers from examining the problematic interactions needed to identify or reproduce bugs.",
+      "note": "A provider stating in its own postmortem that it could not look at what the model was given, and that this blocked reproduction. The same page also records an incident it never reproduced at all: after extensive investigation the top-k bug could not be reproduced on one model and was rolled back on precaution instead of on evidence."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Generative AI spans, OpenTelemetry GenAI semantic conventions",
+      "locator": "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-spans.md",
+      "date": "2026-08-20",
+      "quote": "OpenTelemetry instrumentations SHOULD NOT capture them by default, but SHOULD provide an option for users to opt in.",
+      "note": "The industry telemetry standard makes the record of what the model saw opt-in and names the default as recording nothing, which is why an unmodified, fully instrumented agent still cannot answer what did it see. Date is the retrieval date: this is a living specification document rather than a dated publication."
+    }
+  ],
+  "build_hypothesis": "A replay bundle written at every model call: the fully rendered message list, the tool results in the form the model received them, the retrieved document ids with the index version, and a content hash, stored under a run id with its own retention policy, plus a replay command that re-issues the stored bundle instead of re-deriving the context.",
+  "tags": [
+    "reproducibility",
+    "replay",
+    "forensics",
+    "context-capture",
+    "opt-in-default"
+  ],
+  "check": {
+    "id": "CHK-040",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(chat\\.completions\\.create|responses\\.create|messages\\.create|invoke_model|generate_content|litellm\\.completion|llm\\.(?:invoke|complete|generate))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(messages\\.append\\(|messages\\s*\\+=|prompt_?template|PromptTemplate|\\.render\\(|similarity_search|retriever\\.|as_retriever\\(|tool_result)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(chat\\.completions\\.create|responses\\.create|messages\\.create|invoke_model|generate_content|litellm\\.completion|llm\\.(?:invoke|complete|generate))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(messages\\.append\\(|messages\\s*\\+=|prompt_?template|PromptTemplate|\\.render\\(|similarity_search|retriever\\.|as_retriever\\(|tool_result)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)(gen_ai\\.(?:input|output)\\.messages|gen_ai\\.system_instructions|capture_message_content|prompt_(?:snapshot|hash|log|archive)|context_(?:snapshot|hash|dump|archive)|save_transcript|write_transcript|transcript_(?:path|dir|store|writer)|record_(?:prompt|messages|context)|dump_messages|replay_(?:log|bundle|record))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)(gen_ai\\.(?:input|output)\\.messages|gen_ai\\.system_instructions|capture_message_content|prompt_(?:snapshot|hash|log|archive)|context_(?:snapshot|hash|dump|archive)|save_transcript|write_transcript|transcript_(?:path|dir|store|writer)|record_(?:prompt|messages|context)|dump_messages|replay_(?:log|bundle|record))"
+    },
+    "manual_question": "Pick a complaint from last week. Can you retrieve the exact message list, tool results and retrieved chunks that request sent to the model, from storage rather than by re-running the pipeline?",
+    "rationale": "A repo that assembles context per request from retrieval or appended messages and never names any persistence of that assembled context has no artifact to replay, so any investigation must re-derive the input and will not reproduce a retrieval-dependent failure. It can get wrong a project whose capture happens entirely inside a vendor SDK it merely configures, or one that persists context under a vocabulary this pattern does not know, which is why the mitigation is credited only from non-test code and the manual question asks for a retrieval rather than for a code reference.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"A retrieval agent. It logs the answer it produced, and nothing else.\"\"\"\n\nimport logging\n\nfrom openai import OpenAI\n\nfrom app.index import retriever\n\nlog = logging.getLogger(__name__)\nclient = OpenAI()\n\nSYSTEM = \"You are a support agent. Answer only from the context provided.\"\n\n\ndef answer(question: str) -> str:\n    docs = retriever.similarity_search(question, k=6)\n    messages = [{\"role\": \"system\", \"content\": SYSTEM}]\n    for doc in docs:\n        messages.append({\"role\": \"user\", \"content\": doc.page_content})\n    messages.append({\"role\": \"user\", \"content\": question})\n\n    resp = client.chat.completions.create(model=\"gpt-4o\", messages=messages)\n    text = resp.choices[0].message.content\n    log.info(\"answered question=%s answer=%s\", question, text)\n    return text\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"A retrieval agent. The exact context it was given is written to the run store.\"\"\"\n\nfrom openai import OpenAI\n\nfrom app.index import retriever\nfrom app.transcript import save_transcript\n\nclient = OpenAI()\n\nSYSTEM = \"You are a support agent. Answer only from the context provided.\"\n\n\ndef answer(run_id: str, question: str) -> str:\n    docs = retriever.similarity_search(question, k=6)\n    messages = [{\"role\": \"system\", \"content\": SYSTEM}]\n    for doc in docs:\n        messages.append({\"role\": \"user\", \"content\": doc.page_content})\n    messages.append({\"role\": \"user\", \"content\": question})\n\n    resp = client.chat.completions.create(model=\"gpt-4o-2024-08-06\", messages=messages)\n    save_transcript(run_id, messages, resp)\n    return resp.choices[0].message.content\n",
+        "app/transcript.py": "\"\"\"Persist the exact bytes the model was given, so a report can be replayed.\"\"\"\n\nimport hashlib\nimport json\n\n\ndef save_transcript(run_id, messages, response):\n    payload = json.dumps(messages, sort_keys=True, ensure_ascii=False)\n    record = {\n        \"run_id\": run_id,\n        \"input_messages\": messages,\n        \"prompt_hash\": hashlib.sha256(payload.encode(\"utf-8\")).hexdigest(),\n        \"output_messages\": [c.message.content for c in response.choices],\n        \"response_id\": response.id,\n        \"response_model\": response.model,\n    }\n    STORE.write(run_id, record)\n    return record\n"
+      }
+    }
+  }
+}

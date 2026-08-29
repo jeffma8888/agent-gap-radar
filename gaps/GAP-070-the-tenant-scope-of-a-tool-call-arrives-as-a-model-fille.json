@@ -1,0 +1,87 @@
+{
+  "id": "GAP-070",
+  "title": "The tenant scope of a tool call arrives as a model-filled parameter, so isolation is decided in the prompt instead of from the authenticated session",
+  "layer": "tool-action",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My tool takes workspace_id as an argument because that is what the underlying API takes, so the thing choosing which tenant's data to read is the model, and a wrong or coaxed value is a well-formed request my server will happily serve.",
+  "symptom": "One tenant's records appear in another tenant's agent answer or summary, the server access log shows a syntactically valid authorised call, and there is no failed-authorisation event anywhere because the scope arrived as data rather than being derived from the caller.",
+  "why_now": "Tool schemas are generated from function signatures, and the fastest way to expose an existing multi-tenant API as a tool is to mirror its parameters, which puts the tenant key in the model-visible argument list. The agent frameworks do provide a non-model channel for exactly this - a local context object that tools receive but the model never sees - yet using it takes deliberate work while the leaky version is the default shape of the code, and the resulting call is indistinguishable from a legitimate one at every layer below the tool.",
+  "existing": [
+    "The OpenAI Agents SDK local context object is passed to tool functions and is documented as never being sent to the LLM, which is the right channel, but nothing prevents a tool from taking the scope as a normal model-visible parameter instead.",
+    "MCP authorization requires a server to validate that a token was issued for it, which fixes who the caller is but says nothing about whether the scope inside the tool arguments matches that caller.",
+    "Server-side authorisation on the underlying API helps only when the agent's credential is already narrowed to one tenant; a service-wide credential plus a model-supplied scope makes every request legitimate."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Context management - OpenAI Agents SDK",
+      "locator": "https://openai.github.io/openai-agents-python/context/",
+      "date": "2026-08-18",
+      "quote": "The context object is not sent to the LLM. It is purely a local object that you can read from, write to and call methods on it.",
+      "note": "Fetched 2026-08-18; the page is undated so the date field is the retrieval date. Documents that a non-model channel for tool-visible data exists and is distinct from the LLM-visible argument list. That is what makes a tenant key in a tool signature a choice rather than a necessity, and it is the mitigation this check looks for."
+    },
+    {
+      "source_class": "secondary-summary",
+      "title": "Asana warns MCP AI feature exposed customer data to other orgs",
+      "locator": "https://www.bleepingcomputer.com/news/security/asana-warns-mcp-ai-feature-exposed-customer-data-to-other-orgs/",
+      "date": "2025-06-18",
+      "quote": "a software bug in the MCP server exposed data from Asana instances to other MCP users, with the data type being limited to each user's access scope",
+      "note": "The consequence class, on a real product: a tenant-isolation defect located in the MCP surface rather than in the product, exposing task data, project metadata, comments and uploaded files across organisations for roughly two weeks. Reported as a logic flaw in the server's own scoping, not an external intrusion. Classed secondary-summary because Asana published no public statement; this is press reporting plus a vendor spokesperson figure, so it evidences that the failure mode occurs in production and does not evidence the specific line of code."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Security Best Practices - Model Context Protocol",
+      "locator": "https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices",
+      "date": "2025-06-18",
+      "quote": "MCP servers MUST NOT accept any tokens that were not explicitly issued for the MCP server.",
+      "note": "The spec establishes the principle for identity - a server must not trust an assertion handed to it by its caller - but its normative requirements stop at the token. The scope carried inside tool arguments is left entirely to the implementer, which is the hole this check probes."
+    }
+  ],
+  "build_hypothesis": "A tool-registration lint plus a runtime shim: at registration time refuse to publish a tool whose model-visible schema contains a field the framework knows to be a scope key (tenant, org, workspace, account), and require those fields to be bound from the run context instead. The bind is a few lines; the value is that the scope becomes unforgeable by the model and a violation is a startup error rather than a production incident.",
+  "tags": [
+    "multi-tenant",
+    "cross-tenant",
+    "tool-schema",
+    "mcp",
+    "authorization",
+    "data-leak"
+  ],
+  "check": {
+    "id": "CHK-069",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(@(?:\\w+\\.)?(?:tool|function_tool|agent_tool)\\b|@server\\.call_tool\\b|register_tool\\s*\\(|StructuredTool\\.|FunctionTool\\s*\\(|tools\\s*=\\s*\\[)"
+    },
+    "present_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?s)@(?:\\w+\\.)?(?:tool|function_tool|agent_tool)\\b[^\\n]*\\n(?:\\s*@[^\\n]*\\n)*\\s*(?:async\\s+)?def\\s+\\w+\\s*\\([^)]*\\b(?:tenant_id|tenantId|org_id|orgId|organi[sz]ation_id|workspace_id|workspace_gid|customer_id|account_id|company_id|domain_id|project_gid|realm_id)\\b[^)]*\\)"
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(?:tenant|org|organi[sz]ation|workspace|account|customer|company)_?(?:id|gid)?\\s*=\\s*(?:ctx|context|auth|session|principal|current_user|user_context|claims|token_claims|request_context|deps|run_context|wrapper\\.context)\\b|def\\s+\\w*(?:require|resolve|assert|scoped?)_(?:tenant|org|organi[sz]ation|workspace|account)\\w*\\s*\\(|RunContextWrapper|ToolContext\\["
+    },
+    "manual_question": "For each tool your agent can call that reads tenant-scoped data, where does the tenant, workspace or account identifier come from - the model's arguments, or a server-side context bound to the authenticated caller? If it is the arguments, what would refuse a call naming a tenant the caller cannot access, and would that refusal show up anywhere?",
+    "rationale": "A tool-decorated function whose parameter list contains a tenant, workspace, organisation or account identifier publishes that identifier in the model-visible schema, which means the model chooses the isolation scope. The mitigation signature is code that binds the scope from a request or run context instead. Known limits: a parameter list containing a nested call with parentheses (a Field or Annotated default) will not match, so this under-reports rather than over-reports; a repo that both binds from context somewhere and takes a scope parameter elsewhere yields MANUAL, which is correct because a partial mitigation is the dangerous case; and a legitimate design where the agent's own credential is already narrowed to one tenant will match this signature, which is why the manual question asks what the credential can reach.",
+    "fixtures": {
+      "bad": {
+        "app/tools.py": "from mcp.server.fastmcp import FastMCP\n\nmcp = FastMCP(\"work-graph\")\n\n\n@mcp.tool()\ndef list_tasks(workspace_id: str, query: str) -> list:\n    \"\"\"Search tasks in a workspace.\"\"\"\n    return db.search_tasks(workspace_id, query)\n"
+      },
+      "good": {
+        "app/tools.py": "from mcp.server.fastmcp import Context, FastMCP\n\nmcp = FastMCP(\"work-graph\")\n\n\n@mcp.tool()\ndef list_tasks(query: str, ctx: Context) -> list:\n    \"\"\"Search tasks in the caller's own workspace.\"\"\"\n    workspace_id = ctx.session.claims[\"workspace_id\"]\n    return db.search_tasks(workspace_id, query)\n"
+      }
+    }
+  }
+}

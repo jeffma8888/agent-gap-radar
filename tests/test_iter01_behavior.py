@@ -27,6 +27,8 @@ REGISTER = REPO_ROOT / "gaps"
 MARKER = "  [below-floor]"
 
 #: GAP-003: severity 5, frequency 4, tractability 4 -> (15+8+4)/3 = 9.0.
+#: This is a FORMAT sample, not the top-ranked row -- higher-priority records
+#: have since been promoted above it.
 #: Two citations of the SAME class (first-party-field) are one kind of evidence,
 #: so confidence is the ceiling 5 with no corroboration bonus.
 LITERAL_RANKED_ROW = (
@@ -160,9 +162,18 @@ def test_b2_below_floor_rows_are_id_ascending(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 
 def test_b3_ranked_row_is_byte_identical_to_the_literal(capsys):
+    """The FORMAT of a ranked row is pinned, byte for byte.
+
+    Anchored to GAP-003's own row rather than to `lines[0]`. Which record ranks
+    first is a property of the register's CONTENTS, and the register grows: pinning
+    rank 1 made a correct promotion (a record scoring 9.7 landing above this one)
+    read as a formatting regression. The byte-level guarantee is unchanged, and
+    every row's shape is still checked by the next test.
+    """
     assert main(["list", str(REPO_ROOT)]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == LITERAL_RANKED_ROW
+    rows = [ln for ln in lines if ln.startswith("GAP-003  ")]
+    assert rows == [LITERAL_RANKED_ROW], rows
 
 
 def test_b3_no_ranked_row_carries_a_new_token(capsys):

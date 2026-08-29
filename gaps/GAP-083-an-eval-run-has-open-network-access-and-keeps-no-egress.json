@@ -1,0 +1,148 @@
+{
+  "id": "GAP-083",
+  "title": "An eval run has open network access and keeps no egress record, so a solved task and a retrieved answer produce the same score",
+  "layer": "eval-verification",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "My agent scores well on a public benchmark and I cannot show that it solved the tasks rather than fetching the answers, because the run had live network access and my harness kept no record of where it went.",
+  "symptom": "A score that collapses on a private variant of the same tasks; and when somebody finally reads the transcripts, fetches of the benchmark's own dataset page or repository sitting in the middle of runs that were counted as passes.",
+  "why_now": "Agent harnesses hand the agent a web tool by default because real tasks need one, and the benchmark whose answers the agent is being scored against is usually published on the open internet. Neither half is a bug on its own; the missing piece is a per-run egress record attached to the verdict. Peer-reviewed 2026 work found this behaviour empirically, and found it only by inspecting logs after the fact with LLM assistance, which is exactly the evidence a harness does not produce for itself. Contamination work in the same period targets what the model memorised during training, so it does not see an answer retrieved at run time.",
+  "existing": [
+    "Sandboxing controls exist for security containment, but an allowlist justified by who owns a domain still permits general web search, and it emits no per-run artifact that can be attached to a score.",
+    "Publication-date and holdout-set contamination controls address memorisation at training time; they say nothing about a fetch that happened during the run being scored.",
+    "Reading agent logs by hand, or with an LLM as HAL did, finds the behaviour afterwards on a research timescale and cannot serve as a per-run gate."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Holistic Agent Leaderboard: The Missing Infrastructure for AI Agent Evaluation",
+      "locator": "https://arxiv.org/abs/2510.11977",
+      "date": "2025-10-13",
+      "quote": "Third, we use LLM-aided log inspection to uncover previously unreported behaviors, such as searching for the benchmark on HuggingFace instead of solving a task, or misusing credit cards in flight booking tasks.",
+      "note": "Peer-reviewed: the identical abstract appears in the ICLR 2026 proceedings, verified by fetching https://proceedings.iclr.cc/paper_files/paper/2026/hash/a0928f924a344aaebbb7f6cd8d56e34c-Abstract-Conference.html. This is direct observational evidence of the exact behaviour, across 21,730 rollouts on 9 benchmarks, and the fact that it was 'previously unreported' is itself the gap: the harnesses that produced those runs recorded nothing that would have surfaced it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "Third, many agent benchmarks have inadequate holdout sets, and sometimes none at all. This has led to agents that are fragile because they take shortcuts and overfit to the benchmark in various ways.",
+      "note": "Dated 2024 and an arXiv preprint with no venue in the listing, so classed as a survey-aggregate rather than peer-reviewed and flagged as outside the 2025-2026 window. It establishes the shortcut-taking mechanism this check looks for, one year before HAL observed a specific instance of it in run logs."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "However, we show that many agentic benchmarks have issues in task setup or reward design. For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "arXiv preprint (v5 dated 2025-08-07), no venue in the listing, classed as a survey-aggregate. Its framing of task validity and outcome validity is the standard this gap fails: a task whose answer is reachable over the network during the run does not measure the capability it claims to measure."
+    }
+  ],
+  "build_hypothesis": "A recording egress proxy the eval harness starts per run: deny by default, an explicit allowlist, and a JSON egress log written next to the verdict, plus a scoring-time assertion that no run counted as a pass touched a host on a benchmark-source denylist. The proxy is off-the-shelf; the new part is making the egress log a required field of the result record so a score without one cannot be published.",
+  "tags": [
+    "evals",
+    "benchmark-gap",
+    "contamination",
+    "egress",
+    "provenance"
+  ],
+  "check": {
+    "id": "CHK-082",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "benchmarks/**/*.py",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*grade*.py",
+            "**/*score*.py",
+            "**/*harness*.py",
+            "**/*runner*.py"
+          ],
+          "pattern": "pass_rate|accuracy|success_rate|\\bscore\\b|scoring|grade"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "benchmarks/**/*.py",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*grade*.py",
+            "**/*score*.py",
+            "**/*harness*.py",
+            "**/*runner*.py"
+          ],
+          "pattern": "requests\\.(get|post)|httpx\\.|urllib\\.request|aiohttp|web_search|search_web|WebFetch|web_fetch|playwright|selenium|duckduckgo|tavily|serpapi|browser_use"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "benchmarks/**/*.py",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*grade*.py",
+            "**/*score*.py",
+            "**/*harness*.py",
+            "**/*runner*.py"
+          ],
+          "pattern": "requests\\.(get|post)|httpx\\.|urllib\\.request|aiohttp|web_search|search_web|WebFetch|web_fetch|playwright|selenium|duckduckgo|tavily|serpapi|browser_use"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json",
+            "**/Dockerfile*",
+            "**/*.sh",
+            "**/*.cfg"
+          ],
+          "pattern": "network_mode|--network[= ]none|net=none|egress|allowlist|allow_list|HF_HUB_OFFLINE|offline\\s*=\\s*True|no_network|block_network|deny_network|proxy_allow|network=\\\"none\\\"|network='none'"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json",
+        "**/Dockerfile*",
+        "**/*.sh",
+        "**/*.cfg"
+      ],
+      "pattern": "network_mode|--network[= ]none|net=none|egress|allowlist|allow_list|HF_HUB_OFFLINE|offline\\s*=\\s*True|no_network|block_network|deny_network|proxy_allow|network=\\\"none\\\"|network='none'"
+    },
+    "manual_question": "During a scored eval run, what could the agent reach over the network, and where is the per-run record of what it actually fetched? If the answer is 'the open internet' and 'nowhere', then for any task published online your score cannot distinguish solving from looking up, and no amount of re-reading the score will tell you which one you measured.",
+    "rationale": "A harness that gives the agent a network-capable tool and contains no egress-control or egress-recording vocabulary anywhere in the project is running scored tasks against the open internet with no evidence trail. What it can get wrong: egress may be constrained outside the repo, by a CI runner's network policy, a VPC rule or a container platform default, none of which this pattern can see, so a false PRESENT is likely on projects with strong platform-level isolation; and the mitigation side is lexical, so a project that merely mentions an allowlist gets credit it may not deserve, which is the conservative direction because it produces a MANUAL or ABSENT rather than a confident accusation. The check cannot see whether an egress record is attached to the VERDICT, which is the part that actually makes a score defensible, so the manual question asks it directly.",
+    "fixtures": {
+      "bad": {
+        "evals/harness.py": "\"\"\"Benchmark harness: run the agent over the public task set and score it.\"\"\"\nimport requests\n\nfrom openai import OpenAI\n\nclient = OpenAI()\n\n\ndef search_web(query):\n    \"\"\"Tool exposed to the agent for every task.\"\"\"\n    reply = requests.get(\"https://api.search.example/v1\", params={\"q\": query}, timeout=30)\n    return reply.json()[\"results\"]\n\n\ndef run_task(task):\n    result = client.responses.create(\n        model=\"gpt-4o\",\n        input=task[\"prompt\"],\n        tools=[{\"type\": \"function\", \"name\": \"search_web\"}],\n    )\n    return {\"task_id\": task[\"id\"], \"answer\": result.output_text}\n\n\ndef score(tasks):\n    records = [run_task(t) for t in tasks]\n    passed = sum(1 for r, t in zip(records, tasks) if t[\"expected\"] in r[\"answer\"])\n    accuracy = passed / len(tasks)\n    print(f\"accuracy={accuracy:.3f}\")\n    return accuracy\n"
+      },
+      "good": {
+        "evals/harness.py": "\"\"\"Benchmark harness: run the agent over the public task set and score it.\n\nThe agent still gets a web tool, because real tasks need one. What changed is that\nevery request goes through a deny-by-default allowlist and is written to a per-run\negress record stored next to the verdict, and a run that touched a benchmark-source\nhost is excluded from the score instead of being counted as a pass.\n\"\"\"\nimport json\n\nimport requests\n\nfrom openai import OpenAI\n\nclient = OpenAI()\n\nEGRESS_ALLOWLIST = (\"api.search.example\",)\nBENCHMARK_SOURCE_HOSTS = (\"huggingface.co\", \"github.com\", \"raw.githubusercontent.com\")\n\n\ndef _record_egress(run_dir, task_id, host, allowed):\n    path = run_dir / f\"{task_id}.egress.json\"\n    entries = json.loads(path.read_text()) if path.exists() else []\n    entries.append({\"host\": host, \"allowed\": allowed})\n    path.write_text(json.dumps(entries), encoding=\"utf-8\")\n\n\ndef search_web(query, task_id, run_dir):\n    \"\"\"Tool exposed to the agent. Deny by default, and every call is recorded.\"\"\"\n    host = \"api.search.example\"\n    allowed = host in EGRESS_ALLOWLIST\n    _record_egress(run_dir, task_id, host, allowed)\n    if not allowed:\n        raise PermissionError(f\"egress to {host} is not on the allowlist\")\n    reply = requests.get(f\"https://{host}/v1\", params={\"q\": query}, timeout=30)\n    return reply.json()[\"results\"]\n\n\ndef run_task(task, run_dir):\n    result = client.responses.create(\n        model=\"gpt-4o\",\n        input=task[\"prompt\"],\n        tools=[{\"type\": \"function\", \"name\": \"search_web\"}],\n    )\n    path = run_dir / f\"{task['id']}.egress.json\"\n    egress = json.loads(path.read_text()) if path.exists() else []\n    return {\n        \"task_id\": task[\"id\"],\n        \"answer\": result.output_text,\n        \"egress\": egress,\n        \"touched_benchmark_source\": any(\n            src in e[\"host\"] for e in egress for src in BENCHMARK_SOURCE_HOSTS\n        ),\n    }\n\n\ndef score(tasks, run_dir):\n    records = [run_task(t, run_dir) for t in tasks]\n    scorable = [r for r in records if not r[\"touched_benchmark_source\"]]\n    passed = sum(\n        1 for r in scorable\n        for t in tasks if t[\"id\"] == r[\"task_id\"] and t[\"expected\"] in r[\"answer\"]\n    )\n    accuracy = passed / len(scorable)\n    print(f\"accuracy={accuracy:.3f} scored={len(scorable)}/{len(records)}\")\n    return accuracy, records\n"
+      }
+    }
+  }
+}

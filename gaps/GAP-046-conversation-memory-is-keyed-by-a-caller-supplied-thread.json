@@ -1,0 +1,138 @@
+{
+  "id": "GAP-046",
+  "title": "Conversation memory is keyed by a caller-supplied thread id with nothing binding that key to the verified identity, so one request can load another tenant's context",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent's entire memory boundary is a string that arrives in the request body, so if that string is guessed, replayed from a shared link, or reused by a buggy client, the agent loads somebody else's conversation and answers fluently on top of it.",
+  "symptom": "A thread id, session id or conversation id that comes off the request and goes straight into the memory configuration, with no ownership check on the way. Nothing fails: the checkpointer finds the thread, the model answers on top of a stranger's history, and the trace records a normal successful run, so the leak is visible only to the person who received the wrong answer.",
+  "why_now": "The persistence primitives are identity-agnostic on purpose. A checkpointer scopes state to a thread id and a store scopes items to an application-chosen namespace, because the framework has no concept of a user; the docs describe the store as long-term memory shared across threads and leave the key entirely to the application. That is a reasonable primitive and a dangerous default once the same code is deployed multi-tenant, because the opaque key becomes the only isolation boundary in the system and it is usually a UUID that travels in a URL. No framework refuses a state read whose key was not derived from the caller's verified subject, and the read that should have been refused looks identical to a legitimate one.",
+  "existing": [
+    "Checkpointers and stores accept an opaque key, which is correct for the primitive but leaves the mapping from an authenticated principal to a memory key as unwritten application work at every call site.",
+    "A session cookie or bearer token authenticates the request, and nothing links the token subject to the memory key unless a developer writes that link by hand, so authentication can be completely correct while isolation is absent.",
+    "Row-level security can scope the underlying table, but a checkpointer connects with one application credential and passes the thread id as an ordinary parameter, so the database cannot see who is asking.",
+    "Cross-user exposure of conversation content is a demonstrated failure at the largest scale rather than a theoretical one, and in that case the defect was in a shared library rather than in application code, which is why an application-level convention is not a sufficient control."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Persistence - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "date": "2026-08-17",
+      "quote": "Stores persist application-defined data outside the graph state.",
+      "note": "The scope of persisted memory is application-defined, which means the framework cannot enforce a tenant boundary and the key is the whole boundary."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Persistence - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "date": "2026-08-17",
+      "quote": "Use them for long-term, cross-thread memory, including user preferences, facts, and shared knowledge.",
+      "note": "Long-term memory is cross-thread by design, so the namespace chosen by the application is the only thing separating one person's preferences and facts from another's."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here is what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "due to a bug in an open-source library which allowed some users to see titles from another active",
+      "note": "The canonical demonstration that conversation state served under a mis-scoped key silently reaches the wrong person, and that the defect can live in a dependency rather than in the application, so a hand-written convention at each call site is not a control."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure - OWASP Gen AI",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2025-01-01",
+      "quote": "Only grant access to data that is necessary for the specific user or process.",
+      "note": "States the control this gap is missing: least-privilege access to the stored context, which cannot exist while the memory key is whatever the caller sent."
+    }
+  ],
+  "build_hypothesis": "A memory key that cannot be supplied from outside: one derive-the-key function that takes the verified principal plus a caller-chosen conversation label and returns the composed key, a checkpointer wrapper whose read and write both refuse a key that was not produced by that function, and a per-request assertion that the key prefix matches the current subject so a replayed id fails closed instead of resolving to somebody else's thread.",
+  "tags": [
+    "memory",
+    "multi-tenant",
+    "isolation",
+    "authorization",
+    "context-bleed"
+  ],
+  "check": {
+    "id": "CHK-045",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.jsx"
+      ],
+      "pattern": "(?i)([\\\"']thread_id[\\\"']\\s*:|configurable\\s*[:=]|thread_id\\s*=\\s*\\w|get_session_history|session_id\\s*=\\s*\\w|checkpointer\\s*=|MemorySaver|InMemorySaver|SqliteSaver|PostgresSaver|InMemoryStore|store\\.(?:put|get|search)\\s*\\(|namespace\\s*=)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.jsx"
+          ],
+          "pattern": "(?i)((?:thread|session|conversation|chat)_?id\\s*[:=]\\s*(?:str\\()?\\s*(?:request|req|body|payload|params|query|args|data|event|flask\\.request)\\s*[\\.\\[]|(?:request|req|body|payload|params|query|args|data)(?:\\.\\w+|\\[\\s*[\\\"']\\w+[\\\"']\\s*\\])*\\s*[\\.\\[]\\s*[\\\"']?(?:thread|session|conversation|chat)_?[iI]d|async\\s+def\\s+\\w+\\s*\\(\\s*(?:thread|session|conversation|chat)_?id\\s*:\\s*str|def\\s+\\w+\\s*\\(\\s*(?:thread|session|conversation|chat)_?id\\s*:\\s*str)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.jsx"
+          ],
+          "pattern": "(?i)([\\\"']thread_id[\\\"']\\s*:|configurable\\s*[:=]|thread_id\\s*=\\s*\\w|get_session_history|session_id\\s*=\\s*\\w|checkpointer\\s*=|MemorySaver|InMemorySaver|SqliteSaver|PostgresSaver|InMemoryStore|store\\.(?:put|get|search)\\s*\\(|namespace\\s*=)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.jsx"
+          ],
+          "pattern": "(?i)(current_user|authenticated_user|request\\.user|\\buser\\.id\\b|owns_thread|thread_owner|assert_owner|verify_owner|check_ownership|authori[sz]e_thread|scoped_thread|principal|claims\\[\\s*[\\\"']sub[\\\"']|token_subject|require_auth)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.jsx"
+      ],
+      "pattern": "(?i)(def\\s+\\w*(?:owns|ownership|authori[sz]e)\\w*\\s*\\(|assert_thread_owner|check_thread_ownership|thread_owner|scoped_thread_id|(?:thread|session)_?id\\s*=\\s*(?:f?[\\\"'][^\\\"']*\\{|\\\"%s:%s\\\"\\s*%|)\\s*(?:principal|current_user|authenticated_user)|namespace\\s*=\\s*\\(\\s*(?:principal|current_user|user_id)|ThreadOwnershipError)"
+    },
+    "manual_question": "For every place this project reads or writes agent memory, where does the thread, session or namespace key come from, and what would happen if a caller sent a key belonging to a different tenant - which line refuses that read?",
+    "rationale": "A project that takes a thread, session or conversation id off the request and feeds it to a checkpointer, a store or a message-history factory, while never mentioning an authenticated principal or an ownership check anywhere in its code, has no place where a mis-scoped memory read could be refused. Three ways it can be wrong: the ownership check may live in an upstream gateway or a different service that this repository does not contain, so a real control can be invisible here; a single-tenant tool or a local CLI legitimately has no principal to bind to, which is why the manual question asks about the deployment rather than assuming multi-tenancy; and the identity vocabulary is lexical, so a project that merely imports an auth helper is credited even if the key it builds ignores it. The mitigation pattern looks for a key derived from a principal or an explicit ownership assertion, which is evidence the boundary is known, not proof that every call site goes through it.",
+    "fixtures": {
+      "bad": {
+        "app/api.py": "from fastapi import FastAPI\n\nfrom langgraph.checkpoint.memory import MemorySaver\n\nfrom app.graph import build_graph\n\napi = FastAPI()\ngraph = build_graph(checkpointer=MemorySaver())\n\n\n@api.post(\"/chat\")\nasync def chat(body: dict) -> dict:\n    \"\"\"Continue a conversation. The client tells us which conversation.\"\"\"\n    thread_id = body[\"thread_id\"]\n    result = await graph.ainvoke(\n        {\"messages\": [{\"role\": \"user\", \"content\": body[\"message\"]}]},\n        config={\"configurable\": {\"thread_id\": thread_id}},\n    )\n    return {\"reply\": result[\"messages\"][-1][\"content\"], \"thread_id\": thread_id}\n\n\n@api.get(\"/history\")\nasync def history(thread_id: str) -> dict:\n    \"\"\"Replay a stored thread so the client can render it.\"\"\"\n    snapshot = graph.get_state({\"configurable\": {\"thread_id\": thread_id}})\n    return {\"messages\": snapshot.values.get(\"messages\", [])}\n",
+        "app/graph.py": "\"\"\"Graph construction, shared by both routes.\"\"\"\n\n\ndef build_graph(checkpointer):\n    from langgraph.graph import END, START, StateGraph\n\n    builder = StateGraph(dict)\n    builder.add_node(\"respond\", _respond)\n    builder.add_edge(START, \"respond\")\n    builder.add_edge(\"respond\", END)\n    return builder.compile(checkpointer=checkpointer)\n\n\ndef _respond(state: dict) -> dict:\n    return {\"messages\": state[\"messages\"] + [{\"role\": \"assistant\", \"content\": \"ok\"}]}\n"
+      },
+      "good": {
+        "app/api.py": "from fastapi import Depends, FastAPI\n\nfrom langgraph.checkpoint.memory import MemorySaver\n\nfrom app.auth import Principal, get_principal\nfrom app.ownership import assert_thread_owner, scoped_thread_id\nfrom app.graph import build_graph\n\napi = FastAPI()\ngraph = build_graph(checkpointer=MemorySaver())\n\n\n@api.post(\"/chat\")\nasync def chat(body: dict, principal: Principal = Depends(get_principal)) -> dict:\n    \"\"\"Continue a conversation. The memory key is derived, never accepted.\"\"\"\n    thread_id = scoped_thread_id(principal, body[\"conversation_id\"])\n    result = await graph.ainvoke(\n        {\"messages\": [{\"role\": \"user\", \"content\": body[\"message\"]}]},\n        config={\"configurable\": {\"thread_id\": thread_id}},\n    )\n    return {\"reply\": result[\"messages\"][-1][\"content\"]}\n\n\n@api.get(\"/history\")\nasync def history(conversation_id: str,\n                 principal: Principal = Depends(get_principal)) -> dict:\n    thread_id = scoped_thread_id(principal, conversation_id)\n    assert_thread_owner(principal, thread_id)\n    snapshot = graph.get_state({\"configurable\": {\"thread_id\": thread_id}})\n    return {\"messages\": snapshot.values.get(\"messages\", [])}\n",
+        "app/ownership.py": "\"\"\"The memory key is derived from the verified principal, not from the request.\n\nA checkpointer takes an opaque key, so the only thing standing between two\ntenants is how that key was built. Building it here means no route can accept\none from the outside.\n\"\"\"\n\nimport hmac\n\n\nclass ThreadOwnershipError(PermissionError):\n    pass\n\n\ndef scoped_thread_id(principal, conversation_id: str) -> str:\n    \"\"\"Bind the thread key to the authenticated subject.\"\"\"\n    return \"%s:%s\" % (principal.subject, conversation_id)\n\n\ndef assert_thread_owner(principal, thread_id: str) -> None:\n    \"\"\"Refuse a read whose key was not derived from this subject.\"\"\"\n    expected_prefix = \"%s:\" % principal.subject\n    if not hmac.compare_digest(thread_id[:len(expected_prefix)], expected_prefix):\n        raise ThreadOwnershipError(\"thread %r is not owned by this subject\" % thread_id)\n",
+        "app/auth.py": "\"\"\"Minimal principal extraction, so the memory key has something to bind to.\"\"\"\n\nfrom dataclasses import dataclass\n\nfrom fastapi import Header\n\n\n@dataclass(frozen=True)\nclass Principal:\n    subject: str\n\n\ndef get_principal(authorization: str = Header(...)) -> Principal:\n    subject = verify_token(authorization.removeprefix(\"Bearer \"))\n    return Principal(subject=subject)\n\n\ndef verify_token(token: str) -> str:\n    \"\"\"Verify the token and return its subject claim.\"\"\"\n    from app.jwks import decode\n\n    claims = decode(token)\n    return claims[\"sub\"]\n",
+        "app/graph.py": "\"\"\"Graph construction, shared by both routes.\"\"\"\n\n\ndef build_graph(checkpointer):\n    from langgraph.graph import END, START, StateGraph\n\n    builder = StateGraph(dict)\n    builder.add_node(\"respond\", _respond)\n    builder.add_edge(START, \"respond\")\n    builder.add_edge(\"respond\", END)\n    return builder.compile(checkpointer=checkpointer)\n\n\ndef _respond(state: dict) -> dict:\n    return {\"messages\": state[\"messages\"] + [{\"role\": \"assistant\", \"content\": \"ok\"}]}\n"
+      }
+    }
+  }
+}

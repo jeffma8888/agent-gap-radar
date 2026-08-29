@@ -1,0 +1,139 @@
+{
+  "id": "GAP-062",
+  "title": "Prompt text ships as an unversioned literal, so a bad prompt cannot be attributed or rolled back on its own",
+  "layer": "lifecycle-deploy",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "The instructions that decide my agent's behaviour are a string literal with no version identity, so when quality drops I cannot say which prompt was live, cannot diff it against the one I evaluated, and cannot put the previous one back without shipping a code change.",
+  "symptom": "Quality regresses and the investigation stalls on a question nobody can answer: which prompt text served that request. The traces carry the model id and the tokens but not a prompt version, so the rollback is a git archaeology exercise and the fix ships as a full deploy.",
+  "why_now": "The prompt is now the primary behavioural control surface and it is edited far more often than code, but it is still carried as an untyped literal or a loose template file. Prompt registries with versions and labels exist as separate commercial products precisely because the default in application code has no version identity, and where a registry is adopted a prompt edit reaches production instantly with no staged rollout at all.",
+  "existing": [
+    "Git history versions the file the literal lives in, but a prompt change is entangled with the code change in the same commit, and nothing in a trace or a log names the prompt revision that served a request, so attribution after the fact is guesswork.",
+    "Prompt-registry products assign a version id per prompt and make rollback a label move, which is the right primitive but sits outside the repository, so the version that is live is not visible to code review or to CI.",
+    "Decoupling prompt updates from deployment removes the deploy gate along with the deploy friction: the vendor documents the running application picking up the latest version straight from a UI edit, so a bad prompt reaches all traffic with no canary stage in between."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Open Source Prompt Management - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/overview",
+      "date": "2026-08-18",
+      "quote": "Prompt management is a systematic approach to storing, versioning, and retrieving prompts for your LLM application. Instead of hardcoding prompts in your application code, you manage them centrally in Langfuse.",
+      "note": "Establishes the prevailing default this gap describes: prompts hardcoded in application code, with versioning offered as a separate discipline a team has to adopt. Date recorded is the fetch date; the page renders a Last edited marker with no date in the fetched text."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Version Control - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/features/prompt-version-control",
+      "date": "2026-08-18",
+      "quote": "When a prompt has a production label, then that version will be served by default in the SDKs. You can quickly rollback to a previous version by setting the production label to that previous version in the Langfuse UI.",
+      "note": "Names the missing primitive precisely and by contrast. Rollback is a label move onto a version id, which is only possible because each version has an identity. A literal in code has none, so there is nothing to move a label onto."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Open Source Prompt Management - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/overview",
+      "date": "2026-08-18",
+      "quote": "When prompts live in Langfuse, non-technical team members update them directly in the UI while your application automatically fetches the latest version.",
+      "note": "The canary half of the gap, stated by the vendor as a feature: an edit made in a UI is picked up by the running application with no deploy, no review step and no staged ramp between the edit and production traffic. Replaces an earlier quote from the same paragraph that network verification reported NOT ON PAGE because inline markup splits that sentence; this one lies inside a single text node and verifies. Date recorded is the fetch date; the page renders a Last edited marker with no date in the fetched text."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "We took immediate action by pushing updates to the system prompt late Sunday night to mitigate much of the negative impact quickly",
+      "note": "First-party evidence that a system prompt is a live emergency control surface pushed on its own timescale, separate from the model rollback that followed. The date recorded is approximate because the fetched page renders no publication date; the post itself dates the rollout to April 25th and the start of the rollback to April 28th."
+    }
+  ],
+  "build_hypothesis": "Give a prompt the same identity a container image has: a content hash plus a human label computed at build time, emitted with every request and asserted in CI, so a trace names the exact prompt that served it and rollback is repointing a label rather than reverting a commit. The smallest useful version is a linter plus a tiny loader that refuses an inline prompt literal and requires a hashed prompt file.",
+  "tags": [
+    "prompt-versioning",
+    "rollback",
+    "canary",
+    "attribution"
+  ],
+  "check": {
+    "id": "CHK-061",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|invoke_model|converse\\(|generate_content|litellm\\.completion|ChatOpenAI|ChatAnthropic|\\.invoke\\(|create_agent\\()"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md",
+            "**/*.txt",
+            "**/*.jinja",
+            "**/*.j2",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)(system_prompt|systemprompt|system_message|systemmessage|instructions\\s*=\\s*[\"'\"]|[\"'](?:role)[\"']\\s*:\\s*[\"']system[\"'])"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.md",
+            "**/*.txt",
+            "**/*.jinja",
+            "**/*.j2"
+          ],
+          "pattern": "(?i)prompt[_-]?(?:version|revision|sha|hash|digest|label|registry)|(?:get|fetch|load|resolve)_prompt\\s*\\(|prompt\\.get\\s*\\(|promptVersion|PROMPT_VERSION|prompts?/v\\d"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.md",
+        "**/*.txt",
+        "**/*.jinja",
+        "**/*.j2"
+      ],
+      "pattern": "(?i)prompt[_-]?(?:version|revision|sha|hash|digest|label|registry)|(?:get|fetch|load|resolve)_prompt\\s*\\(|prompt\\.get\\s*\\(|promptVersion|PROMPT_VERSION|prompts?/v\\d"
+    },
+    "manual_question": "For the prompt text that decides this agent's behaviour, what identifies the exact revision that served a given request, and what is the procedure to put the previous revision back without shipping a code change?",
+    "rationale": "A project that composes a system prompt while carrying no prompt version, revision, hash, label or registry lookup anywhere in its tracked tree has no identity for its most-edited behavioural artifact, so a bad prompt can be neither attributed nor rolled back independently of code. What it can get wrong: the mitigation side is lexical, so a repo that merely mentions a prompt version in a comment or fetches prompts through an unrecognised in-house helper reads as mitigated, and a repo whose prompts genuinely live in a versioned external registry accessed by a name this pattern does not know reads as PRESENT. Both signatures matching escalates to MANUAL rather than passing, which is the case where only some prompt paths are versioned.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\nSYSTEM_PROMPT = \"\"\"You are a support triage agent.\nClassify the ticket as billing, outage or other, and answer in one sentence.\nNever promise a refund.\n\"\"\"\n\n\ndef triage(ticket: str) -> str:\n    r = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[\n            {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n            {\"role\": \"user\", \"content\": ticket},\n        ],\n    )\n    return r.choices[0].message.content\n",
+        "tests/test_agent.py": "from app.agent import triage\n\n\ndef test_triage_returns_text(fake_openai):\n    assert isinstance(triage(\"my invoice is wrong\"), str)\n"
+      },
+      "good": {
+        "app/prompts.py": "\"\"\"Prompt access. A prompt is a versioned deploy artifact, not a literal.\n\nEvery prompt carries a version string that is emitted with the request, so a\ntrace names the exact text that served it and a rollback is repointing the\nlive version rather than reverting a commit.\n\"\"\"\nimport hashlib\nimport pathlib\n\nPROMPT_VERSION = \"support-triage-v7\"\n_ROOT = pathlib.Path(__file__).parent / \"prompt_files\"\n\n\ndef load_prompt(name: str, version: str) -> tuple[str, str]:\n    text = (_ROOT / f\"{name}.{version}.txt\").read_text(encoding=\"utf-8\")\n    return text, hashlib.sha256(text.encode(\"utf-8\")).hexdigest()[:12]\n",
+        "app/agent.py": "from openai import OpenAI\n\nfrom app.prompts import PROMPT_VERSION, load_prompt\n\nclient = OpenAI()\n\n\ndef triage(ticket: str) -> str:\n    system_prompt, digest = load_prompt(\"support-triage\", PROMPT_VERSION)\n    r = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[\n            {\"role\": \"system\", \"content\": system_prompt},\n            {\"role\": \"user\", \"content\": ticket},\n        ],\n        metadata={\"prompt_version\": PROMPT_VERSION, \"prompt_digest\": digest},\n    )\n    return r.choices[0].message.content\n",
+        "app/prompt_files/support-triage.support-triage-v7.txt": "You are a support triage agent.\nClassify the ticket as billing, outage or other, and answer in one sentence.\nNever promise a refund.\n",
+        "tests/test_agent.py": "from app.agent import triage\n\n\ndef test_triage_returns_text(fake_openai):\n    assert isinstance(triage(\"my invoice is wrong\"), str)\n"
+      }
+    }
+  }
+}

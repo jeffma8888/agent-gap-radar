@@ -1,0 +1,112 @@
+{
+  "id": "GAP-076",
+  "title": "An agent's rollback is a whole-tree reset, so it deletes a concurrent agent's uncommitted work with no ownership check",
+  "layer": "multi-agent",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My work in progress vanished because another agent's gate failed and its idea of undo is resetting the entire working tree to the remote.",
+  "symptom": "Uncommitted files disappear with no error and no trace: the agent that reverted logs a clean rollback and a correct decision, the other writer finds an empty diff, and git reflog holds nothing because the destroyed work was never committed or staged.",
+  "why_now": "Reverting on a failed check is the standard safety mechanism for an unattended loop, and the standard implementation is a reset to the remote plus a clean, because that is the only undo that is guaranteed to work. It is also blind: the tree is process-shared, so the revert's blast radius is every writer's uncommitted work, and the operation cannot tell its own dirt from someone else's. As soon as a second agent or a human edits the same checkout, a correct safety mechanism becomes a destructive one, and nothing in git or in any agent framework attaches ownership to a path.",
+  "existing": [
+    "Per-agent git worktrees remove the sharing entirely, which works but is a deployment choice a framework does not make for you, and it is routinely skipped because the loop was single-writer when it was written.",
+    "Path-limited git operations protect the loop from a human's edits, not a human's edits from the loop: naming paths on a commit does not narrow a later reset --hard.",
+    "A STOP sentinel is a cooperative convention, honoured only by a loop that was written to poll it, and it is advisory rather than enforced."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "A revert-on-failure loop destroys uncommitted human work in a shared tree (INC-0014)",
+      "locator": "https://raw.githubusercontent.com/jeffma8888/agent-failure-modes/main/RULES.md",
+      "date": "2026-08-04",
+      "quote": "A loop's revert-to-remote cannot distinguish loop dirt from human work-in-progress. Guard shared trees with a per-team STOP sentinel that names owner, files at risk, lift condition and whether restart is needed.",
+      "note": "A field incident report of exactly this failure, and its recorded fix is a cooperative sentinel rather than an enforced ownership check, which is the gap: the mitigation depends on every writer opting in."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "A loop's git add -A sweeps a human's uncommitted edits into a loop commit (INC-0012)",
+      "locator": "https://raw.githubusercontent.com/jeffma8888/agent-failure-modes/main/RULES.md",
+      "date": "2026-08-05",
+      "quote": "A path-limited commit protects the loop from you, not you from the loop.",
+      "note": "A separate incident in the same corpus establishing that the working tree and index are shared process state rather than per-agent state. The staging side and the reverting side are two consequences of one missing primitive."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Don't Build Multi-Agents",
+      "locator": "https://cognition.ai/blog/dont-build-multi-agents",
+      "date": "2025-06-12",
+      "quote": "However, agents today are not quite able to engage in this style of long-context proactive discourse with much more reliability than you would get with a single agent.",
+      "note": "Written about how humans resolve a merge conflict by negotiating. It is the reason a runtime-level ownership rule is needed rather than an agreement between agents: the negotiation capability the human protocol depends on is not available."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built our multi-agent research system",
+      "locator": "https://www.anthropic.com/engineering/built-multi-agent-research-system",
+      "date": "2025-06-13",
+      "quote": "But this asynchronicity adds challenges in result coordination, state consistency, and error propagation across the subagents.",
+      "note": "The vendor names state consistency across concurrent subagents as an unsolved cost of asynchrony, which is why their production system still runs subagents synchronously."
+    }
+  ],
+  "build_hypothesis": "A revert that is scoped by authorship rather than by tree: record the paths an agent touched during its iteration, and on failure restore only those. Roughly fifty lines around the existing revert call, no new infrastructure, and it converts an unbounded blast radius into a bounded one. The stronger version is a pre-flight refusal: if the tree contains modifications outside the set this agent authored, refuse to reset and escalate, because that condition is precisely the one where the destructive path is wrong.",
+  "tags": [
+    "shared-tree",
+    "rollback",
+    "blast-radius",
+    "git"
+  ],
+  "check": {
+    "id": "CHK-075",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)([\"']git[\"']|git\\s+(?:add|commit|push|reset|clean|checkout|restore))"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)([\"']git[\"']|git\\s+(?:add|commit|push|reset|clean|checkout|restore))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?:reset[^\\n]{0,40}--hard|[\"']--hard[\"']|clean[^\\n]{0,24}-[a-z]*[fd][a-z]*\\b|[\"']-f?d[x]?[\"'])"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(STOP_FILE|stop_file|STOP_SENTINEL|stop_sentinel|sentinel|\\.lock\\b|filelock|FileLock|flock\\(|git\\s+worktree|[\"']worktree[\"']|owned_paths|owner_of|claim_tree|advisory_lock)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(FileLock\\(|filelock|flock\\(|git\\s+worktree\\s+add|[\"']worktree[\"']\\s*,\\s*[\"']add[\"']|STOP_SENTINEL|stop_sentinel|read_stop_file|owned_paths|checkout[\"']\\s*,\\s*[\"']--[\"'])"
+    },
+    "manual_question": "When this agent's rollback runs, which paths in the tree were authored by something other than this agent, and what stops the rollback from taking them too?",
+    "rationale": "A whole-tree reset or an untracked-file clean, in a repo an agent drives programmatically, with no lock, sentinel, worktree or path scoping anywhere in the code, is the signature of an unbounded undo. It can be wrong in two ways: a single-writer repo with a private checkout is exposed to the same signature and is genuinely safe, and a repo that names a lock somewhere unrelated will read as mitigated even if the revert path does not take it, which is why the absence rule is deliberately broad and the finding is a place to look rather than a proven defect.",
+    "fixtures": {
+      "bad": {
+        "loop/gate.py": "import subprocess\n\n\ndef revert_iteration():\n    # the gate failed, so roll the whole tree back to the remote\n    subprocess.run([\"git\", \"reset\", \"--hard\", \"origin/main\"], check=True)\n    subprocess.run([\"git\", \"clean\", \"-fd\"], check=True)\n"
+      },
+      "good": {
+        "loop/gate.py": "import subprocess\nfrom filelock import FileLock\n\nTREE_LOCK = FileLock(\".agent-tree.lock\")\n\n\ndef revert_iteration(owned_paths):\n    # roll back only the paths this agent authored, and only while holding the tree lock,\n    # so a concurrent writer's uncommitted work is never in the blast radius\n    with TREE_LOCK:\n        subprocess.run([\"git\", \"checkout\", \"--\", *owned_paths], check=True)\n"
+      }
+    }
+  }
+}

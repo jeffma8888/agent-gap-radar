@@ -1,0 +1,107 @@
+{
+  "id": "GAP-049",
+  "title": "A retrieval or memory read carries no tenant scope, so isolation depends on the embeddings happening not to match",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent retrieves context for whoever is asking, but the read itself carries no tenant identity, so the only thing keeping one customer's documents out of another customer's prompt is that the nearest neighbours happened to belong to the right customer.",
+  "symptom": "The retrieval call passes a query and a top-k and nothing else - no namespace, no filter, no tenant predicate - and nothing afterwards asserts that every returned chunk belongs to the caller. The failure surfaces as a customer reading a stranger's data inside a fluent answer, never as an error or a non-2xx.",
+  "why_now": "Vector stores and agent memory arrived as single-tenant developer tools and were then put behind multi-tenant products, so tenant scoping is an optional argument on the query rather than an invariant of the store. Row-level security in the primary database does not travel into the embedding store or the memory service, which are separate systems reached with their own credentials, so the one place the check could be enforced is the application code that is easiest to forget.",
+  "existing": [
+    "Vector databases document per-tenant payload filters, namespaces and user-defined sharding, but the unfiltered query is still valid and still returns the whole collection, so isolation is a convention rather than an enforced invariant.",
+    "Framework retrievers accept a filter at construction time, which makes a process-lifetime retriever share one tenant's filter across every request that process serves.",
+    "Application-level authorization gates the endpoint, not the neighbour search, so a correctly authenticated request can still be answered with another tenant's chunks."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "we also discovered that the same bug may have caused the unintentional visibility of payment-related information of 1.2% of the ChatGPT Plus subscribers who were active during a specific nine-hour window",
+      "note": "The reference case for cross-tenant bleed through the mechanics rather than the model: a caching layer served one active user's data to another, and the vendor's own postmortem quantifies the exposure."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Multitenancy - Qdrant",
+      "locator": "https://qdrant.tech/documentation/guides/multiple-partitions/",
+      "date": "2026-08-21",
+      "quote": "add a payload field that identifies the tenant to each point. You can then filter by this field to ensure that each tenant only sees their own data.",
+      "note": "The store's own guide puts the isolation burden on the caller supplying a filter, which is precisely the argument this check looks for at the call site. Living doc with no publication date on the page; the date is the day I fetched it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2026-08-21",
+      "quote": "Limit model access to external data sources, and ensure runtime data orchestration is securely managed to avoid unintended data leakage.",
+      "note": "Names runtime data orchestration - the retrieval path - as the control point, rather than the model or the training set. The page carries no publication date, so the date is the day I fetched it."
+    }
+  ],
+  "build_hypothesis": "A retrieval client wrapper that will not issue a neighbour search without a tenant scope: the tenant comes from the request context, is compiled into the store's filter, and every returned record is re-checked against it before it is allowed into the prompt, with a cross-tenant fixture in CI that seeds two tenants and asserts a query from one can never surface the other's chunk.",
+  "tags": [
+    "multi-tenant",
+    "rag",
+    "memory",
+    "isolation",
+    "context-bleed"
+  ],
+  "check": {
+    "id": "CHK-048",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chromadb|pinecone|weaviate|qdrant|pgvector|milvus|faiss|lancedb|opensearchpy|mem0|zep_python|vectorstores|VectorStore|VectorStoreIndex)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|get_relevant_documents|retriever\\.invoke|\\.query\\(|\\.search\\(|query_texts|top_k|n_results|upsert\\(|\\.fetch\\()"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(namespace\\s*=|namespace:|tenant|group_id|org_id|organization_id|account_id|filter\\s*=|where\\s*=|metadata_filter|partition_key|user_id)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(namespace\\s*=|namespace:|tenant|group_id|org_id|organization_id|account_id|filter\\s*=|where\\s*=|metadata_filter|partition_key|user_id)"
+    },
+    "manual_question": "For each retrieval and memory read in this service, where does the tenant identity enter the query, and what re-checks the returned records against that identity before they are spliced into the prompt?",
+    "rationale": "Fires when a repo talks to a vector or memory store, issues neighbour searches, and nowhere in its shipped code names a tenant, namespace or filter argument. It is a lexical proxy for a data-flow property, so it will fire on a genuinely single-tenant service - which the manual question is there to settle - and it will stay silent on a repo that mentions a tenant identifier somewhere other than the retrieval call, which is the conservative direction: a mention plus a signature escalates to MANUAL rather than passing.",
+    "fixtures": {
+      "bad": {
+        "app/rag.py": "import chromadb\n\nclient = chromadb.HttpClient(host=\"vectors.internal\")\ncollection = client.get_collection(\"support_docs\")\n\n\ndef answer(question):\n    hits = collection.query(query_texts=[question], n_results=5)\n    context = \"\\n\".join(hits[\"documents\"][0])\n    return call_model(context + \"\\n\\n\" + question)\n"
+      },
+      "good": {
+        "app/rag.py": "import chromadb\n\nclient = chromadb.HttpClient(host=\"vectors.internal\")\ncollection = client.get_collection(\"support_docs\")\n\n\ndef answer(question, tenant):\n    hits = collection.query(\n        query_texts=[question],\n        n_results=5,\n        where={\"tenant_id\": tenant},\n    )\n    for meta in hits[\"metadatas\"][0]:\n        if meta[\"tenant_id\"] != tenant:\n            raise PermissionError(\"cross-tenant chunk returned\")\n    context = \"\\n\".join(hits[\"documents\"][0])\n    return call_model(context + \"\\n\\n\" + question)\n"
+      }
+    }
+  }
+}

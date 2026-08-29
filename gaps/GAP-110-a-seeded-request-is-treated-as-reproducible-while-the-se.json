@@ -1,0 +1,117 @@
+{
+  "id": "GAP-110",
+  "title": "A seeded request is treated as reproducible while the serving build that decides the result is never recorded",
+  "layer": "model-runtime",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "I set a seed so the incident would be reproducible, and when I replayed the saved request weeks later the tokens differed, with nothing in the record to tell me whether the backend, the model weights or my own code had moved.",
+  "symptom": "A saved request replays to a different completion. The run record holds the prompt, the seed and the sampling parameters but nothing that identifies the serving build, so the divergence cannot be attributed and the investigation stops at 'the model is nondeterministic'.",
+  "why_now": "Seeded sampling shipped as best effort, not as a guarantee. The provider returns a backend-build identifier alongside the completion and documents that callers should monitor it, and the self-hosted stacks say plainly that reproducibility holds only on the same hardware and the same server version, yet no client library persists any of that by default, so the field that would explain a divergence is missing from almost every run record.",
+  "existing": [
+    "A seed parameter makes sampling repeatable only for a fixed backend build and batch composition, and the vendor documents it as best effort, so it cannot carry a reproducibility claim by itself.",
+    "Batch-invariant kernels and deterministic-scheduling flags remove real causes of divergence, but they live in the serving layer and tell a client nothing about which build served a request that already happened.",
+    "Tracing captures the prompt and the response text; the identifiers that pin the generating configuration are provider-specific fields that generic span attributes drop.",
+    "Pinning a dated model snapshot fixes the weights, not the infrastructure serving them, which the vendor says it changes on its own schedule."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "How to make your completions outputs consistent with the new seed parameter",
+      "locator": "https://cookbook.openai.com/examples/reproducible_outputs_with_the_seed_parameter",
+      "date": "2023-11-06",
+      "quote": "Determinism is not guaranteed, and you should refer to the system_fingerprint response parameter to monitor changes in the backend.",
+      "note": "The provider's own instruction: the seed does not carry the guarantee, and the backend-build identifier is the thing a caller must watch. A run record that omits it cannot follow this instruction after the fact."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Defeating Nondeterminism in LLM Inference",
+      "locator": "https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/",
+      "date": "2025-09-10",
+      "quote": "Nevertheless, from the perspective of anybody using the inference server, the results are nondeterministic",
+      "note": "From the lab that shipped batch-invariant kernels: every kernel in the forward pass can be deterministic and the caller still sees nondeterministic results, because the outcome depends on server-side batch composition the caller never observes or records."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Reproducibility - vLLM",
+      "locator": "https://docs.vllm.ai/en/latest/usage/reproducibility.html",
+      "date": "2026-08-17",
+      "quote": "Even with the above settings, vLLM only provides reproducibility when it runs on the same hardware and the same vLLM version.",
+      "note": "The self-hosted case states the dependency explicitly: hardware and server version are part of the reproducibility contract, so they belong in the run record. Living doc at a /latest URL; date is the day it was fetched, per the register's convention for versionless pages."
+    }
+  ],
+  "build_hypothesis": "A response-envelope recorder: one thin wrapper around the model client that persists, per call, the model id actually returned, the backend-build identifier, and every sampling parameter as sent; plus a compare verb that REFUSES to call a difference a behaviour change when the two recorded envelopes differ, and names the field that moved.",
+  "tags": [
+    "determinism",
+    "reproducibility",
+    "seed",
+    "provenance"
+  ],
+  "check": {
+    "id": "CHK-109",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "chat\\.completions\\.create|ChatCompletion\\.create|client\\.completions\\.create"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml"
+          ],
+          "pattern": "[\\\"']?seed[\\\"']?\\s*[=:]\\s*[0-9]"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*"
+            ],
+            "pattern": "system_fingerprint"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "system_fingerprint"
+    },
+    "manual_question": "You pass a seed to a chat-completions API. For a request this system made last month, which backend build served it, and where is that identifier recorded?",
+    "rationale": "A seed fixes sampling only for one backend build, and the vendor returns a build identifier for exactly that reason and tells callers to monitor it. Code that sends a seed while the string for that identifier appears nowhere in the project has taken on a reproducibility claim it cannot check. What it can get wrong: a project may record the field under a different name, or reach the API through a gateway that strips it, in which case the signature fires on a project whose provenance lives somewhere this pattern cannot see. It is also scoped to chat-completions shapes on purpose, because newer response APIs do not return this field at all, and firing there would demand a mitigation that does not exist.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\ndef ask(prompt):\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n        temperature=0,\n        seed=1234,\n    )\n    return resp.choices[0].message.content\n"
+      },
+      "good": {
+        "app/agent.py": "from openai import OpenAI\n\nclient = OpenAI()\n\ndef ask(prompt, run_record):\n    resp = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[{\"role\": \"user\", \"content\": prompt}],\n        temperature=0,\n        seed=1234,\n    )\n    # the seed is only meaningful against the build that served it\n    run_record[\"backend_build\"] = resp.system_fingerprint\n    run_record[\"model_served\"] = resp.model\n    run_record[\"sampling\"] = {\"temperature\": 0, \"seed\": 1234}\n    return resp.choices[0].message.content\n"
+      }
+    }
+  }
+}

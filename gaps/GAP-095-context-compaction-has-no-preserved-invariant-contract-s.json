@@ -1,0 +1,118 @@
+{
+  "id": "GAP-095",
+  "title": "Context compaction has no preserved-invariant contract, so a summary can silently drop the standing instructions",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent followed the project rules for two hours, then its history was compacted, and the summary that replaced it did not carry the rules forward - so it kept working confidently without them and nothing told me.",
+  "symptom": "Behaviour changes at the compaction boundary rather than at a code or prompt change: the agent starts doing things the conventional way, searches the wrong directory, ignores a documented constraint, and one instruction to re-read the rules file restores it immediately.",
+  "why_now": "Compaction is now the default lever for long-horizon work and ships enabled in coding agents, but every published implementation steers it with a tuned summariser prompt and none of them asserts, after the new context is built, that a named set of standing instructions is still in it. Recall is optimised on average and never verified per run, so a dropped rule and a kept rule produce identical, silent output.",
+  "existing": [
+    "Tuned compaction prompts: raise average recall, but give no per-run guarantee, so the run that drops a rule looks exactly like the run that kept it.",
+    "Tool-result clearing: safe precisely because it discards outputs rather than instructions, which is why it does not address instructions being lost.",
+    "Re-reading the rules file by hand after each compaction: what users report doing, but it is operator labour triggered by first noticing misbehaviour.",
+    "Structured note-taking to an external file: persists what the agent chose to write down, not the constraints the operator imposed on it."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later",
+      "note": "The vendor that ships compaction names loss of critical context as the known hazard, and its stated remedy is prompt tuning on traces - an averaging technique, not a per-run assertion that a required instruction survived."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Start by maximizing recall to ensure your compaction prompt captures every relevant piece of information from the trace",
+      "note": "Confirms the contract is a prompt-quality goal rather than a checked invariant: recall is maximised by iteration, and nothing downstream refuses a compacted context that lost a rule."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG] Claude forgets everything in CLAUDE.md after compaction",
+      "locator": "https://github.com/anthropics/claude-code/issues/6354",
+      "date": "2025-08-22",
+      "quote": "Claude does not remember CLAUDE.md after compaction",
+      "note": "A user-filed report of exactly this failure, with the workaround being a manual instruction to re-read the rules file - operator labour standing in for a missing contract."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "[BUG] CLAUDE.md instructions completely ignored after context compaction",
+      "locator": "https://github.com/anthropics/claude-code/issues/19471",
+      "date": "2026-01-20",
+      "quote": "If Claude cannot follow CLAUDE.md after compaction, it should warn the user",
+      "note": "A second independent report five months later, and the request in it IS the missing primitive: a signal when the compacted context no longer carries the instructions."
+    }
+  ],
+  "build_hypothesis": "A compaction post-condition: the operator declares a small set of required instruction strings or ids, and the compactor refuses to hand back a context that does not contain them, re-injecting them verbatim and logging the near-miss instead of continuing silently.",
+  "tags": [
+    "compaction",
+    "context",
+    "instructions",
+    "long-horizon"
+  ],
+  "check": {
+    "id": "CHK-094",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(def\\s+\\w*(?:compact|summari[sz]e)\\w*\\s*\\(|(?:compact|summari[sz]e)_(?:context|history|messages|conversation|transcript)|auto[_-]?compact|context_?compaction)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(def\\s+\\w*(?:compact|summari[sz]e)\\w*\\s*\\(|(?:compact|summari[sz]e)_(?:context|history|messages|conversation|transcript)|auto[_-]?compact|context_?compaction)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(re-?inject|preserve[_ -]?(?:instruction|invariant|rule|constraint)|required_(?:instruction|invariant|token)|assert[_ -]?(?:preserved|survived|invariant)|invariant[_ -]?(?:check|assert)|carry[_ -]?forward)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(re-?inject|preserve[_ -]?(?:instruction|invariant|rule|constraint)|required_(?:instruction|invariant|token)|assert[_ -]?(?:preserved|survived|invariant)|invariant[_ -]?(?:check|assert)|carry[_ -]?forward)"
+    },
+    "manual_question": "When your agent compacts or summarises its history, what refuses the new context if a standing instruction is no longer in it, and where is that assertion in the code?",
+    "rationale": "A code path that summarises message history is the compaction step. The gap is the absence of any post-condition on its output, so the check looks for the summariser plus the absence of re-injection or invariant-assertion vocabulary. It can be wrong in two ways worth naming: a repo that merely discusses re-injection in a comment or a doc reads as mitigated (fail-open, which is why mitigated_when is code-only and the manual_question asks where the assertion lives), and a repo that names its compaction step in unusual vocabulary is not matched at all.",
+    "fixtures": {
+      "bad": {
+        "app/context.py": "\"\"\"Keep the running conversation under the model context limit.\"\"\"\n\nMAX_TOKENS = 180_000\nKEEP_TAIL = 5\n\n\ndef _summarise(messages):\n    text = \"\\n\".join(m[\"content\"] for m in messages)\n    reply = client.messages.create(\n        model=\"a-model\",\n        messages=[{\"role\": \"user\", \"content\": \"Condense this transcript:\\n\" + text}],\n    )\n    return {\"role\": \"user\", \"content\": reply.content[0].text}\n\n\ndef summarise_history(messages):\n    return _summarise(messages)\n\n\ndef compact_context(messages, token_count):\n    if token_count < MAX_TOKENS:\n        return messages\n    summary = _summarise(messages[:-KEEP_TAIL])\n    return [summary] + messages[-KEEP_TAIL:]\n"
+      },
+      "good": {
+        "app/context.py": "\"\"\"Keep the running conversation under the model context limit.\"\"\"\n\nMAX_TOKENS = 180_000\nKEEP_TAIL = 5\n\n# The standing rules the compacted context MUST still contain. Checked, not hoped for.\nREQUIRED_INSTRUCTIONS = (\n    \"never push to main\",\n    \"run the suite before you commit\",\n)\n\n\nclass CompactionLostInstructions(RuntimeError):\n    \"\"\"Raised when a summary dropped a rule the operator imposed.\"\"\"\n\n\ndef _summarise(messages):\n    text = \"\\n\".join(m[\"content\"] for m in messages)\n    reply = client.messages.create(\n        model=\"a-model\",\n        messages=[{\"role\": \"user\", \"content\": \"Condense this transcript:\\n\" + text}],\n    )\n    return {\"role\": \"user\", \"content\": reply.content[0].text}\n\n\ndef summarise_history(messages):\n    return _summarise(messages)\n\n\ndef assert_invariants_preserved(messages):\n    blob = \"\\n\".join(m[\"content\"] for m in messages)\n    missing = [rule for rule in REQUIRED_INSTRUCTIONS if rule not in blob]\n    if missing:\n        raise CompactionLostInstructions(missing)\n\n\ndef compact_context(messages, token_count, rules_message):\n    if token_count < MAX_TOKENS:\n        return messages\n    summary = _summarise(messages[:-KEEP_TAIL])\n    compacted = [rules_message, summary] + messages[-KEEP_TAIL:]\n    assert_invariants_preserved(compacted)\n    return compacted\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "id": "GAP-086",
+  "title": "Per-task success is never audited against the task's declared difficulty, so shortcut tasks and impossible tasks stay invisible inside the aggregate",
+  "layer": "eval-verification",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My suite gives me one number per run. It cannot tell me that three of my tasks are unsolvable and two are passable without the capability I am trying to measure, so the number moves for reasons I never see.",
+  "symptom": "A task the team calls easy fails on every model and every run, and a task nobody expected to pass succeeds immediately. Both look like ordinary rows in the results table. The aggregate is stable and wrong, and the defect is only ever found by a human reading transcripts.",
+  "why_now": "The ABC survey of 17 widely used agentic benchmarks found this class of defect in production suites, including a trivial agent scoring 38% on one of them, and its remedy is stated as advice to benchmark AUTHORS: inspect outliers in pilot experiments. No eval harness ships the audit, so it is a manual step performed once, by the suite's authors, before the suite is used by everyone else for years. The two ingredients are cheap and already half-present: harnesses compute per-task pass rates, and teams informally know which tasks are easy.",
+  "existing": [
+    "A reference or oracle solution per task proves a task is SOLVABLE, which is one of the two directions. It says nothing about a task that is passable WITHOUT the target capability, and it is a per-task artifact rather than a cross-task consistency test.",
+    "Null-agent and trivial-agent baselines catch the shortcut direction well, but only for shortcuts the null agent happens to exercise; the difficulty-order anomaly catches shortcuts that need real work of the wrong kind.",
+    "Item-response-theory style difficulty ESTIMATED from the observed scores is circular for this purpose: it fits difficulty to the outcomes, so an impossible task is explained rather than flagged. The audit needs a difficulty DECLARED before the run."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks (full text, ABC task-validity checks)",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "if agents consistently fail on easy tasks, this may indicate that tasks are impossible, whereas if agents only succeed on difficult tasks, it may indicate shortcuts",
+      "note": "This is the missing primitive stated as a procedure: compare observed per-task success against the task's declared difficulty and treat a violation as a benchmark defect. It is offered as advice to benchmark authors; nothing in an eval harness computes it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks (full text, Figure 2 task-validity checks)",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "These checks uncover design or implementation flaws that can create shortcuts, which causes false positive evaluation results, or lead to impossible tasks, which causes false negative evaluation results.",
+      "note": "Names both directions the anomaly audit catches, which is why a one-sided 'did the score go up' gate cannot substitute for it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "Such issues can lead to under- or overestimation of agents' performance by up to 100% in relative terms.",
+      "note": "Classified survey-aggregate, NOT peer-reviewed: as fetched, the arXiv abs page (v5) lists no venue. It synthesises a survey of best practices plus an assessment of 17 widely used agentic benchmarks, which is what earns the non-zero weight."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks (full text, Appendix F.2 Messiness factors)",
+      "locator": "https://arxiv.org/html/2503.14499v4",
+      "date": "2025-03-18",
+      "quote": "Controlling for task length, we find models perform worse on tasks that have higher messiness scores.",
+      "note": "The authors had to INVENT a 16-factor realism attribute and label tasks by hand to make this measurable, because no benchmark task record carries one. That the effect is real (and length-independent) is what makes the missing attribute a measurement gap rather than a nicety."
+    }
+  ],
+  "build_hypothesis": "One required declared field per task (difficulty tier, or the human time-to-complete a suite may already hold) plus one verb in the harness that ranks observed per-task pass rates against it and lists the inversions with a direction label: an easy task failing everywhere is a suspected impossible task, a hard task passing everywhere is a suspected shortcut. It needs no new data collection, runs on results a harness already computes, and turns a one-off authoring step into a per-run gate.",
+  "tags": [
+    "benchmarks",
+    "task-validity",
+    "shortcuts",
+    "anomaly-audit"
+  ],
+  "check": {
+    "id": "CHK-085",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(success_rate|pass_rate|pct_passed)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(success_rate|pass_rate|pct_passed)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)difficulty|expected_difficulty|difficulty_tier"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)difficulty"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)outlier|anomal|inversion|monotonic"
+        }
+      ]
+    },
+    "manual_question": "Does anything in your eval pipeline compare each task's OBSERVED pass rate against a difficulty declared before the run, and surface the inversions in both directions - an easy task that fails everywhere as a suspected impossible task, a hard task that passes everywhere as a suspected shortcut?",
+    "rationale": "Fires when a repo computes per-task or suite pass rates while no task record anywhere declares a difficulty for them to be compared against, which is the precondition that makes the audit impossible rather than merely unimplemented. mitigated_when demands BOTH a difficulty notion and anomaly vocabulary in code that runs, because a difficulty field nobody audits is a label, not a check. What it can get wrong: a project that declares difficulty under a different name (tier, complexity, level, an expected pass rate) reads as PRESENT when the audit is in fact possible; and a repo whose only 'difficulty' string sits in an unrelated model-config docstring reads as mitigated if it also happens to spell 'outlier' elsewhere, so a MANUAL verdict here is worth more than the PRESENT one.",
+    "fixtures": {
+      "bad": {
+        "harness/tasks.json": "{\"tasks\": [\n  {\"id\": \"t1\", \"prompt\": \"Cancel the non-refundable ticket.\", \"expect\": \"refuse\"},\n  {\"id\": \"t2\", \"prompt\": \"List the flights for booking ABC123.\", \"expect\": \"2 flights\"}\n]}\n",
+        "harness/score.py": "import json\n\ndef score(results):\n    \"\"\"Aggregate only. A per-task rate is computed and then thrown away.\"\"\"\n    per_task = {r['id']: r['passed'] for r in results}\n    success_rate = sum(per_task.values()) / len(per_task)\n    return {'success_rate': success_rate}\n\ndef main(path):\n    return score(json.load(open(path)))\n"
+      },
+      "good": {
+        "harness/tasks.json": "{\"tasks\": [\n  {\"id\": \"t1\", \"prompt\": \"Cancel the non-refundable ticket.\",\n   \"expect\": \"refuse\", \"difficulty\": \"easy\"},\n  {\"id\": \"t2\", \"prompt\": \"List the flights for booking ABC123.\",\n   \"expect\": \"2 flights\", \"difficulty\": \"hard\"}\n]}\n",
+        "harness/score.py": "import json\n\nTIERS = {'easy': 0, 'medium': 1, 'hard': 2}\n\ndef score(results):\n    per_task = {r['id']: r['passed'] for r in results}\n    success_rate = sum(per_task.values()) / len(per_task)\n    return {'success_rate': success_rate, 'per_task': per_task}\n\ndef difficulty_inversions(tasks, per_task_rate):\n    \"\"\"Flag anomalies against the DECLARED difficulty, both directions.\n\n    An easy task nobody passes is a suspected impossible task; a hard task\n    everybody passes is a suspected shortcut. Reported per task, never\n    folded into the aggregate.\n    \"\"\"\n    flagged = []\n    for task in tasks:\n        rate = per_task_rate.get(task['id'], 0.0)\n        tier = TIERS[task['difficulty']]\n        if tier == 0 and rate == 0.0:\n            flagged.append((task['id'], 'suspected_impossible_task'))\n        if tier == 2 and rate == 1.0:\n            flagged.append((task['id'], 'suspected_shortcut'))\n    return flagged\n\ndef audit(path, results):\n    tasks = json.load(open(path))['tasks']\n    outcome = score(results)\n    outcome['outlier_tasks'] = difficulty_inversions(tasks, outcome['per_task'])\n    return outcome\n"
+      }
+    }
+  }
+}

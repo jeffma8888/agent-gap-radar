@@ -1,0 +1,94 @@
+{
+  "id": "GAP-084",
+  "title": "An eval harness has no outcome class for its own environment failing, so a tool outage is scored as agent incapability",
+  "layer": "eval-verification",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My benchmark number went down and I cannot tell whether the agent got worse or a rate-limited API, a dead container and a flaky tool sank a fifth of the runs.",
+  "symptom": "A task row says passed=false. The harness caught an exception from the environment, logged a warning nobody reads, and wrote the same value it writes when the agent genuinely got the wrong answer, so the pass rate silently mixes agent capability with harness uptime and moves between runs for reasons the score cannot express.",
+  "why_now": "Agentic benchmarks are the first evals where the environment is a large live dependency - self-hosted tools, containers, and third-party APIs with rate limits - so the harness now has its own failure rate, but the reported primitive is still the two-valued pass/fail inherited from multiple-choice evals. Published 2025 guidance says to detect an interruption and stop the run, which is an admission that harnesses currently do not.",
+  "existing": [
+    "Retries and timeouts reduce how often the environment fails, but a retry budget silently converts an environment failure into an agent failure once it is exhausted; nothing in the reported row says which happened.",
+    "Per-run logs usually do hold the exception, so the information exists - it just never reaches the score, so no aggregate can be corrected for it and no reader of a leaderboard can see it.",
+    "Task-level validity review, such as the SWE-bench Verified human pass over task specifications, addresses defective tasks rather than transient environment failure during a scored run."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "If API interruptions occur, we recommend detecting them and terminating the evaluation to keep benchmark users informed",
+      "note": "Checklist item T.3. The recommendation only makes sense if the current default is the opposite: an interruption that is neither detected nor separated from the agent's own failure. The companion item T.2 in the same paragraph asks for service availability and rate limits to be managed, so the environment is treated as a first-class source of failure."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "the rate limit of the websites implemented in WebArena prevented agents from resolving challenges",
+      "note": "A named, quantified instance of the environment - not the agent - producing failures inside a widely used agentic benchmark, which the reported score attributes to the agent."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "many agentic benchmarks have issues in task setup or reward design",
+      "note": "The paper's own framing: setup issues, not only grading issues, drive the estimation error, and it measures the resulting distortion at up to 100 percent in relative terms."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "we find that allowing AI actually increases completion time by 19%",
+      "note": "The field measurement that motivates auditing the benchmark-to-real-task gap at all: on real tasks in mature repositories the measured effect was the opposite sign to what both developers and experts predicted from benchmark-era intuitions."
+    }
+  ],
+  "build_hypothesis": "A three-valued result row and a harness rule that the only way to write pass or fail is from a completed graded run. Everything else - an exception escaping the environment, a tool returning 429, a container that never came up - writes a third value with the exception class attached, and the aggregate then reports pass rate over completed runs plus an explicit harness-error rate. One enum and one refusal to coerce it into a boolean; the reporting change is what makes a moved number diagnosable.",
+  "tags": [
+    "eval",
+    "benchmark",
+    "harness",
+    "outcome-class",
+    "reliability"
+  ],
+  "check": {
+    "id": "CHK-083",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)def\\s+(?:run|execute|eval|score)[a-z_]*task|def\\s+run_(?:benchmark|suite|eval)|results?\\.jsonl|pass(?:ed)?_rate|success_rate"
+    },
+    "present_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "except[^\\n]*:[^\\n]*\\n(?:[^\\n]*\\n){0,5}?[^\\n]*\\b(?:passed|success|succeeded|solved|resolved|correct|score|reward)\\b\\s*=\\s*(?:False|0|0\\.0)\\b"
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)\\b(?:harness_error|harnesserror|infra_error|infrastructure_error|environment_error|env_error|setup_error|task_invalid|excluded_from_score)\\b|Outcome\\.ERROR|status\\s*=\\s*[\"']error[\"']"
+    },
+    "manual_question": "Take the last scored run of your eval suite. How many task rows failed because YOUR environment failed - a tool returning 429, a container that did not come up, an API timeout - and where in the result record is that distinguishable from the agent answering wrongly?",
+    "rationale": "The signature is an exception handler around a task execution that writes the same falsy success value the grader writes, which is exactly the coercion of a harness failure into an agent failure. What it can get wrong: a handler that legitimately treats an agent-caused exception as a genuine failure looks identical lexically, and a harness that separates the two in a helper further away than five lines will be missed, so a MANUAL verdict here is not evidence of health.",
+    "fixtures": {
+      "bad": {
+        "harness/run_task.py": "\"\"\"Benchmark runner: execute one task, grade it, append the leaderboard row.\"\"\"\nimport json\nimport logging\n\n\ndef run_task(task, agent, tools):\n    try:\n        transcript = agent.solve(task, tools)\n        passed = grade(task, transcript)\n    except Exception as exc:\n        logging.warning(\"task %s blew up: %s\", task[\"id\"], exc)\n        passed = False\n    row = {\"task_id\": task[\"id\"], \"passed\": passed}\n    with open(\"results.jsonl\", \"a\") as fh:\n        fh.write(json.dumps(row) + \"\\n\")\n    return row\n"
+      },
+      "good": {
+        "harness/run_task.py": "\"\"\"Benchmark runner: three outcomes, because our own failure is not the agent's.\"\"\"\nimport json\nimport logging\n\n\nclass Outcome:\n    PASS = \"pass\"\n    FAIL = \"fail\"\n    HARNESS_ERROR = \"harness_error\"\n\n\ndef run_task(task, agent, tools):\n    try:\n        transcript = agent.solve(task, tools)\n        outcome = Outcome.PASS if grade(task, transcript) else Outcome.FAIL\n    except ToolUnavailable as exc:\n        logging.error(\"environment failed on task %s: %s\", task[\"id\"], exc)\n        outcome = Outcome.HARNESS_ERROR\n    row = {\"task_id\": task[\"id\"], \"outcome\": outcome}\n    with open(\"results.jsonl\", \"a\") as fh:\n        fh.write(json.dumps(row) + \"\\n\")\n    return row\n"
+      }
+    }
+  }
+}

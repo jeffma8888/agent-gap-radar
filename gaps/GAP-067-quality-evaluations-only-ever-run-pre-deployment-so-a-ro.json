@@ -1,0 +1,150 @@
+{
+  "id": "GAP-067",
+  "title": "Quality evaluations only ever run pre-deployment, so a routing or runtime change that manifests only in production has no detector",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My eval suite is green and my users are telling me the model got worse, because what broke is a serving-path decision -- which pool answered the request, which accelerator, which runtime flag -- and my evals only ever ran against one configuration in CI.",
+  "symptom": "Degradation is reported by users and on social media before any internal signal fires. The suspect change is a routine infrastructure or load-balancing edit that no eval covers, so nobody connects the reports to a deploy, and the affected fraction of traffic can grow for weeks while offline benchmarks stay green.",
+  "why_now": "Eval suites were built as pre-merge gates against one configuration. Production serving now fans one model across several backends, context tiers, routing pools and compiler flags, so the configuration that answers a real user request is frequently a configuration no eval has ever executed against. The gate is in the wrong place, not merely too weak.",
+  "existing": [
+    "Canary deployments sample the new build, but a misrouting defect is a property of the routing decision rather than of the build, so a healthy canary proves nothing about it.",
+    "Offline benchmark suites in CI run against a single configuration and are typically too noisy to resolve a single-digit-percent quality regression.",
+    "Uptime and latency probes run continuously against production, which is why nobody notices that the quality suite does not."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Although we run regular evaluations on our systems, we will run them continuously on true production systems",
+      "note": "The vendor's own remediation is to move the evaluations onto production, which states the gap plainly: the suite existed and ran, just never where the defect lived."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "capture the degradation users were reporting, in part because Claude often recovers well from isolated mistakes",
+      "note": "Direct evidence that a green pre-deployment suite coexisted with real user-visible degradation, which is the failure mode this check looks for."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "More fundamentally, we relied too heavily on noisy evaluations.",
+      "note": "Explains why adding more offline evals does not close the gap: the missing thing is a continuous production signal, not a larger benchmark."
+    }
+  ],
+  "build_hypothesis": "A production eval probe: take the existing eval cases, run a small stratified sample of them on a schedule against the real serving endpoint, tag every result with the routing and backend identity the response reports, and alert on a per-configuration shift rather than on the pooled mean, so a bad pool is separable from a bad build.",
+  "tags": [
+    "evals",
+    "production",
+    "canary",
+    "routing",
+    "continuous-verification"
+  ],
+  "check": {
+    "id": "CHK-066",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "**/*eval*.py",
+        "**/*eval*.ts",
+        "**/promptfooconfig.*",
+        "**/*.evals.yaml",
+        "**/*.evals.yml"
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)run_evals|def\\s+\\w*eval\\w*\\(|promptfoo|deepeval|\\bragas\\b|langsmith|braintrust|evaluate\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.sh",
+            "**/Makefile",
+            ".github/workflows/*.yml",
+            "ci/*.yml"
+          ],
+          "pattern": "(?i)\\bcron\\b|schedule:|canary|synthetic|prod(uction)?[_-]?(eval|probe|check)|live[_-]?eval|shadow[_-]?traffic"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.sh",
+            "**/Makefile",
+            ".github/workflows/*.yml",
+            "ci/*.yml"
+          ],
+          "pattern": "(?i)\\bcron\\b|schedule:"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.sh",
+            "**/Makefile",
+            ".github/workflows/*.yml",
+            "ci/*.yml"
+          ],
+          "pattern": "(?i)prod(uction)?[_-]?(eval|probe|check)|canary|synthetic|PRODUCTION_BASE_URL|live[_-]?eval|shadow[_-]?traffic"
+        }
+      ]
+    },
+    "manual_question": "Do any of this project's quality evaluations execute against the live serving path on a schedule, and can a result be attributed to the specific backend, pool or runtime configuration that answered it?",
+    "rationale": "The signature is a project that clearly owns an eval suite while nothing anywhere in it schedules that suite against production. It can be wrong two ways. A scheduled production probe may live outside the repo entirely, in a monitoring vendor or a separate ops repo, in which case this reports PRESENT for a project that is actually covered -- the manual question is there for that case. And the mitigation pattern only proves that something scheduled mentions production; it cannot prove the probe measures quality rather than uptime, which is why a project matching both signatures escalates to MANUAL rather than passing.",
+    "fixtures": {
+      "bad": {
+        "evals/run_evals.py": "def run_evals(cases):\n    for case in cases:\n        yield evaluate(case)\n",
+        "ci/build.yml": "on:\n  push:\n    branches: [main]\njobs:\n  quality:\n    steps:\n      - run: python evals/run_evals.py --target http://localhost:8000\n"
+      },
+      "good": {
+        "evals/run_evals.py": "def run_evals(cases):\n    for case in cases:\n        yield evaluate(case)\n",
+        "ci/build.yml": "on:\n  push:\n    branches: [main]\njobs:\n  quality:\n    steps:\n      - run: python evals/run_evals.py --target http://localhost:8000\n",
+        "ci/prod-eval.yml": "on:\n  schedule:\n    - cron: \"*/15 * * * *\"\njobs:\n  production_eval:\n    steps:\n      - run: python evals/run_evals.py --target $PRODUCTION_BASE_URL\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "id": "GAP-074",
+  "title": "Prompt versioning pins the template, not the instruction text that ran, so a bad prompt cannot be attributed or reproduced",
+  "layer": "lifecycle-deploy",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "The prompt store tells me version 7 served that conversation, but version 7 is a template: the memory, the retrieved passages and the tool descriptions that made up most of the tokens are in no version, so I cannot reconstruct what the model was actually told.",
+  "symptom": "Rolling the prompt back to the previous version does not restore the previous behaviour, two runs labelled with the same prompt version behave differently, and a reported bad output cannot be replayed because the exact instruction text was never recorded or fingerprinted.",
+  "why_now": "Prompt versioning matured for the single-prompt era, where the template was very nearly the whole input. An agent composes its instruction state per call from system text plus tool schemas plus retrieved documents plus per-user memory plus prior turns, so the versioned artifact is now a fraction of the input while still carrying the whole authority of a version number. The tooling gained versions and labels without gaining an identity for the composed result.",
+  "existing": [
+    "Prompt-management products version and label the template and can link a trace to the version that served a call. That identifies the template, which is the part that did not change per call.",
+    "Tracing tools often retain the full rendered messages. That is payload retention, not an identity: it cannot be compared across versions, diffed, asserted on in a deploy gate, or used to group runs, and it is usually sampled and expired.",
+    "Templating engines fingerprint the template file, not the rendered output, so a content hash of the template is invariant to exactly the parts that vary.",
+    "GAP-004 in this register asks whether steering context was delivered at all. This record is the next question: given that something was delivered, can anyone say afterwards what it was."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2026-08-19",
+      "quote": "In contrast to the discrete task of writing a prompt, context engineering is iterative and the curation phase happens each time we decide what to pass to the model",
+      "note": "The vendor states plainly that the input is curated per inference rather than authored once. A version number attached to the authored part therefore cannot identify the input, which is the whole of this gap."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2026-08-19",
+      "quote": "we need strategies for managing the entire context state (system instructions, tools, Model Context Protocol (MCP), external data, message history, etc)",
+      "note": "Enumerates the parts of the effective instruction set that a prompt version does not cover: tools, MCP surfaces, external data and history."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "We have also seen that in some cases, user memory contributes to exacerbating the effects of sycophancy",
+      "note": "A per-user, runtime-composed part of the context is named as a contributor to the behaviour change. No prompt version covers it, so neither a rollback nor a reproduction is complete without it, which is the operational cost this gap describes."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Open Source Prompt Management - Langfuse",
+      "locator": "https://langfuse.com/docs/prompt-management/overview",
+      "date": "2026-08-19",
+      "quote": "Prompt management is a systematic approach to storing, versioning, and retrieving prompts for your LLM application",
+      "note": "Establishes what the mature tooling versions, which is the stored prompt. Cited to show the unit of versioning is the template, not to suggest the product is wrong."
+    }
+  ],
+  "build_hypothesis": "One function and one field. Hash the composed instruction text immediately before the API call, attach that hash to the trace and to the response record, and store the text keyed by the hash with a retention window. That gives a groupable identity, makes replay exact, and lets a canary compare two hashes rather than two version labels. Anything already logging traces can adopt it in an afternoon; the missing piece is the convention, not the capability.",
+  "tags": [
+    "prompt",
+    "versioning",
+    "reproducibility",
+    "context",
+    "rollback"
+  ],
+  "check": {
+    "id": "CHK-073",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go"
+      ],
+      "pattern": "(?i)(system[_ ]?prompt|system[_ ]?message|[\\\"']role[\\\"']\\s*:\\s*[\\\"']system[\\\"']|instructions\\s*=)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go"
+          ],
+          "pattern": "(?i)(system[_ ]?prompt|system[_ ]?message|[\\\"']role[\\\"']\\s*:\\s*[\\\"']system[\\\"']|instructions\\s*=)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go"
+          ],
+          "pattern": "(f[\\\"'][^\\\"'\\n]*\\{[A-Za-z_]|\\.format\\(|\\{\\{\\s*[A-Za-z_]|\\.compile\\(|\\+\\s*(?:context|memory|retrieved|history)\\b)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.yaml",
+            "**/*.yml"
+          ],
+          "pattern": "(?i)(prompt[_-]?(?:hash|sha|fingerprint|digest)|(?:hash|sha256|fingerprint|digest)[_a-z0-9]*\\s*\\(\\s*(?:system_prompt|composed|rendered|effective)|record_(?:composed|rendered|effective)_prompt)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go"
+      ],
+      "pattern": "(?i)(prompt[_-]?(?:hash|sha|fingerprint|digest)|(?:hash|sha256|fingerprint|digest)[_a-z0-9]*\\s*\\(\\s*(?:system_prompt|composed|rendered|effective)|record_(?:composed|rendered|effective)_prompt)"
+    },
+    "manual_question": "For a request that produced a bad answer yesterday, can you recover the exact instruction text the model received, byte for byte, and can you group every request that received the same text? If the only answer is a prompt version label, the composed input has no identity.",
+    "rationale": "The signature is a repo that builds instruction text at runtime by interpolation, formatting or concatenation, while nothing anywhere hashes, fingerprints or records the composed result. Composition is detected lexically because it is what distinguishes a template from the text that ran. What it can get wrong: a repo may record the composed prompt through a tracing SDK under a name this pattern does not know, which reads as PRESENT when a form of the mitigation exists, so the finding is a prompt to check the trace schema rather than a defect report; and a repo whose prompts are genuinely static will still match the composition rule if any unrelated f-string appears near prompt symbols.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"The versioned template is not the text the model was given.\"\"\"\nfrom openai import OpenAI\n\nclient = OpenAI()\n\nBASE_SYSTEM_PROMPT = \"You are a support agent. Follow the refund policy.\"\n\n\ndef build_system_prompt(user_memory: str, retrieved: str) -> str:\n    # Most of the tokens are decided here, per call. None of this is covered by\n    # the prompt store's version number, and none of it is recorded.\n    return f\"{BASE_SYSTEM_PROMPT} About this user: {user_memory} Reference: {retrieved}\"\n\n\ndef answer(question: str, user_memory: str, retrieved: str) -> str:\n    system_prompt = build_system_prompt(user_memory, retrieved)\n    reply = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[\n            {\"role\": \"system\", \"content\": system_prompt},\n            {\"role\": \"user\", \"content\": question},\n        ],\n    )\n    return reply.choices[0].message.content\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"Same composition, but the text that ran gets an identity.\"\"\"\nimport logging\n\nfrom openai import OpenAI\n\nfrom app.prompt_record import prompt_fingerprint\n\nlog = logging.getLogger(__name__)\nclient = OpenAI()\n\nBASE_SYSTEM_PROMPT = \"You are a support agent. Follow the refund policy.\"\n\n\ndef build_system_prompt(user_memory: str, retrieved: str) -> str:\n    return f\"{BASE_SYSTEM_PROMPT} About this user: {user_memory} Reference: {retrieved}\"\n\n\ndef answer(question: str, user_memory: str, retrieved: str) -> str:\n    system_prompt = build_system_prompt(user_memory, retrieved)\n    # The identity travels with the call, so a bad answer can be replayed\n    # against the exact instruction text that produced it.\n    log.info(\"composed prompt_hash=%s chars=%d\",\n             prompt_fingerprint(system_prompt), len(system_prompt))\n    reply = client.chat.completions.create(\n        model=\"gpt-4o-2024-08-06\",\n        messages=[\n            {\"role\": \"system\", \"content\": system_prompt},\n            {\"role\": \"user\", \"content\": question},\n        ],\n        metadata={\"prompt_hash\": prompt_fingerprint(system_prompt)},\n    )\n    return reply.choices[0].message.content\n",
+        "app/prompt_record.py": "\"\"\"Fingerprint the instruction text that actually ran, not the template id.\"\"\"\nimport hashlib\n\n\ndef prompt_fingerprint(text: str) -> str:\n    \"\"\"Stable id for one composed instruction string.\"\"\"\n    return hashlib.sha256(text.encode(\"utf-8\")).hexdigest()[:16]\n"
+      }
+    }
+  }
+}

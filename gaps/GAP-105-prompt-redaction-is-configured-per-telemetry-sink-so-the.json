@@ -1,0 +1,118 @@
+{
+  "id": "GAP-105",
+  "title": "Prompt redaction is configured per telemetry sink, so the ordinary logging path emits the same payload unredacted",
+  "layer": "observability",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I turned on masking in my tracing SDK, so my traces look clean, and the same prompt, tool arguments and API key are still written verbatim by an exception handler into a log store that no masking hook ever sees.",
+  "symptom": "The tracing dashboard shows redacted inputs while a grep of the log aggregator returns full conversations and credentials, and nobody can say how many other sinks hold an unredacted copy because redaction was never a property of the payload.",
+  "why_now": "Redaction shipped as a per-client hook rather than as a property of the record. Every tracing vendor now offers masking, and every one of those hooks is scoped to the spans that one client exports, so a second exporter, a crash reporter, a retry log or a stdlib logging call all receive their own untouched copy. There is no artifact in the stack that carries a 'this span is sensitive' bit which any sink is obliged to honour, so coverage is the union of hooks somebody remembered to install.",
+  "existing": [
+    "Tracing-SDK masking hooks (Langfuse mask / mask_otel_spans, LangSmith hide_inputs and create_anonymizer): correct for that vendor's export path and explicitly documented as not covering other exporters.",
+    "Environment switches that disable content capture entirely: all-or-nothing, so teams turn them off to keep traces useful, and they say nothing about the application's own log calls.",
+    "PII detectors such as Presidio wired into the tracing pipeline: same scoping problem, since the detector runs where the hook runs.",
+    "Log-aggregator-side scrubbing rules: they fire after the payload has already crossed the network and been persisted by the collector, and they are pattern-based, so a secret in an unanticipated shape survives."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Masking - Langfuse",
+      "locator": "https://langfuse.com/docs/observability/features/masking",
+      "date": "2026-08-23",
+      "quote": "The hook affects only spans exported by this Langfuse client. If the same OpenTelemetry spans are sent to another exporter, that exporter receives its own unmodified copy.",
+      "note": "The maintainers state the scoping limitation themselves: masking is a property of one client's export path, not of the payload. The page carries no publication date, so the date field is the date this agent fetched it (2026-08-23)."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Wiz Research Uncovers Exposed DeepSeek Database Leaking Sensitive Information, Including Chat History",
+      "locator": "https://www.wiz.io/blog/wiz-research-uncovers-exposed-deepseek-database-leak",
+      "date": "2025-01-29",
+      "quote": "The exposure includes over a million lines of log streams containing chat history, secret keys, backend details, and other highly sensitive information.",
+      "note": "Direct field observation of the outcome this gap produces: the sensitive material was in the LOG STREAM, alongside plaintext chat history and API keys. Publication date taken from the page's own datePublished metadata."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Prevent logging of sensitive data in traces - Docs by LangChain",
+      "locator": "https://docs.smith.langchain.com/observability/how_to_guides/mask_inputs_outputs",
+      "date": "2026-08-23",
+      "quote": "When working with LangSmith traces, you may need to prevent sensitive information from being logged to maintain privacy and comply with security requirements.",
+      "note": "Shows the same design in a second vendor: redaction is a menu of optional client-side and function-level hooks the application must install, each scoped to what passes through it. The page carries no publication date, so the date field is the date this agent fetched it (2026-08-23)."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2025-01-01",
+      "quote": "Follow guidelines like “OWASP API8:2023 Security Misconfiguration” to prevent leaking sensitive information through error messages or configuration details.",
+      "note": "OWASP names the error path specifically as a disclosure channel, which is the path the tracing-layer hooks do not cover."
+    }
+  ],
+  "build_hypothesis": "A sensitivity-carrying log record: one redaction function registered as a logging filter on the root logger and as an OpenTelemetry span processor, so every handler, exporter and crash reporter inherits it, plus a test that asserts a planted canary secret does not appear in ANY configured sink. The unit of enforcement moves from the sink to the record.",
+  "tags": [
+    "redaction",
+    "logging",
+    "secrets",
+    "telemetry",
+    "sink-coverage"
+  ],
+  "check": {
+    "id": "CHK-104",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "\\.chat\\.completions\\.create\\(|\\.messages\\.create\\(|invoke_model\\(|generate_content\\(|litellm\\.completion\\(|llm\\.(?:invoke|complete|generate)\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "\\.chat\\.completions\\.create\\(|\\.messages\\.create\\(|invoke_model\\(|generate_content\\(|litellm\\.completion\\(|llm\\.(?:invoke|complete|generate)\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "log(?:ger|ging)?\\.(?:debug|info|warning|error|exception|critical)\\([^\\n]*\\b(?:messages|prompt|prompts|payload|request_body|api_key|apikey|headers|user_input|completion)\\b"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py"
+            ],
+            "pattern": "logging\\.Filter|addFilter\\(|RedactingFilter|RedactingFormatter|SecretsFilter|def\\s+redact\\w*\\(|scrub_secrets|sanitize_for_log|presidio|AnalyzerEngine|AnonymizerEngine|structlog\\.processors\\.\\w*[Rr]edact"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "logging\\.Filter|addFilter\\(|RedactingFilter|RedactingFormatter|SecretsFilter|def\\s+redact\\w*\\(|scrub_secrets|sanitize_for_log|presidio|AnalyzerEngine|AnonymizerEngine|structlog\\.processors\\.\\w*[Rr]edact"
+    },
+    "manual_question": "Plant a canary secret in one prompt, run one request that fails, then grep every sink you ship to - trace backend, log aggregator, crash reporter, stdout - and count how many hold the canary. Which single component was supposed to stop all of them?",
+    "rationale": "The signature is a codebase that calls a model and also hands a prompt, payload, header or key straight to a logging call, while nowhere installing a logging-level redaction filter or formatter. The gap is coverage, so the check looks for the one mitigation that is sink-independent rather than for a per-vendor masking hook. It over-reports where redaction happens inside a helper this pattern does not name, and it under-reports a repo that logs a whole request object under a variable name outside the list, which is why the manual question asks for a canary rather than a code read.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef ask(client, messages, api_key):\n    try:\n        return client.chat.completions.create(model=\"gpt-4o\", messages=messages)\n    except Exception:\n        logger.exception(\"model call failed: messages=%s api_key=%s\", messages, api_key)\n        raise\n"
+      },
+      "good": {
+        "app/agent.py": "import logging\n\nfrom .log_redaction import install_log_redaction\n\ninstall_log_redaction()\nlogger = logging.getLogger(__name__)\n\n\ndef ask(client, messages, api_key):\n    try:\n        return client.chat.completions.create(model=\"gpt-4o\", messages=messages)\n    except Exception:\n        logger.exception(\"model call failed: messages=%s api_key=%s\", messages, api_key)\n        raise\n",
+        "app/log_redaction.py": "import logging\nimport re\n\n_SECRETS = re.compile(r\"sk-[A-Za-z0-9]{8,}|api_key=\\S+|Bearer\\s+\\S+\")\n\n\nclass RedactingFilter(logging.Filter):\n    \"\"\"Redacts on the WAY OUT, so every handler and every sink inherits it.\"\"\"\n\n    def filter(self, record):\n        record.msg = _SECRETS.sub(\"[REDACTED]\", record.getMessage())\n        record.args = ()\n        return True\n\n\ndef install_log_redaction():\n    logging.getLogger().addFilter(RedactingFilter())\n"
+      }
+    }
+  }
+}

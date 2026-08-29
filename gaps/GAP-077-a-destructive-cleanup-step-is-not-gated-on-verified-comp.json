@@ -1,0 +1,125 @@
+{
+  "id": "GAP-077",
+  "title": "A destructive cleanup step is not gated on verified completion of the step that was supposed to preserve the data",
+  "layer": "tool-action",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I let an agent reorganise a tree of files; it planned a move and a cleanup as two independent steps, ran the cleanup first, and nothing anywhere in the stack made the delete ineligible until the move had been verified.",
+  "symptom": "The transcript reads as a competent plan followed by a successful-looking run, and the data is gone. Any approval prompt that fired asked about one command in isolation, so the human approved a delete without being shown that its paired preservation step had not been confirmed.",
+  "why_now": "Per-command allowlists and dangerous-command string matching are the state of the practice in 2026, and both operate on a single command with no memory of the plan it belongs to. A destructive command is judged by its own text, so a delete that is individually reasonable stays reasonable even when the move it depends on returned zero files or never ran. Nothing in the common agent frameworks expresses the pairing, so the ordering constraint lives only in prose inside the plan the model itself wrote.",
+  "existing": [
+    "Dangerous-command matchers (rm -rf and friends) judge one command in isolation and are also platform-incomplete: the same tracker records the Windows rd and rmdir equivalents slipping past the Unix-oriented matcher entirely.",
+    "Per-call human approval moves the decision to a person but shows them the command, not the unmet precondition, so the reviewer has no way to see that the paired move was unverified.",
+    "Filesystem snapshots and database point-in-time restore make recovery possible but do not prevent the loss, and they are outside the agent's own tool contract, so the agent can and does report that recovery is impossible."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "[Issue Report] Gemini CLI Agent: Data Destruction and Permanent Loss of Source Code",
+      "locator": "https://api.github.com/repos/google-gemini/gemini-cli/issues/26767",
+      "date": "2026-05-10",
+      "quote": "committed a fatal logical error by executing a deletion command (rd /s /q) on target directories before",
+      "note": "First-hand report on the official gemini-cli tracker. The ordering, not the command, is the defect: the delete ran against directories whose contents had not yet been relocated."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Missing command safety checks for Windows destructive commands like 'rd' and 'rmdir' (gemini-cli triage comment on issue 26767)",
+      "locator": "https://api.github.com/repos/google-gemini/gemini-cli/issues/comments/4435016727",
+      "date": "2026-05-12",
+      "quote": "The agent executed a destructive directory removal script (`rd /s /q`) on Windows without triggering a user approval prompt.",
+      "note": "The project's own triage locates the root cause in a per-command danger matcher that enumerates Unix spellings. That framing is evidence for the gap: the proposed fix adds strings to a matcher that still cannot express a dependency between two steps."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Comment on gemini-cli issue 26767: transactional sequencing is the stronger fix for this incident class",
+      "locator": "https://api.github.com/repos/google-gemini/gemini-cli/issues/comments/4964251935",
+      "date": "2026-07-14",
+      "quote": "The operation was destructive because cleanup occurred before a verified move, so the workflow also needs a postcondition boundary.",
+      "note": "States the missing contract directly, and argues that extending the string matcher would not have prevented the sequence. The commenter discloses a commercial interest in a related product, which is why this is weighted as a practitioner report rather than as a maintainer position."
+    }
+  ],
+  "build_hypothesis": "A tiny plan-level eligibility gate that sits under the tool executor rather than beside it: a destructive call declares the preservation step it depends on, and the executor refuses the delete until that step has produced a recorded postcondition (non-zero moved count, matching inventory, or matching digests). It needs no model cooperation and no new approval UI, only a table of pending preconditions keyed by target path.",
+  "tags": [
+    "destructive-action",
+    "postcondition",
+    "filesystem",
+    "ordering",
+    "transactional"
+  ],
+  "check": {
+    "id": "CHK-076",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.sh",
+        "**/*.ps1"
+      ],
+      "pattern": "(?i)shutil\\.rmtree|os\\.(?:remove|unlink|rmdir)\\s*\\(|\\brm\\s+-[rRf]|\\brd\\s+/s|\\bdel\\s+/[sq]|Remove-Item[^\\n]*-Recurse|fs\\.rmSync|fs\\.rm\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sh",
+            "**/*.ps1"
+          ],
+          "pattern": "(?i)shutil\\.(?:move|copytree|copy2|copyfile)|os\\.rename\\s*\\(|\\brobocopy\\b|\\bmv\\s+-?|fs\\.rename|copyFileSync|\\bxcopy\\b|pg_dump"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sh",
+            "**/*.ps1"
+          ],
+          "pattern": "(?i)shutil\\.rmtree|os\\.(?:remove|unlink|rmdir)\\s*\\(|\\brm\\s+-[rRf]|\\brd\\s+/s|\\bdel\\s+/[sq]|Remove-Item[^\\n]*-Recurse|fs\\.rmSync|fs\\.rm\\("
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.sh",
+            "**/*.ps1"
+          ],
+          "pattern": "check_returncode|check\\s*=\\s*True|\\.returncode\\b|expected_count|src_count|dst_count|verify_(?:move|copy|migration|effect|postcondition)|postcondition|sha256|md5|checksum|rowcount"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.sh",
+        "**/*.ps1"
+      ],
+      "pattern": "check_returncode|check\\s*=\\s*True|\\.returncode\\b|expected_count|src_count|dst_count|verify_(?:move|copy|migration|effect|postcondition)|postcondition|sha256|md5|checksum|rowcount"
+    },
+    "manual_question": "Name the code that refuses the delete when the move or copy it depends on returned zero files, errored, or wrote outside the approved root. If that refusal does not exist, what makes the destructive step ineligible rather than merely discouraged?",
+    "rationale": "A target that both relocates data and destroys the origin, with no vocabulary anywhere for an exit status, an expected count, or a digest comparison, has no way to make the destroy step conditional on the relocate step. This is lexical and therefore coarse in two directions: it under-reports a project that expresses the same guard in domain vocabulary the pattern does not know, and it can be satisfied by a check=True that guards an unrelated call, which is why the mitigation verdict means a human should confirm the guard covers the destructive path rather than that it does.",
+    "fixtures": {
+      "bad": {
+        "app/organise.py": "import shutil\nimport subprocess\n\n\ndef organise(src, dst):\n    \"\"\"Move everything into dst, then clear whatever is left behind in src.\"\"\"\n    shutil.move(src, dst)\n    subprocess.run(\"rd /s /q \" + src, shell=True)\n    shutil.rmtree(src, ignore_errors=True)\n"
+      },
+      "good": {
+        "app/organise.py": "import hashlib\nimport shutil\nimport subprocess\nfrom pathlib import Path\n\n\ndef _checksum(path: Path) -> str:\n    return hashlib.sha256(path.read_bytes()).hexdigest()\n\n\ndef organise(src: Path, dst: Path) -> None:\n    \"\"\"Copy, verify the postcondition, and only then delete the source.\"\"\"\n    expected_count = len([p for p in src.rglob(\"*\") if p.is_file()])\n    result = subprocess.run([\"robocopy\", str(src), str(dst), \"/E\"], check=True)\n    if result.returncode > 7:\n        raise RuntimeError(\"copy failed; the delete step is ineligible\")\n    if len([p for p in dst.rglob(\"*\") if p.is_file()]) != expected_count:\n        raise RuntimeError(\"copy incomplete; the delete step is ineligible\")\n    for original in src.rglob(\"*\"):\n        if original.is_file():\n            moved = dst / original.relative_to(src)\n            if _checksum(original) != _checksum(moved):\n                raise RuntimeError(\"checksum mismatch; delete is ineligible\")\n    shutil.rmtree(src)\n"
+      }
+    }
+  }
+}

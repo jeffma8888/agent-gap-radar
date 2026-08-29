@@ -1,0 +1,112 @@
+{
+  "id": "GAP-051",
+  "title": "A human approval surface renders a summary, so the person approves something other than the bytes the tool receives",
+  "layer": "human-interface",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I approved a prompt that said the agent wanted to add two numbers, and the call it actually executed carried the contents of my SSH private key in a third argument the dialog never showed me.",
+  "symptom": "The confirmation prompt names a tool and shows a one-line summary or a truncated description; the full argument payload is visible only in the raw trace, after the call has already run. The approval record stores a verdict against a call id, so nothing afterwards can show what the human was looking at when they said yes.",
+  "why_now": "Third-party tool surfaces became routine in 2026 through MCP, which put the tool description and the argument rendering under someone else's control. The specification's own advice to show tool inputs to the user is a SHOULD with no conformance test, and no mainstream framework binds an approval to a digest of the exact serialised arguments, so display and execution are two independent paths that are merely assumed to agree.",
+  "existing": [
+    "The MCP specification tells clients to show tool inputs before calling the server, but it is a SHOULD with no conformance test and no requirement that the shown bytes equal the executed bytes.",
+    "The OpenAI Agents SDK does surface arguments on the interruption object, so the data is available to an app; whether the operator's prompt renders all of it is left to app code, and the stored decision is keyed to the tool call id rather than to a digest of the arguments.",
+    "Tool-description pinning, proposed as the mitigation for description tampering, protects the description a client fetched. It says nothing about the per-call argument rendering the human actually reads at approval time."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "The attack exploits the fact that AI models see the complete tool descriptions, including hidden instructions, while users typically only see simplified versions in their UI.",
+      "note": "States the display/execution split directly: the model acts on text the approving human never sees. Graded practitioner-report; a reviewer could reasonably re-grade it first-party-field, since the authors ran the experiments themselves against a shipping client. Date taken from the page's own article:published_time metadata, not from the visible text."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "MCP Security Notification: Tool Poisoning Attacks",
+      "locator": "https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks",
+      "date": "2025-04-01",
+      "quote": "the user is only shown a simple summarized tool name, where tool arguments are hidden behind an overly simplified UI representation",
+      "note": "This is the gap in one sentence, and it is about the APPROVAL surface specifically: confirmation was required and still uninformative, because the arguments were not rendered. The same paragraph records that the exfiltrated key was completely hidden even in the dialog's extended mode."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Tools - Model Context Protocol",
+      "locator": "https://modelcontextprotocol.io/specification/2025-06-18/server/tools",
+      "date": "2025-06-18",
+      "quote": "Show tool inputs to the user before calling the server",
+      "note": "The protocol's own security guidance names the mitigation, as a client SHOULD with no conformance test and no binding between what was displayed and what is sent. Date is the specification revision named in the URL and page path."
+    }
+  ],
+  "build_hypothesis": "An approval-payload binder: serialise the exact arguments the transport will send, hash them, render the full payload plus the digest in the prompt, store the digest with the decision, and refuse at execution time any call whose argument digest differs from the approved one. A decorator plus one column on the approval record, and it converts an unverifiable consent into a checkable one.",
+  "tags": [
+    "hitl",
+    "approval",
+    "consent",
+    "mcp",
+    "tool-args"
+  ],
+  "check": {
+    "id": "CHK-050",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.mjs"
+      ],
+      "pattern": "(?i)(request_approval|prompt_approval|ask_for_approval|confirm_tool_call|needs?_approval|require[sd]?_approval|approval_required|approval_gate|human_in_the_loop)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(request_approval|prompt_approval|ask_for_approval|confirm_tool_call|needs?_approval|require[sd]?_approval|approval_required|approval_gate|human_in_the_loop)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.mjs"
+          ],
+          "pattern": "(?i)(json\\.dumps\\s*\\(\\s*[\\w\\.\\[\\]]*\\b(?:arg|args|arguments|params|parameters|tool_input|payload)|JSON\\.stringify\\s*\\(\\s*[\\w\\.\\[\\]]*\\b(?:arg|args|arguments|params|parameters|toolInput|payload)|argument[_-]?digest|arguments[_-]?hash|approval[_-]?payload[_-]?(?:hash|digest)|render_(?:full_)?arguments|full[_-]?arguments)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(json\\.dumps\\s*\\(\\s*[\\w\\.\\[\\]]*\\b(?:arg|args|arguments|params|parameters|tool_input|payload)|JSON\\.stringify\\s*\\(\\s*[\\w\\.\\[\\]]*\\b(?:arg|args|arguments|params|parameters|toolInput|payload)|argument[_-]?digest|arguments[_-]?hash|approval[_-]?payload[_-]?(?:hash|digest)|render_(?:full_)?arguments|full[_-]?arguments)"
+    },
+    "manual_question": "Open the approval prompt this project shows a human. Does it render the complete arguments the tool will receive, byte for byte, and is the recorded approval bound to those bytes rather than to a tool name or call id?",
+    "rationale": "A project that has a human approval gate but nowhere serialises the tool arguments for display is very likely rendering a name and a summary, which is the documented failure. Known weaknesses, both in the safe direction and both worth saying out loud: the absence rule is satisfied by ANY serialisation of arguments anywhere in the repo, including a log line that never reaches the prompt, so a large codebase will suppress the finding and read MANUAL rather than PRESENT. It also cannot see a rendering that happens in a separate front-end repo. It does not attempt to prove the digest binding, only the display, so a PRESENT verdict is a floor on the problem and never a ceiling.",
+    "fixtures": {
+      "bad": {
+        "app/approval.py": "def request_approval(tool_call):\n    \"\"\"Ask the operator before the agent runs a tool.\"\"\"\n    print(\"Agent wants to run tool: \" + tool_call.name)\n    print(\"Summary: \" + tool_call.description[:80])\n    answer = input(\"Approve? [y/N] \")\n    return answer.strip().lower() == \"y\"\n",
+        "app/runner.py": "from app.approval import request_approval\n\n\ndef run_tool(client, tool_call):\n    if not request_approval(tool_call):\n        return {\"status\": \"rejected\"}\n    return client.call(tool_call.name, tool_call.arguments)\n"
+      },
+      "good": {
+        "app/approval.py": "import json\n\n\ndef request_approval(tool_call):\n    \"\"\"Show the operator the exact payload the tool will receive.\"\"\"\n    payload = json.dumps(tool_call.arguments, indent=2, sort_keys=True)\n    print(\"Agent wants to run tool: \" + tool_call.name)\n    print(\"Exact arguments the tool will receive:\")\n    print(payload)\n    answer = input(\"Approve? [y/N] \")\n    return answer.strip().lower() == \"y\"\n",
+        "app/runner.py": "from app.approval import request_approval\n\n\ndef run_tool(client, tool_call):\n    if not request_approval(tool_call):\n        return {\"status\": \"rejected\"}\n    return client.call(tool_call.name, tool_call.arguments)\n"
+      }
+    }
+  }
+}

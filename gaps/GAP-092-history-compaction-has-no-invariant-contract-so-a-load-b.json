@@ -1,0 +1,113 @@
+{
+  "id": "GAP-092",
+  "title": "History compaction has no invariant contract, so a load-bearing instruction can be summarised away mid-run",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent ran for six hours, its history was compacted twice, and the constraint it violated at hour five was written in the turn the summariser threw away.",
+  "symptom": "Behaviour changes at no particular step: the agent starts doing something it was told not to do, the transcript after compaction contains no trace of the instruction, and nothing failed.",
+  "why_now": "Compaction shipped as a context-window remedy, so it is measured on tokens saved, not on what it dropped. The transform is lossy by construction and there is no declared set of statements that must survive it, so a summariser is free to drop a prohibition and keep a pleasantry.",
+  "existing": [
+    "Trimming and message deletion: cheaper than summarising and loses information more bluntly, with the same silence.",
+    "Summarisation middleware: keeps a compressed narrative, but nothing designates which statements are non-negotiable, so preservation is whatever the summariser chose.",
+    "Re-reading instruction files each turn: works for text on disk, and does nothing for a constraint the user stated in conversation."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Short-term memory - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+      "date": "2026-08-23",
+      "quote": "The problem with trimming or removing messages, as shown above, is that you may lose information from culling of the message queue.",
+      "note": "The maintainer of the most widely used agent framework states the loss plainly, and the documented remedy is a summariser rather than a preserved set of statements. Undated documentation page; the date is the retrieval date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How Claude remembers your project - Claude Code Docs",
+      "locator": "https://docs.claude.com/en/docs/claude-code/memory",
+      "date": "2026-08-23",
+      "quote": "Claude treats them as context, not enforced configuration.",
+      "note": "The vendor is explicit that instruction files are context rather than enforced policy, which is why a context transform such as compaction can drop one with no error. Undated documentation page; the date is the retrieval date."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2026-08-23",
+      "quote": "Across all experiments, model performance consistently degrades with increasing input length.",
+      "note": "Establishes that not compacting is also unsafe, so the pressure to compact is real and the gap cannot be closed by keeping the whole history. Undated technical report; the date is the retrieval date."
+    }
+  ],
+  "build_hypothesis": "A compaction contract: a small declared list of statements that must survive, re-stated verbatim into the post-compaction context, plus an assertion after every compaction that each one is still present, which fails the run loudly rather than continuing quietly.",
+  "tags": [
+    "compaction",
+    "context-memory",
+    "long-horizon",
+    "silent-loss"
+  ],
+  "check": {
+    "id": "CHK-091",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "compact_(?:context|history|messages|conversation)|auto_?compact|compaction|summari[sz]e_(?:history|messages|conversation)|SummarizationMiddleware|SummarizationNode|trim_messages|prune_messages"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "compact_(?:context|history|messages|conversation)|auto_?compact|compaction|summari[sz]e_(?:history|messages|conversation)|SummarizationMiddleware|SummarizationNode|trim_messages|prune_messages"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs"
+          ],
+          "pattern": "re_?inject|after_compact|post_compact|preserved?_instructions|pinned_instructions|invariant_block|survives_compaction|system_reminder"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "re_?inject|after_compact|post_compact|preserved?_instructions|pinned_instructions|invariant_block|survives_compaction|system_reminder"
+    },
+    "manual_question": "Your agent compacts or summarises its own history. Which statements are guaranteed to survive that transform, and what fails the run if one of them does not?",
+    "rationale": "A project that compacts history but nowhere names re-injection, preservation or a post-compaction survival assertion has no mechanism that could keep a constraint alive across the transform. It can be wrong in two ways: a project may re-state constraints under vocabulary this pattern does not know, which shows up as a false PRESENT and is why the manual question exists; and a project may spell one of these tokens while re-injecting something else entirely, which yields ABSENT it has not earned.",
+    "fixtures": {
+      "bad": {
+        "agent/loop.py": "MAX_TOKENS = 120000\n\n\ndef compact_history(messages, llm):\n    \"\"\"Replace the middle of the history with a model-written summary.\"\"\"\n    if count_tokens(messages) < MAX_TOKENS:\n        return messages\n    summary = llm.summarize(messages[1:-4])\n    return [messages[0], {\"role\": \"user\", \"content\": summary}] + messages[-4:]\n\n\ndef run(task, messages, llm, tools):\n    while True:\n        messages = compact_history(messages, llm)\n        step = llm.call(messages, tools)\n        if step.done:\n            return step\n        messages.append(step.message)\n"
+      },
+      "good": {
+        "agent/loop.py": "MAX_TOKENS = 120000\n\nCONSTRAINTS = [\n    \"never force-push\",\n    \"always run the suite before committing\",\n]\n\n\ndef preserved_instructions():\n    \"\"\"Constraints that must reach the model on every turn after a compaction.\"\"\"\n    return {\"role\": \"system\", \"content\": \"; \".join(CONSTRAINTS)}\n\n\ndef assert_constraints_present(messages):\n    rendered = \"; \".join(m[\"content\"] for m in messages)\n    missing = [c for c in CONSTRAINTS if c not in rendered]\n    if missing:\n        raise RuntimeError(\"compaction dropped constraints: %r\" % missing)\n\n\ndef compact_history(messages, llm):\n    \"\"\"Summarise, then re-state the constraints and prove they survived.\"\"\"\n    if count_tokens(messages) < MAX_TOKENS:\n        return messages\n    summary = llm.summarize(messages[1:-4])\n    kept = [messages[0], preserved_instructions(),\n            {\"role\": \"user\", \"content\": summary}] + messages[-4:]\n    assert_constraints_present(kept)\n    return kept\n\n\ndef run(task, messages, llm, tools):\n    while True:\n        messages = compact_history(messages, llm)\n        step = llm.call(messages, tools)\n        if step.done:\n            return step\n        messages.append(step.message)\n"
+      }
+    }
+  }
+}

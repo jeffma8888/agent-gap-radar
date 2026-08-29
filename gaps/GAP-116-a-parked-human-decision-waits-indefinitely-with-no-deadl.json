@@ -1,0 +1,152 @@
+{
+  "id": "GAP-116",
+  "title": "A parked human decision waits indefinitely with no deadline or escalation, so a review queue nobody reads is indistinguishable from an empty one",
+  "layer": "human-interface",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent parked a decision for a person and will wait forever. Nothing tells me an item has been sitting for three days, nothing hands it to somebody else, and nothing distinguishes a queue that is empty from a queue nobody is opening.",
+  "symptom": "Paused runs accumulate in the checkpointer with no oldest-pending-age to alarm on. Weeks later somebody finds a thread that never resumed, or resumes it long after the context that justified the request went stale, and the reviewer who was supposed to answer never knew it was theirs.",
+  "why_now": "The pause primitive that every framework shipped in 2025 and 2026 is durable by design and unbounded by design: the documented contract is that the run waits until a human returns, with no answer-by time, no staleness signal and no second recipient. Ticketing and human-labelling systems have carried task lifetimes and reassignment for years, so the primitive is not hard, it simply was not carried into agent runtimes, and durability got mistaken for a complete contract.",
+  "existing": [
+    "Durable checkpointing makes the pause survive restarts, which is necessary and is the opposite of a deadline: it guarantees the item can wait forever rather than bounding how long it may.",
+    "Partial resolution of pending approvals is supported, so a run can re-pause on the items nobody answered, with no field anywhere that says when those items should have been answered.",
+    "Queue depth is easy to expose and is the wrong number: a shallow queue whose one item is nine days old is the failure, and depth reports it as healthy."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Interrupts - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/interrupts",
+      "date": "2026-08-17",
+      "quote": "When an interrupt is triggered, LangGraph saves the graph state using its persistence layer and waits indefinitely until you resume execution.",
+      "note": "The vendor documents unbounded waiting as the contract of the human-in-the-loop primitive. Nothing on the page offers an answer-by time, a staleness query or an escalation target, which is the missing contract this gap names. Living documentation with no publication date, so dated to the day it was fetched."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Interrupts - Docs by LangChain",
+      "locator": "https://docs.langchain.com/oss/python/langgraph/interrupts",
+      "date": "2026-08-17",
+      "quote": "Graph waits indefinitely until you resume execution with a response",
+      "note": "The same contract restated in the page's own summary of the pause semantics, so this is the documented behaviour rather than an aside."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Human-in-the-loop - OpenAI Agents SDK",
+      "locator": "https://openai.github.io/openai-agents-python/human_in_the_loop/",
+      "date": "2026-08-17",
+      "quote": "those resolved calls can continue while unresolved ones remain in interruptions and pause the run again",
+      "note": "A second vendor with the same shape: unanswered items persist as pending state across resumptions, with no deadline, no age and no second recipient documented anywhere in the flow. Living documentation with no publication date, so dated to the day it was fetched."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Human oversight of agentic systems in practice: Examining the oversight work, challenges, and heuristics of developers using software agents",
+      "locator": "https://arxiv.org/html/2606.05391v1",
+      "date": "2026-06-05",
+      "quote": "A main way in which participants managed information overload during post hoc review is through spot-checking by eyeballing agent-related information such as agent outputs, agent rationales, and change summaries",
+      "note": "Interview study of 17 experienced agent users (Microsoft authors; the same work carries an ACM DOI, 10.1145/3805689.3812402). Establishes that the human side of the queue is already overloaded, so a design that assumes an item is read because it was enqueued is assuming the thing under strain. Dated to the arXiv v1 identifier."
+    }
+  ],
+  "build_hypothesis": "Give a parked decision three fields the runtime enforces: an answer-by time, an escalation target, and an on-expiry verdict that defaults to refuse. Then expose oldest-pending-age rather than queue depth so a queue nobody is reading alarms on its own. This is a schema change plus one sweeper, and it converts silent queue rot into a page.",
+  "tags": [
+    "review-queue",
+    "escalation",
+    "sla",
+    "human-oversight",
+    "missing-contract"
+  ],
+  "check": {
+    "id": "CHK-115",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java",
+        "**/*.rs",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml"
+      ],
+      "pattern": "(?i)(\\binterrupt\\(|wait_for_(?:approval|decision|human|review)|pending_approval|awaiting_(?:approval|review)|approval_queue|review_queue|enqueue_for_review|human_input_required)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.js",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java",
+            "**/*.rs",
+            "**/*.json",
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)(\\binterrupt\\(|wait_for_(?:approval|decision|human|review)|pending_approval|awaiting_(?:approval|review)|approval_queue|review_queue|enqueue_for_review|human_input_required)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.js",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.mjs",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.java",
+            "**/*.rs",
+            "**/*.json",
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)((?:approv|review|pending|human)[\\s\\S]{0,140}(?:timeout|deadline|expires_at|expires_in|\\bsla\\b|escalat|on_timeout|max_wait|reassign|reminder|aged_out|\\bstale\\b)|(?:timeout|deadline|expires_at|expires_in|\\bsla\\b|escalat|on_timeout|max_wait|reassign|reminder|aged_out|\\bstale\\b)[\\s\\S]{0,140}(?:approv|review|pending|human))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mjs",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.java",
+        "**/*.rs",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml"
+      ],
+      "pattern": "(?i)((?:approv|review|pending|human)[\\s\\S]{0,140}(?:timeout|deadline|expires_at|expires_in|\\bsla\\b|escalat|on_timeout|max_wait|reassign|reminder|aged_out|\\bstale\\b)|(?:timeout|deadline|expires_at|expires_in|\\bsla\\b|escalat|on_timeout|max_wait|reassign|reminder|aged_out|\\bstale\\b)[\\s\\S]{0,140}(?:approv|review|pending|human))"
+    },
+    "manual_question": "For a decision your agent parks for a human right now, what is the answer-by time, who gets it if the first person never opens it, and what happens on expiry? If the answer is that it waits, what would tell you an item has been pending for a week?",
+    "rationale": "A repository that parks work for a human decision and nowhere mentions a deadline, expiry, escalation or reassignment anywhere near that pending state has no contract for the case where nobody answers, so queue rot is silent by construction. The proximity requirement matters: deadline and timeout vocabulary is everywhere in networked code, so the pattern only counts it when it appears within about 140 characters of approval, review, pending or human text. It can still be wrong where the deadline lives in an external workflow engine or a database column definition outside the scanned globs, and it says nothing about which way expiry defaults, which is why the manual question asks what happens on expiry.",
+    "fixtures": {
+      "bad": {
+        "agent/gate.py": "\"\"\"Park a sensitive tool call for a person, then carry on when they answer.\"\"\"\n\nfrom langgraph.types import interrupt\n\nPENDING_APPROVAL = {}\n\n\ndef gate(tool_call, thread_id):\n    \"\"\"Hold this thread until somebody answers.\"\"\"\n    PENDING_APPROVAL[thread_id] = {\"tool\": tool_call.name, \"args\": tool_call.args}\n    answer = interrupt({\"tool\": tool_call.name, \"args\": tool_call.args})\n    PENDING_APPROVAL.pop(thread_id, None)\n    if answer == \"approve\":\n        return tool_call.run()\n    return {\"status\": \"rejected\"}\n",
+        "worker/queue.py": "\"\"\"Items a person has to look at before the agent may proceed.\"\"\"\n\nREVIEW_QUEUE = []\n\n\ndef enqueue_for_review(item, now):\n    REVIEW_QUEUE.append({\"item\": item, \"created_at\": now})\n\n\ndef next_for_reviewer():\n    return REVIEW_QUEUE.pop(0) if REVIEW_QUEUE else None\n\n\ndef queue_depth():\n    return len(REVIEW_QUEUE)\n"
+      },
+      "good": {
+        "agent/gate.py": "\"\"\"Park a sensitive tool call for a person, then carry on when they answer.\n\nA parked call is not allowed to sit forever: it carries a deadline, and the\nsweeper escalates it to a second person and then refuses it if nobody answers.\n\"\"\"\n\nfrom langgraph.types import interrupt\n\nAPPROVAL_DEADLINE_SECONDS = 3600\nPENDING_APPROVAL = {}\n\n\ndef gate(tool_call, thread_id, now):\n    PENDING_APPROVAL[thread_id] = {\n        \"tool\": tool_call.name,\n        \"args\": tool_call.args,\n        \"created_at\": now,\n        \"expires_at\": now + APPROVAL_DEADLINE_SECONDS,\n    }\n    answer = interrupt({\n        \"tool\": tool_call.name,\n        \"args\": tool_call.args,\n        \"answer_by\": now + APPROVAL_DEADLINE_SECONDS,\n    })\n    PENDING_APPROVAL.pop(thread_id, None)\n    if answer == \"approve\":\n        return tool_call.run()\n    return {\"status\": \"rejected\"}\n",
+        "worker/sweeper.py": "\"\"\"Age out, escalate and alarm on decisions nobody has answered.\n\nAn unanswered request is a signal, not a resting state. Expiry refuses the call\nrather than allowing it, because a deadline that defaults to yes is not a gate.\n\"\"\"\n\nESCALATE_AFTER_SECONDS = 1800\n\n\ndef sweep(queue, now, refuse, escalate_to, secondary_reviewer):\n    for item in list(queue):\n        waited = now - item[\"created_at\"]\n        if now >= item[\"expires_at\"]:\n            item[\"state\"] = \"aged_out\"\n            refuse(item, reason=\"approval deadline passed with no human decision\")\n            queue.remove(item)\n        elif waited > ESCALATE_AFTER_SECONDS and not item.get(\"escalated\"):\n            escalate_to(secondary_reviewer(item), item)\n            item[\"escalated\"] = True\n\n\ndef oldest_pending_age(queue, now):\n    \"\"\"Exported so a dashboard can alarm on a review queue nobody is reading.\"\"\"\n    return max((now - i[\"created_at\"] for i in queue), default=0)\n"
+      }
+    }
+  }
+}

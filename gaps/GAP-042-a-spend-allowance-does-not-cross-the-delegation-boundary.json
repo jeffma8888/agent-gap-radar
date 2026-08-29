@@ -1,0 +1,150 @@
+{
+  "id": "GAP-042",
+  "title": "A spend allowance does not cross the delegation boundary, so fan-out multiplies a bound the parent believed it held",
+  "layer": "cost-governance",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I capped the orchestrator and it honoured that cap, then each step spawned sub-agents that spawned their own, and the account quota was gone while the parent's own counters still looked healthy.",
+  "symptom": "A run that respects every cap the operator set still exhausts an account quota or produces a bill nobody predicted. The parent logs look fine because the spend happened in children it never accounted for, and killing the parent does not stop them.",
+  "why_now": "Spawning a sub-agent became a single tool call in 2025 and 2026, so the fan-out width is now chosen by the model at run time while the caps are still written per process by a human at configuration time. Nothing in the delegation call signature carries a remaining allowance, so a child starts from a fresh budget by default, and the guards vendors added first were depth guards, which bound the wrong dimension: the multiplication lives in breadth.",
+  "existing": [
+    "A per-process step, iteration or recursion cap: it binds one process, and the point of delegation is that there are now N of them, so the effective bound is that cap multiplied by an arity the model picks.",
+    "A recursion depth limit, which is what vendors reached for first: it prevents unbounded depth and does nothing about breadth. A depth of two with a width of five is 25 agents.",
+    "A concurrency semaphore or worker pool: it bounds how many children run at once, not how much each may spend nor how many run in total, so it slows the burn without bounding it.",
+    "Provider account rate limits: they do stop the fan-out eventually, but by exhausting a quota the team's other production traffic shares, which converts a cost problem into an availability incident.",
+    "A global kill switch: necessary, and in reported cases absent or ineffective once background children outlived the session that started them."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "[Bug] Background general-purpose sub-agents recursively self-spawn causing exponential fan-out and usage limit exhaustion",
+      "locator": "https://github.com/anthropics/claude-code/issues/69332",
+      "date": "2026-06-18",
+      "quote": "Entire usage limit consumed with no user-visible warning; no way to stop it once the session exited.",
+      "note": "Quota exhaustion by fan-out, with the runaway outliving the process an operator would have killed. Two spawn calls became roughly 242 agent transcripts."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "[Bug] Background general-purpose sub-agents recursively self-spawn causing exponential fan-out and usage limit exhaustion",
+      "locator": "https://github.com/anthropics/claude-code/issues/69332",
+      "date": "2026-06-18",
+      "quote": "251 total Agent/Task spawn calls; 49 agents spawned children. Each root made 5 spawn calls.",
+      "note": "Forensic counts from the reporter's own transcript directory. The fan-out width was chosen at run time by the model, which is exactly the quantity a per-process cap written at configuration time cannot see."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Bug Report: Uncontrolled Sub-Agent Recursive Loop Caused ~800k Token Consumption & $27.60 Unexpected Charge",
+      "locator": "https://github.com/anthropics/claude-code/issues/69578",
+      "date": "2026-06-19",
+      "quote": "Sub-agents are permitted to spawn their own sub-agents without any maximum depth restriction.",
+      "note": "A user-filed report with its own root-cause section. It names the missing primitive as a bound on the delegation tree itself, not on any one process."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Manage costs effectively - Claude Code Docs",
+      "locator": "https://code.claude.com/docs/en/costs",
+      "date": "2026-08-19",
+      "quote": "Per-developer costs vary widely based on model selection, codebase size, and usage patterns such as running multiple instances or automation.",
+      "note": "The vendor names the two spend multipliers a per-request cap cannot see: multiple concurrent instances and unattended automation. Living documentation with no publication date, so the date given is the date this pass fetched it."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Improving token efficiency in GitHub Agentic Workflows",
+      "locator": "https://github.blog/ai-and-ml/github-copilot/improving-token-efficiency-in-github-agentic-workflows/",
+      "date": "2026-05-07",
+      "quote": "And because CI jobs like agentic workflows are automatically scheduled and triggered, costs can accumulate out of view.",
+      "note": "A platform vendor describing unattended agent spend on its own repositories. Out of view is the measurement gap, not a preference."
+    }
+  ],
+  "build_hypothesis": "Make the allowance an argument rather than a setting. A parent holds a budget handle and delegating REQUIRES splitting it: the child receives a share, spends against it, and returns the unspent remainder, so the total across any tree is bounded by the root grant no matter what width or depth the model chooses. Roughly 150 lines for a splittable allowance plus a refusal at the spawn site when a child's share would fall below a floor, which also converts an unbounded fan-out into an explicit, loggable refusal. The hard design question is what happens to a sibling's unspent remainder, not the bookkeeping.",
+  "tags": [
+    "cost-governance",
+    "multi-agent",
+    "fan-out",
+    "delegation",
+    "quota"
+  ],
+  "check": {
+    "id": "CHK-041",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(sub[_-]?agent|spawn_agent|spawn\\(|delegate|handoff|agent[_ ]run|AgentExecutor|create_react_agent|worker_agent|crew)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(sub[_-]?agent|spawn_agent|delegate|handoff|worker_agent)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(asyncio\\.gather|ThreadPoolExecutor|ProcessPoolExecutor|Promise\\.all|multiprocessing|for\\s+\\w+\\s+in\\s+\\w*(?:sub)?tasks?\\b)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(budget|allowance|remaining_(?:tokens|spend|usd|cost)|spend_limit|cost_limit|token_limit|quota|\\.charge\\()"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(budget|allowance|spend_limit|cost_limit|token_limit|quota)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(split|divide|reserve|child_budget|sub_budget|allocate|per_child)"
+        }
+      ]
+    },
+    "manual_question": "When your agent spawns a sub-agent, what does the child receive that bounds its spend? If the answer is its own fresh copy of the same cap, what is the worst-case total across the whole tree once the model chooses the fan-out width, and what stops children that outlive the process you would kill?",
+    "rationale": "The signature is delegation vocabulary, plus a concurrent or iterated dispatch of that delegation, plus no allowance vocabulary anywhere in tracked source. That is a tree whose width is chosen at run time with no quantity flowing down it, which is the exact shape in which a parent cap holds and the account quota still empties. The mitigation requires allowance vocabulary AND splitting or allocation vocabulary together, because a single global budget constant is not the missing contract: the contract is that delegating subdivides a finite grant. What it can get wrong: the bound may be enforced by an external gateway keyed on the API credential, or a framework may thread an allowance under a name this pattern does not know, so a match means no allowance is visible in this tree rather than that spend is certainly unbounded.",
+    "fixtures": {
+      "bad": {
+        "orchestrator/run.py": "import asyncio\n\nfrom worker import subagent\n\nMAX_STEPS = 20\n\n\nasync def orchestrate(goal: str) -> list[str]:\n    \"\"\"Honours MAX_STEPS. Says nothing about how much the children may spend.\"\"\"\n    results: list[str] = []\n    for step in range(MAX_STEPS):\n        plan = await subagent(f\"plan step {step} of {goal}\")\n        subtasks = plan.splitlines()\n        results += await asyncio.gather(*(subagent(t) for t in subtasks))\n        if \"DONE\" in plan:\n            break\n    return results\n",
+        "worker/__init__.py": "import openai\n\nclient = openai.AsyncOpenAI()\n\n\nasync def subagent(task: str) -> str:\n    \"\"\"A sub-agent, which may itself delegate. Nothing here bounds what it costs.\"\"\"\n    reply = await client.chat.completions.create(\n        model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": task}]\n    )\n    return reply.choices[0].message.content or \"\"\n"
+      },
+      "good": {
+        "orchestrator/run.py": "import asyncio\n\nfrom orchestrator.allowance import Allowance\nfrom worker import subagent\n\nMAX_STEPS = 20\n\n\nasync def orchestrate(goal: str, allowance: Allowance) -> list[str]:\n    \"\"\"Delegating REQUIRES splitting the grant, so the whole tree is bounded.\"\"\"\n    results: list[str] = []\n    for step in range(MAX_STEPS):\n        plan = await subagent(f\"plan step {step} of {goal}\", allowance.split(1)[0])\n        subtasks = plan.splitlines()\n        shares = allowance.split(len(subtasks))\n        results += await asyncio.gather(\n            *(subagent(t, s) for t, s in zip(subtasks, shares))\n        )\n        if \"DONE\" in plan:\n            break\n    return results\n",
+        "orchestrator/allowance.py": "\"\"\"A splittable spend allowance: the bound the delegation call signature carries.\n\nA per-process cap cannot bound a tree whose width the model chooses at run time.\nAn allowance can, because splitting is subtraction: total spend anywhere in the\ntree is bounded by the root grant however wide or deep the tree turns out to be.\nA fan-out that would starve its own children is refused here, at the spawn site,\nrather than discovered later on an invoice.\n\"\"\"\n\n\nclass AllowanceExceeded(Exception):\n    \"\"\"Raised at the call site INSTEAD of making the request.\"\"\"\n\n\nMIN_VIABLE_USD = 0.05\n\n\nclass Allowance:\n    def __init__(self, remaining_usd: float) -> None:\n        self.remaining_usd = remaining_usd\n\n    def charge(self, usd: float) -> None:\n        if usd > self.remaining_usd:\n            raise AllowanceExceeded(f\"grant of {self.remaining_usd} is exhausted\")\n        self.remaining_usd -= usd\n\n    def split(self, n: int) -> list[\"Allowance\"]:\n        \"\"\"Carve one share per child out of THIS grant, never out of thin air.\"\"\"\n        if n <= 0:\n            return []\n        share = self.remaining_usd / (n + 1)\n        if share < MIN_VIABLE_USD:\n            raise AllowanceExceeded(\n                f\"fan-out of {n} would leave {share} per child, below the floor\"\n            )\n        self.remaining_usd -= share * n\n        return [Allowance(share) for _ in range(n)]\n",
+        "worker/__init__.py": "import openai\n\nfrom orchestrator.allowance import Allowance\n\nclient = openai.AsyncOpenAI()\n\n\nasync def subagent(task: str, grant: Allowance) -> str:\n    \"\"\"A sub-agent whose grant was carved out of its parent's, so the tree is bounded.\"\"\"\n    grant.charge(0.01)\n    reply = await client.chat.completions.create(\n        model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": task}]\n    )\n    return reply.choices[0].message.content or \"\"\n"
+      }
+    }
+  }
+}

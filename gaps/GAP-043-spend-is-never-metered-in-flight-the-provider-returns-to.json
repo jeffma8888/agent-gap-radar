@@ -1,0 +1,133 @@
+{
+  "id": "GAP-043",
+  "title": "Spend is never metered in flight: the provider returns token usage on every response and nothing reads it",
+  "layer": "cost-governance",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent ran unattended and I learned what it cost from a billing page, because every response carried a usage block with exact token counts and my code read only the text field.",
+  "symptom": "An operator can say how many steps a run took and how long it took, but not what it has spent so far. There is no number to alarm on, so there is nothing to stop a run on either, and the first authoritative figure arrives hours or days later on an invoice.",
+  "why_now": "Providers standardised usage reporting on the response object, so the measurement is already free at every call site, yet framework quickstarts read only the text. Unattended and scheduled agents made the gap expensive in 2026: a run that nobody is watching is precisely the one whose spend nothing is counting, which is why platform vendors are now retrofitting per-call usage ledgers onto their own agent fleets.",
+  "existing": [
+    "Provider consoles and billing dashboards: authoritative but out of band and delayed, so they attribute spend after the fact and cannot stop a run that is spending now.",
+    "Wall-clock timeouts and step or iteration caps: they bound duration and turns, not money. A single long-context turn with a large tool manifest can cost more than a hundred short ones, so the same cap admits wildly different bills.",
+    "Vendor CLI usage panels: they meter one vendor's own client on one machine, computed from local session history, so they do not see a team's own code, other devices, or a second framework.",
+    "OpenTelemetry auto-instrumentation and LLM gateways: these do close the gap, and they are the reason a match is a signature rather than a verdict. They also relocate the number away from the orchestrator that would have to act on it."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Bug Report: Uncontrolled Sub-Agent Recursive Loop Caused ~800k Token Consumption & $27.60 Unexpected Charge",
+      "locator": "https://github.com/anthropics/claude-code/issues/69578",
+      "date": "2026-06-19",
+      "quote": "Users cannot monitor sub-agent token consumption while agents run.",
+      "note": "The measurement gap stated by someone who paid for it: roughly 800,000 tokens and a 27.60 dollar charge, discovered from a billing surface rather than from a meter in the run."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Improving token efficiency in GitHub Agentic Workflows",
+      "locator": "https://github.blog/ai-and-ml/github-copilot/improving-token-efficiency-in-github-agentic-workflows/",
+      "date": "2026-05-07",
+      "quote": "And because CI jobs like agentic workflows are automatically scheduled and triggered, costs can accumulate out of view.",
+      "note": "A platform vendor describing unattended agent spend on its own repositories. Out of view is the measurement gap, not a preference."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Improving token efficiency in GitHub Agentic Workflows",
+      "locator": "https://github.blog/ai-and-ml/github-copilot/improving-token-efficiency-in-github-agentic-workflows/",
+      "date": "2026-05-07",
+      "quote": "Before we could optimize our token consumption, we needed to know how tokens were consumed.",
+      "note": "The vendor had to build the meter before it could act, which is the ordering this gap asserts: no metering, no governance."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Improving token efficiency in GitHub Agentic Workflows",
+      "locator": "https://github.blog/ai-and-ml/github-copilot/improving-token-efficiency-in-github-agentic-workflows/",
+      "date": "2026-05-07",
+      "quote": "Every workflow now outputs a token-usage.jsonl artifact with one record per API call that contains input tokens, output tokens, cache-read tokens, cache-write tokens, model, provider, and timestamps.",
+      "note": "Describes the built mitigation precisely, and it is a per-call usage ledger. It also shows the shape is small enough that a vendor treated it as instrumentation rather than a product."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Clarifying our pricing",
+      "locator": "https://cursor.com/blog/june-2025-pricing",
+      "date": "2025-07-04",
+      "quote": "New models can spend more tokens per request on longer-horizon tasks.",
+      "note": "Why a step or request count is not a spend bound. The same vendor moved off request-based pricing for this reason and offered refunds for surprise usage bills."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Bug Report: Uncontrolled Sub-Agent Recursive Loop Caused ~800k Token Consumption & $27.60 Unexpected Charge",
+      "locator": "https://github.com/anthropics/claude-code/issues/69578",
+      "date": "2026-06-19",
+      "quote": "Once abnormal consumption was detected, there was no command or UI option to immediately terminate all running background agents.",
+      "note": "Shows that a meter without an abort is only half the primitive: the operator saw the spend and still had nothing to stop it with."
+    }
+  ],
+  "build_hypothesis": "A metering wrapper around the model client, well under 100 lines, that does three things nothing in the default path does: read the usage block off every response into a run-scoped ledger keyed by run id, price it from a static table so the total is in currency rather than tokens, and expose that running total to the orchestrator so an operator can alarm or abort on it. The design work is making the ledger survive a killed process and attributing a child's spend to the parent run, not the arithmetic.",
+  "tags": [
+    "cost-governance",
+    "metering",
+    "tokens",
+    "unattended",
+    "observability"
+  ],
+  "check": {
+    "id": "CHK-042",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chat\\.completions\\.create|messages\\.create|invoke_model|converse\\(|generate_content|ChatCompletion|ChatOpenAI|ChatAnthropic|llm\\.(?:invoke|call|complete)|litellm\\.completion)"
+    },
+    "present_when": {
+      "kind": "content_absent",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.ipynb"
+      ],
+      "pattern": "(?i)(\\.usage\\b|[\"']usage[\"']|usage_metadata|usageMetadata|prompt_tokens|completion_tokens|input_tokens|output_tokens|total_tokens|totalTokens|token_count|get_openai_callback)"
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(\\.usage\\b|[\"']usage[\"']|usage_metadata|usageMetadata|prompt_tokens|completion_tokens|input_tokens|output_tokens|total_tokens|totalTokens|get_openai_callback)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(cost|spend|usd|price|ledger|meter)"
+        }
+      ]
+    },
+    "manual_question": "Point at the line that reads the usage block off a model response and adds it to a running total. If nothing does, what number would you alarm on to stop a run that is spending faster than you expected, and how long after the spend does that number reach you?",
+    "rationale": "The signature is a repo that calls a model but never names any token or usage field anywhere in its tracked source. Every major provider returns usage on the response, so a tree that never mentions it has no in-flight meter by construction and its only cost signal is a provider bill. The mitigation deliberately requires two things together, a usage field AND cost vocabulary in non-test code, because reading token counts for a context-window guard is not the same as keeping a spend total. What it can get wrong: metering may live in a sidecar proxy, an LLM gateway, or OpenTelemetry auto-instrumentation that never names a token field in application code, so a match means no meter is visible HERE rather than that none exists anywhere. It is also lexical, so a bespoke field name reads as absent.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import openai\n\nclient = openai.OpenAI()\n\n\ndef run(task: str, max_steps: int = 25) -> str:\n    \"\"\"Bounded in steps and seconds. Unbounded, and unmeasured, in money.\"\"\"\n    history = [{\"role\": \"user\", \"content\": task}]\n    for _ in range(max_steps):\n        reply = client.chat.completions.create(\n            model=\"gpt-4o\", messages=history, timeout=60\n        )\n        text = reply.choices[0].message.content or \"\"\n        history.append({\"role\": \"assistant\", \"content\": text})\n        if \"DONE\" in text:\n            return text\n    return \"step cap reached\"\n"
+      },
+      "good": {
+        "app/agent.py": "import openai\n\nfrom app.meter import RunMeter\n\nclient = openai.OpenAI()\n\n\ndef run(task: str, meter: RunMeter, max_steps: int = 25) -> str:\n    history = [{\"role\": \"user\", \"content\": task}]\n    for _ in range(max_steps):\n        reply = client.chat.completions.create(\n            model=\"gpt-4o\", messages=history, timeout=60\n        )\n        meter.record(\"gpt-4o\", reply.usage.prompt_tokens, reply.usage.completion_tokens)\n        text = reply.choices[0].message.content or \"\"\n        history.append({\"role\": \"assistant\", \"content\": text})\n        if \"DONE\" in text:\n            return text\n    return \"step cap reached\"\n",
+        "app/meter.py": "\"\"\"Run-scoped spend ledger: the number an operator can alarm on WHILE it runs.\n\nThe usage block is already on every response, so metering costs one line at the\ncall site. What this adds is a total, in currency, that outlives a single call\nand can be read by whoever is deciding whether to let the run continue.\n\"\"\"\n\nPRICE_PER_MTOK = {\"gpt-4o\": (2.50, 10.00)}\n\n\nclass RunMeter:\n    def __init__(self, run_id: str) -> None:\n        self.run_id = run_id\n        self.usd = 0.0\n        self.tokens_in = 0\n        self.tokens_out = 0\n\n    def record(self, model: str, tokens_in: int, tokens_out: int) -> float:\n        rate_in, rate_out = PRICE_PER_MTOK[model]\n        self.tokens_in += tokens_in\n        self.tokens_out += tokens_out\n        self.usd += (tokens_in * rate_in + tokens_out * rate_out) / 1_000_000\n        return self.usd\n"
+      }
+    }
+  }
+}

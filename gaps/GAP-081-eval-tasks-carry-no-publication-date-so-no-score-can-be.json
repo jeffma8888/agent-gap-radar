@@ -1,0 +1,210 @@
+{
+  "id": "GAP-081",
+  "title": "Eval tasks carry no publication date, so no score can be split into the part a model could have memorised and the part it solved",
+  "layer": "eval-verification",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "My bank is built from public repositories and public tickets, and I cannot tell you which of my passing tasks were already on the internet before the model finished training, so I cannot defend the claim that the score measures capability.",
+  "symptom": "A score that jumps on a model upgrade and does not reproduce on freshly collected tasks from the same distribution; strong benchmark numbers alongside user reports of failure on work that looks identical but is new.",
+  "why_now": "The 2025 measurements put a number on this and it is large: on a widely-used software benchmark, models identify the buggy file from the issue text alone at up to 76 percent, but only up to 53 percent on repositories outside that benchmark, and the benchmark's own publisher states the tasks are likely contaminated. The peer-reviewed answer, a benchmark whose questions are continuously re-collected from recent sources, is a property of a hosted public benchmark; the enabling primitive it depends on is a per-task publication date compared against the model's training cutoff, and an in-house bank almost never records one, so the correction is unavailable to the team whose number it is.",
+  "existing": [
+    "Using a hosted contamination-limited benchmark: works for the public leaderboard question and answers nothing about the in-house bank that gates a release, which is the number a team actually ships on.",
+    "Canary strings in a dataset: detect verbatim ingestion of the dataset file, and miss the common case where the underlying issue, pull request and discussion were scraped independently of the benchmark packaging.",
+    "Holding out a private test set: prevents leakage of the answers, but if the tasks were drawn from public artifacts the model may still have seen them, and with no date on the task nobody can tell.",
+    "n-gram overlap decontamination against training text: needs access to the training corpus, which a downstream team using a vendor model does not have."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "LiveBench: A Challenging, Contamination-Limited LLM Benchmark",
+      "locator": "https://arxiv.org/abs/2406.19314",
+      "date": "2025-04-18",
+      "quote": "To achieve this, LiveBench contains questions that are based on recently-released math competitions, arXiv papers, news articles, and datasets",
+      "note": "Venue is verified on the abstract page rather than assumed: the comments field reads ICLR 2025 Spotlight, and the fetched version is v2 of April 2025. It names the missing primitive by building its entire design on it - the recency of each item's source material, which is only usable if that date is recorded per item and compared against the model. Almost no in-house bank records it."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Introducing SWE-bench Verified",
+      "locator": "https://openai.com/index/introducing-swe-bench-verified/",
+      "date": "2024-08-13",
+      "quote": "Given that the benchmark is composed of scrapes of public GitHub repos, large foundation models that are pre-trained on internet text are likely to be contaminated on the tasks.",
+      "note": "The publisher of the curated split states the contamination exposure of its own benchmark in its limitations section. That is first-party confirmation that human validation of task quality, which this same page performs at length, does not touch the contamination question at all - the two defects are independent and need different primitives."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "The SWE-Bench Illusion: When State-of-the-Art LLMs Remember Instead of Reason",
+      "locator": "https://arxiv.org/abs/2506.12286",
+      "date": "2025-06-14",
+      "quote": "We show that state-of-the-art models achieve up to 76% accuracy in identifying buggy file paths using only issue descriptions, without access to repository structure. This performance is merely up to 53% on tasks from repositories not included in SWE-Bench, pointing to possible data contamination or memorization.",
+      "note": "Deliberately classified practitioner-report, not peer-reviewed: the arXiv abstract page for this paper lists no venue and no journal reference, so refereeing cannot be verified from the page I fetched. Its value is the size of the effect, measured as a difference between in-benchmark and out-of-benchmark repositories, which is exactly the comparison a per-task date would let any team run on its own bank."
+    }
+  ],
+  "build_hypothesis": "Two fields and one reporting rule. Every task record carries the publication date of the artifact it was derived from and the URL it came from; every run records the declared training cutoff of the model under test; the harness reports the pass rate separately for tasks published before and after that cutoff and refuses to emit a single blended number. The smallest useful version is a linter over an existing bank that reports what share of tasks predate the current model and what the score becomes on the post-cutoff slice alone.",
+  "tags": [
+    "evals",
+    "benchmark-gap",
+    "contamination",
+    "provenance",
+    "measurement"
+  ],
+  "check": {
+    "id": "CHK-080",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "**/evals/**/*.py",
+        "**/eval/**/*.py",
+        "benchmarks/**/*.py",
+        "benchmark/**/*.py",
+        "**/*eval*.py",
+        "**/*bench*.py",
+        "**/*harness*.py",
+        "**/*grader*.py",
+        "**/*scorer*.py",
+        "evals/**/*.json",
+        "evals/**/*.jsonl",
+        "evals/**/*.yaml",
+        "evals/**/*.yml",
+        "eval/**/*.json",
+        "eval/**/*.jsonl",
+        "**/tasks/**/*.json",
+        "**/tasks/**/*.jsonl"
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "benchmarks/**/*.py",
+            "benchmark/**/*.py",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*harness*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "eval/**/*.json",
+            "eval/**/*.jsonl",
+            "**/tasks/**/*.json",
+            "**/tasks/**/*.jsonl"
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "evals/**/*",
+            "eval/**/*",
+            "benchmarks/**/*",
+            "benchmark/**/*",
+            "**/evals/**/*",
+            "**/eval/**/*",
+            "**/tasks/**/*",
+            "**/testcases/**/*",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*harness*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*eval*.json",
+            "**/*eval*.jsonl",
+            "**/*eval*.yaml",
+            "**/*eval*.yml",
+            "**/*task*.json",
+            "**/*task*.jsonl",
+            "**/*bench*.json",
+            "**/*bench*.jsonl",
+            "**/*bench*.yaml"
+          ],
+          "pattern": "(?i:(?:knowledge|training|model|data|pre[_-]?train\\w*)[_-]?cut[_ -]?off|cut[_ -]?off[_-]?date|post[_ -]?cut[_ -]?off|pre[_ -]?cut[_ -]?off|after[_ -]?(?:the[_ ])?cut[_ -]?off|contaminat\\w*|decontaminat\\w*|canary[_-]?(?:string|guid|uuid)|held[_-]?out[_-]?(?:after|since|window))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "evals/**/*",
+            "eval/**/*",
+            "benchmarks/**/*",
+            "benchmark/**/*",
+            "**/evals/**/*",
+            "**/eval/**/*",
+            "**/tasks/**/*",
+            "**/testcases/**/*",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*harness*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*eval*.json",
+            "**/*eval*.jsonl",
+            "**/*eval*.yaml",
+            "**/*eval*.yml",
+            "**/*task*.json",
+            "**/*task*.jsonl",
+            "**/*bench*.json",
+            "**/*bench*.jsonl",
+            "**/*bench*.yaml"
+          ],
+          "pattern": "(?i:(?:task|problem|sample|instance|issue|question|item)[_-]?(?:created|published|released|collected|added|date)|created[_-]?at|published[_-]?(?:at|on)|release[_-]?date|released[_-]?on|collected[_-]?(?:at|on)|source[_-]?(?:url|commit|sha)|provenance|first[_-]?seen)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "evals/**/*",
+            "eval/**/*",
+            "benchmarks/**/*",
+            "benchmark/**/*",
+            "**/evals/**/*",
+            "**/eval/**/*",
+            "**/tasks/**/*",
+            "**/testcases/**/*",
+            "**/*eval*.py",
+            "**/*bench*.py",
+            "**/*harness*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*eval*.json",
+            "**/*eval*.jsonl",
+            "**/*eval*.yaml",
+            "**/*eval*.yml",
+            "**/*task*.json",
+            "**/*task*.jsonl",
+            "**/*bench*.json",
+            "**/*bench*.jsonl",
+            "**/*bench*.yaml"
+          ],
+          "pattern": "(?i:(?:knowledge|training|model|data|pre[_-]?train\\w*)[_-]?cut[_ -]?off|cut[_ -]?off[_-]?date|post[_ -]?cut[_ -]?off|pre[_ -]?cut[_ -]?off|after[_ -]?(?:the[_ ])?cut[_ -]?off|contaminat\\w*|decontaminat\\w*|canary[_-]?(?:string|guid|uuid)|held[_-]?out[_-]?(?:after|since|window))"
+        }
+      ]
+    },
+    "manual_question": "For your eval bank: what share of tasks were derived from material that was public before the training cutoff of the model you are scoring, and what is your pass rate on the tasks that were not? If you cannot answer, your score contains an unmeasured amount of recall.",
+    "rationale": "The search is scoped to the bank's own files rather than the whole repo, because a date field in an unrelated ORM model is not a task provenance record and searching everywhere would let it mask the gap. PRESENT is the absence of any contamination-control vocabulary in those files, which is the honest signature: a harness that never mentions a cutoff, a contamination check or a post-cutoff slice cannot be performing one. The mitigation deliberately needs both legs - a per-item date or source and a cutoff comparison - because a date nobody compares against anything still yields one blended number. Known failure modes: a bank that keeps provenance in an external dataset registry or a database rather than in tracked files reads as PRESENT when the team can in fact answer the question, and a repo whose prose happens to contain the word contamination reads as not-present, which is why the verdict falls through to MANUAL rather than to a pass when only one leg matches.",
+    "fixtures": {
+      "bad": {
+        "evals/tasks.jsonl": "{\"id\": \"b1\", \"repo\": \"acme/parser\", \"prompt\": \"Fix the crash described in the linked report\", \"expect\": \"tests_pass\"}\n{\"id\": \"b2\", \"repo\": \"acme/billing\", \"prompt\": \"Make the invoice total round half up\", \"expect\": \"tests_pass\"}\n{\"id\": \"b3\", \"repo\": \"acme/api\", \"prompt\": \"Return 409 instead of 500 on a duplicate key\", \"expect\": \"tests_pass\"}\n",
+        "evals/run_bank.py": "\"\"\"Score the task bank scraped from public repositories and report one number.\"\"\"\nimport json\n\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\"):\n    tasks = load(path)\n    hits = 0\n    for task in tasks:\n        if agent(task[\"prompt\"]) == task[\"expect\"]:\n            hits += 1\n    # One aggregate over tasks whose text has been public for years. Nothing\n    # here can separate solving the task from recalling its published answer.\n    return {\"pass_rate\": hits / len(tasks), \"n\": len(tasks)}\n"
+      },
+      "good": {
+        "evals/tasks.jsonl": "{\"id\": \"b1\", \"repo\": \"acme/parser\", \"prompt\": \"Fix the crash described in the linked report\", \"expect\": \"tests_pass\", \"published_at\": \"2023-02-11\", \"source_url\": \"https://example.com/acme/parser/issues/41\"}\n{\"id\": \"b2\", \"repo\": \"acme/billing\", \"prompt\": \"Make the invoice total round half up\", \"expect\": \"tests_pass\", \"published_at\": \"2026-05-30\", \"source_url\": \"https://example.com/acme/billing/issues/88\"}\n{\"id\": \"b3\", \"repo\": \"acme/api\", \"prompt\": \"Return 409 instead of 500 on a duplicate key\", \"expect\": \"tests_pass\", \"published_at\": \"2026-07-02\", \"source_url\": \"https://example.com/acme/api/issues/12\"}\n",
+        "evals/run_bank.py": "\"\"\"Score the bank split by whether a task predates the model under test.\n\nA task published before the model finished training may be in its training\ndata, so a pass on it is not evidence of capability. The split is reported\nand the two slices are never averaged into one headline number.\n\"\"\"\nimport json\n\n# Declared per model under test, from the vendor model card.\nMODEL_KNOWLEDGE_CUTOFF = \"2026-01-31\"\n\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\", cutoff=MODEL_KNOWLEDGE_CUTOFF):\n    tasks = load(path)\n    slices = {\"pre_cutoff\": [], \"post_cutoff\": []}\n    for task in tasks:\n        published = task[\"published_at\"]\n        ok = agent(task[\"prompt\"]) == task[\"expect\"]\n        key = \"pre_cutoff\" if published <= cutoff else \"post_cutoff\"\n        slices[key].append(ok)\n    out = {\"model_knowledge_cutoff\": cutoff}\n    for key, results in slices.items():\n        out[key] = {\n            \"pass_rate\": (sum(results) / len(results)) if results else None,\n            \"n\": len(results),\n        }\n    # The uncontaminated slice is the one that carries a capability claim.\n    out[\"contamination_risk_share\"] = len(slices[\"pre_cutoff\"]) / len(tasks)\n    return out\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "id": "GAP-069",
+  "title": "An agent invoked from CI inherits the job's ambient token scope, because nothing mints a credential sized to the declared task",
+  "layer": "sandbox-isolation",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I gave an agent a job in CI that only needed to read the repo and open a comment, and it ran holding whatever the workflow token already carried, because there is no way to ask for a credential shaped like the task.",
+  "symptom": "The audit trail shows the agent's identity performing writes nobody asked for, or a compromised step reaching a registry token that had nothing to do with the step. Nothing failed at the moment of over-grant, so the only visible signal arrives after the blast radius has already been used.",
+  "why_now": "Agent actions became normal in CI during 2025 and 2026, and they are wired up the way every other step is: the job's token, the job's secrets, the runner's environment. The primitive that is missing is a task-scoped, short-lived grant an agent can request and a runner can enforce, so the practical choice is still between the ambient token and hand-written narrowing that nothing verifies.",
+  "existing": [
+    "Per-job permissions blocks and OIDC role assumption narrow the grant, but they are hand-written per workflow and default to absent, so silence is the wide state.",
+    "Secret masking hides a credential in logs without reducing what the process can do with it.",
+    "Sandboxing confines the filesystem and the network, not the identity: an agent inside a sandbox still holds the token that was exported into it."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "Postmortem on the Nx s1ngularity attack",
+      "locator": "https://nx.dev/blog/s1ngularity-postmortem",
+      "date": "2025-09-08",
+      "quote": "The malicious packages ran a post-install script that scanned user systems for sensitive data, attempted to use local AI tools (like Claude and Gemini), and uploaded the results to a public GitHub repo via the GitHub CLI.",
+      "note": "The blast radius is the ambient credential set, not the task: a postinstall script reached the developer's locally authenticated AI CLIs and an already-authenticated GitHub CLI. Nothing about the task required either."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Postmortem on the Nx s1ngularity attack",
+      "locator": "https://nx.dev/blog/s1ngularity-postmortem",
+      "date": "2025-09-08",
+      "quote": "This meant any workflow token had full repository access instead of the safer read-only default",
+      "note": "The same postmortem names the wide ambient token as one of three conditions that made the attack possible, and notes the safer default was never applied to existing repositories. This is the CI half of the same gap: the grant was inherited, not requested."
+    }
+  ],
+  "build_hypothesis": "A pre-flight credential budget for an agent step: the step declares the scopes it intends to use, a wrapper mints or filters down to exactly those (a scoped app token, an assumed role, a filtered environment) and fails the job when the declared budget is empty or absent. The first increment needs no new infrastructure: read the workflow, resolve the effective token permissions for the job that runs the agent, and refuse when they exceed the declaration.",
+  "tags": [
+    "credentials",
+    "least-privilege",
+    "ci",
+    "blast-radius",
+    "ambient-authority"
+  ],
+  "check": {
+    "id": "CHK-068",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.yml",
+        "**/*.yaml"
+      ],
+      "pattern": "(?i)(anthropics/claude-code-action|claude-code-action|run-gemini-cli|openai/codex[a-z-]*-action|codex-action|@anthropic-ai/claude-code|npx\\s+(-y\\s+)?@?[a-z@/-]*claude-code|aider-ai/aider|sst/opencode|cursor-agent|@openai/codex|gemini-cli-action)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)(anthropics/claude-code-action|claude-code-action|run-gemini-cli|openai/codex[a-z-]*-action|codex-action|@anthropic-ai/claude-code|npx\\s+(-y\\s+)?@?[a-z@/-]*claude-code|aider-ai/aider|sst/opencode|cursor-agent|@openai/codex|gemini-cli-action)"
+        },
+        {
+          "kind": "any_of",
+          "rules": [
+            {
+              "kind": "content_absent",
+              "globs": [
+                "**/*.yml",
+                "**/*.yaml"
+              ],
+              "pattern": "(?im)^\\s*permissions\\s*:"
+            },
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.yml",
+                "**/*.yaml"
+              ],
+              "pattern": "(?i)permissions\\s*:\\s*write-all"
+            }
+          ]
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?is)permissions\\s*:\\s*(#[^\\n]*)?\\n\\s+[a-z-]+\\s*:\\s*(read|none)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.yml",
+            "**/*.yaml"
+          ],
+          "pattern": "(?i)(actions/create-github-app-token|create-github-app-token|role-to-assume|sts:AssumeRole|AssumeRoleWithWebIdentity|id-token\\s*:\\s*write|vault-action|1password/load-secrets-action)"
+        }
+      ]
+    },
+    "manual_question": "Take the CI job that runs your agent. List the scopes it actually needs, then list the scopes its token really has. If the second list is longer, what shortens it, and what fails if the agent tries to use the difference?",
+    "rationale": "The signature is an agent invoked as a CI step with no narrowing of the grant it runs under: either no permissions block anywhere in the workflows, or an explicit write-all. It is a lexical proxy for an effective-permission calculation, so it under-reports a repo where one workflow is hardened and the agent's own is not, because the absence rule is evaluated over the whole glob rather than per file; and it over-reports a repo whose narrowing lives in organisation or repository settings outside the tree, which is what the manual question asks about. The mitigation demands positive evidence of narrowing or of task-scoped minting, never mere silence.",
+    "fixtures": {
+      "bad": {
+        ".github/workflows/agent.yml": "name: agent\non:\n  issue_comment:\n    types: [created]\njobs:\n  run:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: anthropics/claude-code-action@v1\n        with:\n          prompt: Fix the failing test\n        secrets: inherit\n"
+      },
+      "good": {
+        ".github/workflows/agent.yml": "name: agent\non:\n  issue_comment:\n    types: [created]\npermissions:\n  contents: read\n  pull-requests: write\njobs:\n  run:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: anthropics/claude-code-action@v1\n        with:\n          prompt: Fix the failing test\n"
+      }
+    }
+  }
+}

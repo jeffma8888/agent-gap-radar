@@ -1,0 +1,99 @@
+{
+  "id": "GAP-078",
+  "title": "A cached model response is not bound to the principal it was generated for, so a shared-layer mix-up delivers it to someone else",
+  "layer": "model-runtime",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "I cache model responses on the prompt to cut latency and cost, the cache entry records nothing about who the response was generated for, and nothing on the read path asserts the entry belongs to the caller, so a mix-up anywhere below me hands one user another user's content and every log line says success.",
+  "symptom": "A user reports content they never generated - another account's conversation title, a stranger's confirmation email, an answer about someone else's data - while the application's own metrics and logs show a normal, successful, cached response and no error anywhere.",
+  "why_now": "Response and prefix caching became standard practice in 2026 because it is the cheapest latency and cost win available, and the field dropped to make the hit rate good is precisely the requester's identity: keys are the prompt or a hash of it. The layers underneath (a connection pool, a proxy, a gateway, a shared client) are exactly where a cross-request mix-up originates, and no popular LLM cache or gateway makes a principal a REQUIRED part of the key or re-checks it on read, so the isolation property that a provider-side cache scopes by organisation is silently unowned in the app in front of it.",
+  "existing": [
+    "Provider-side prompt caches scope entries above the app, which says nothing about an application-level cache in front of them.",
+    "Per-session stores get the property by accident, until someone adds a global cache to raise the hit rate and the accident is removed.",
+    "Encryption at rest and access control protect the store from outsiders; they do nothing about a correct-looking read of the wrong key by an authenticated caller.",
+    "GAP-013 labels where context CAME FROM; this record is about whether a cached response is bound to WHO it was for, which no provenance label on the input can supply."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "We took ChatGPT offline earlier this week due to a bug in an open-source library",
+      "note": "The published trigger is a bug in a shared caching and connection library. The reason it became a cross-user disclosure rather than an error is the subject of this record: nothing on the delivery path asserted that the data returned belonged to the principal that asked for it."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "some subscription confirmation emails generated during that window were sent to the wrong users",
+      "note": "The same missing binding on the outbound side: a generated artifact was delivered to a principal it was not generated for, and the send path had no assertion that could fail."
+    }
+  ],
+  "build_hypothesis": "A cache wrapper whose key builder REQUIRES a principal argument (no default, no optional positional) and whose read path stores the principal alongside the value and raises if the stored principal is not the caller's. Roughly a dozen lines, and it converts a silent cross-tenant delivery into a loud exception; the companion is a test that plants a poisoned entry under another principal and asserts the read fails.",
+  "tags": [
+    "caching",
+    "multi-tenant",
+    "isolation",
+    "postmortem",
+    "delivery"
+  ],
+  "check": {
+    "id": "CHK-077",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(chat\\.completions|messages\\.create|invoke_model|generate_content|openai|anthropic|litellm)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(cache[_ -]?key\\s*=|(get|set|read|write)_cache\\(|response_cache|prompt_cache|semantic_cache)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)cache[_ -]?key\\s*=.*(tenant|user[_ -]?id|org(anization)?[_ -]?id|account[_ -]?id|session[_ -]?id|principal)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)cache[_ -]?key\\s*=.*(tenant|user[_ -]?id|org(anization)?[_ -]?id|account[_ -]?id|session[_ -]?id|principal)"
+    },
+    "manual_question": "For every cache in front of a model call, what identifies the principal in the key, and what happens on read if the stored entry was written for a different principal? If the answer is that the key is the prompt or its hash and the read simply returns the value, this gap is present.",
+    "rationale": "The signature is a repo that calls a model AND builds a cache key, with no cache-key line anywhere naming a tenant, user, org, account, session or principal. The mitigation is the inverse and is read with test files excluded, so a key spelled correctly only inside a test earns no credit. What it can get wrong: a codebase that isolates by giving each tenant its own store, key prefix object or Redis database has the property without the token and reads as PRESENT; a repo that builds the key in a helper across several lines matches neither side and lands on MANUAL, which is the honest answer rather than a claim of safety.",
+    "fixtures": {
+      "bad": {
+        "app/llm_cache.py": "import hashlib\n\nimport redis\nfrom openai import OpenAI\n\nclient = OpenAI()\nstore = redis.Redis()\n\n\ndef cached_completion(prompt: str) -> str:\n    cache_key = \"llm:\" + hashlib.sha256(prompt.encode()).hexdigest()\n    hit = store.get(cache_key)\n    if hit is not None:\n        return hit.decode()\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}]\n    ).choices[0].message.content\n    store.set(cache_key, reply, ex=3600)\n    return reply\n"
+      },
+      "good": {
+        "app/llm_cache.py": "import hashlib\n\nimport redis\nfrom openai import OpenAI\n\nclient = OpenAI()\nstore = redis.Redis()\n\n\ndef cached_completion(tenant_id: str, prompt: str) -> str:\n    digest = hashlib.sha256(prompt.encode()).hexdigest()\n    cache_key = f\"llm:{tenant_id}:{digest}\"\n    hit = store.get(cache_key)\n    if hit is not None:\n        return hit.decode()\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\", messages=[{\"role\": \"user\", \"content\": prompt}]\n    ).choices[0].message.content\n    store.set(cache_key, reply, ex=3600)\n    return reply\n"
+      }
+    }
+  }
+}

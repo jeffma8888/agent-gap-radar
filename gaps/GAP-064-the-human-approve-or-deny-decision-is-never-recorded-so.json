@@ -1,0 +1,130 @@
+{
+  "id": "GAP-064",
+  "title": "The human approve-or-deny decision is never recorded, so approval rate and override rate cannot be measured and a rubber stamp is indistinguishable from a reviewer",
+  "layer": "human-interface",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent has a human approval gate and I have no idea whether the human is reading anything: I cannot say what fraction of requests get approved, how that fraction has moved since we shipped, or how long the human looked before clicking.",
+  "symptom": "The approval gate is code (a prompt, an interrupt, a review queue) and the outcome of each call is a boolean that is consumed and thrown away. Nothing counts approvals against denials, nothing records time-to-decision, so there is no series that could show scrutiny decaying, and the first evidence that the gate stopped working is the incident it failed to stop.",
+  "why_now": "The decay is now measured and it is real: a longitudinal within-reviewer study of AI-agent pull requests found approval rate rising from 30.1% to 36.8% for the same reviewers while inline comment volume fell 22%, and one vendor can state that users accept 93% of permission prompts. Both measurements exist because the measurer owned the telemetry. A team that builds its own gate almost never emits the two numbers that would let it notice the same drift, so compliance can point at the gate as a control while nobody can say whether it is one.",
+  "existing": [
+    "Vendor telemetry (the 93% figure) proves the metric is cheap to compute, but it is the vendor's number about the vendor's product; it tells an operator nothing about their own reviewers.",
+    "Audit logs of ACTIONS record what the agent did and usually keep the approver's identity, but not the decision distribution, the deny rate, or the time-to-decision that would distinguish scrutiny from reflex.",
+    "Model-based auto-approval moves the decision off the human without measuring the human it replaced, and its own published false-negative rate on real overeager actions is 17%."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Habituation at the Gate: Rising Approval and Declining Scrutiny in Human Review of AI Agent Code",
+      "locator": "https://arxiv.org/abs/2606.22721",
+      "date": "2026-06-21",
+      "quote": "The combination of rising approval, declining comment effort, and increasing queue time is most consistent with reflexive habituation under growing workload rather than rational trust calibration alone.",
+      "note": "Names the exact distinction this gap says is unmeasurable in practice: habituation versus rational trust calibration. The authors could only draw it because they had a longitudinal per-reviewer decision series, which is precisely what a self-built approval gate does not emit. Accepted at the KDD 2026 Workshop on Agentic Software Engineering."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Habituation at the Gate: Rising Approval and Declining Scrutiny in Human Review of AI Agent Code",
+      "locator": "https://arxiv.org/abs/2606.22721",
+      "date": "2026-06-21",
+      "quote": "we observe a population-level shift in approval rate from 30.1% to 36.8%",
+      "note": "The drift is a within-reviewer shift, so it is not explained by different people reviewing. Approval rate over time is the one series that shows it, and it is the series a gate with no telemetry cannot produce."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "How we built Claude Code auto mode: a safer way to skip permissions",
+      "locator": "https://www.anthropic.com/engineering/claude-code-auto-mode",
+      "date": "2026-03-25",
+      "quote": "Manual prompts sit in the middle, and in practice users accept 93% of them anyway.",
+      "note": "Demonstrates that the metric is trivially computable when someone instruments the gate, and that the number it produces is damning enough to redesign the product around."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Humans missed 1 in 3 threats approving AI agent commands across 40,000 plays",
+      "locator": "https://scalex.dev/blog/ai-agent-permissions-stats/",
+      "date": "2026-08-05",
+      "quote": "32.9% of sessions ended with a negative score",
+      "note": "Field data over 409,000 decisions showing both error directions matter: approving threats AND blocking safe commands. A gate that records nothing cannot see either, so it cannot be tuned."
+    }
+  ],
+  "build_hypothesis": "Make the approval gate return a recorded decision rather than a boolean. A ten-line decorator that appends action id, approver, verdict, latency-to-decision and the agent's stated justification to an append-only log, plus one command that prints approval rate, deny rate and median latency over a trailing window and flags a trend. The trend is the product: an approval rate climbing while decision latency falls is habituation, and today nobody has the series to see it.",
+  "tags": [
+    "approval",
+    "trust-calibration",
+    "telemetry",
+    "human-in-the-loop",
+    "measurement"
+  ],
+  "check": {
+    "id": "CHK-063",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.java"
+      ],
+      "pattern": "require[_-]?approval|request[_-]?approval|ask[_-]?human|human[_-]?in[_-]?the[_-]?loop|approval[_-]?required|HumanApproval|human[_-]?review|approval[_-]?gate|await\\s+\\w*approv|def\\s+\\w*approv"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.java"
+          ],
+          "pattern": "require[_-]?approval|request[_-]?approval|ask[_-]?human|human[_-]?in[_-]?the[_-]?loop|approval[_-]?required|HumanApproval|human[_-]?review|approval[_-]?gate|await\\s+\\w*approv|def\\s+\\w*approv"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.java"
+          ],
+          "pattern": "record[_-]?(approval|decision)|approval[_-]?(rate|count|counter|metric|metrics|audit|log|history)|approvals[_-]?(logged|recorded)|audit[_-]?(log|trail)|override[_-]?rate|deny[_-]?rate"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.java"
+      ],
+      "pattern": "record[_-]?(approval|decision)|approval[_-]?(rate|count|counter|metric|metrics|audit|log|history)|approvals[_-]?(logged|recorded)|audit[_-]?(log|trail)|override[_-]?rate|deny[_-]?rate"
+    },
+    "manual_question": "This project asks a human to approve agent actions. What is your approval rate this month, what was it when you shipped the gate, and what is the median time the human spends before deciding? If those three numbers are not retrievable, the gate is unaudited and its decay would be invisible.",
+    "rationale": "Fires when a human-approval gate exists in code and NO decision-recording vocabulary appears anywhere in the tracked source: no approval counter, rate, audit log, or record_decision call. Conservative by design, since any recording token anywhere suppresses the finding. Two known blind spots. It cannot see telemetry emitted through a generic sink (a bare logger.info of a formatted string, or an OpenTelemetry span with an approval attribute) and will over-report on such a repo, which is why the manual question asks for the three numbers rather than for the code. And it cannot judge whether a recorded number is ever LOOKED AT, which is the failure the peer-reviewed evidence actually describes.",
+    "fixtures": {
+      "bad": {
+        "app/gate.py": "\"\"\"Human approval gate for destructive tool calls.\"\"\"\n\n\ndef require_approval(action: str) -> bool:\n    answer = input(\"approve %s? [y/N] \" % action)\n    return answer.strip().lower() == \"y\"\n\n\ndef run(action, execute):\n    if not require_approval(action):\n        raise PermissionError(\"refused by human\")\n    return execute(action)\n"
+      },
+      "good": {
+        "app/gate.py": "\"\"\"Human approval gate for destructive tool calls, with decision telemetry.\"\"\"\n\nimport json\nimport time\n\nAUDIT_PATH = \"var/approvals.jsonl\"\n\n\ndef record_decision(action: str, approved: bool, latency_s: float) -> None:\n    with open(AUDIT_PATH, \"a\", encoding=\"utf-8\") as fh:\n        fh.write(json.dumps({\"action\": action, \"approved\": approved,\n                             \"latency_s\": latency_s, \"ts\": time.time()}) + \"\\n\")\n\n\ndef require_approval(action: str) -> bool:\n    start = time.time()\n    answer = input(\"approve %s? [y/N] \" % action)\n    approved = answer.strip().lower() == \"y\"\n    record_decision(action, approved, time.time() - start)\n    return approved\n"
+      }
+    }
+  }
+}

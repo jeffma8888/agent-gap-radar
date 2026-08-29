@@ -1,0 +1,159 @@
+{
+  "id": "GAP-071",
+  "title": "Tenant scope for agent retrieval is an optional query argument, so an omitted filter silently widens the context",
+  "layer": "context-memory",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent retrieves from one shared vector collection, and the only thing keeping tenant A out of tenant B context is that every call site remembered to pass a filter argument that defaults to None.",
+  "symptom": "Nothing fails. An unscoped search returns MORE results, which looks like better recall, so the agent answers fluently using another tenant documents and the only signal is a customer noticing an unfamiliar detail in an answer. There is no error, no empty result, and no log line that distinguishes a scoped search from an unscoped one.",
+  "why_now": "The efficient multi-tenant pattern that every vector database documents is one shared collection partitioned by a payload field, because a collection per tenant does not scale. That makes isolation a property of each query rather than a property of the store, and an agent multiplies the number of query sites: planner, retriever, memory read, summariser, evaluator and background jobs all search, and background jobs frequently have no tenant in scope at all. There is no primitive that makes an unscoped read impossible, so correctness rests on reviewer attention at every one of those sites.",
+  "existing": [
+    "Payload or metadata filters are the documented mechanism, but they are supplied per query, so omitting one is a silent widening rather than an error.",
+    "Per-tenant collections give real isolation and the vendors themselves advise against them at any scale because of per-collection overhead.",
+    "User-defined sharding and per-tenant namespaces are stronger, but they are still selected by an argument on the call rather than bound to the caller identity.",
+    "Database row-level security solves this shape in SQL, and there is no equivalent that an agent framework retriever object carries with it.",
+    "Evaluation does not catch it: a test fixture usually holds one tenant, so an unscoped query and a scoped one return the same rows and the suite stays green."
+  ],
+  "severity": 5,
+  "frequency": 3,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Multitenancy - Qdrant",
+      "locator": "https://qdrant.tech/documentation/guides/multiple-partitions/",
+      "date": "2026-08-22",
+      "quote": "To partition data in a shared collection, add a payload field that identifies the tenant to each point. You can then filter by this field to ensure that each tenant only sees their own data.",
+      "note": "The documented mechanism for the recommended multi-tenant layout: isolation is achieved by remembering to filter on a payload field at query time. That is a convention on the caller, not a boundary in the store, which is precisely the missing primitive."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Multitenancy - Qdrant",
+      "locator": "https://qdrant.tech/documentation/guides/multiple-partitions/",
+      "date": "2026-08-22",
+      "quote": "Creating a separate collection for each tenant is rarely the most efficient approach.",
+      "note": "The vendor advises against the one structurally-isolated option, which is why the shared-collection-plus-filter pattern is the common case and why the gap is the default rather than an outlier."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "March 20 ChatGPT outage: Here's what happened",
+      "locator": "https://openai.com/index/march-20-chatgpt-outage/",
+      "date": "2023-03-24",
+      "quote": "we also discovered that the same bug may have caused the unintentional visibility of payment-related information of 1.2% of the ChatGPT Plus subscribers who were active during a specific nine-hour window",
+      "note": "The canonical public postmortem of cross-user data exposure in an LLM product: one library-level defect in a shared path leaked another active user data. Different mechanism from a missing retrieval filter, cited for the same reason it is quoted in every review of this class - the failure is silent to the serving path and only visible to the user who receives someone else data."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "LLM02:2025 Sensitive Information Disclosure",
+      "locator": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+      "date": "2025-01-01",
+      "quote": "Limit model access to external data sources, and ensure runtime data orchestration is securely managed to avoid unintended data leakage.",
+      "note": "OWASP names runtime data orchestration as the control surface and offers no enforceable mechanism for it, which is the gap. Its own scenario one is a user receiving a response containing another user personal data."
+    }
+  ],
+  "build_hypothesis": "A tenant-scoped retriever handle: a small wrapper that cannot be constructed without a tenant identity, refuses to build a query without injecting the scope filter, and stamps the scope onto the span so an unscoped read is visible in a trace. Ship it with a lint rule that fails when the raw client search method is called outside that wrapper, and with a two-tenant eval fixture, because a single-tenant fixture cannot tell a scoped query from an unscoped one.",
+  "tags": [
+    "multi-tenancy",
+    "retrieval",
+    "isolation",
+    "context-bleed",
+    "privacy"
+  ],
+  "check": {
+    "id": "CHK-070",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.rb"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|search_points|query_points|client\\.search\\(|index\\.query\\(|\\.similarity_search|vectorstore|vector_store|QdrantClient|PineconeVectorStore|chromadb|weaviate|pgvector|query_vector|match_documents)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.sql",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(tenant_id|tenantId|org_id|orgId|organization_id|workspace_id|workspaceId|customer_id|customerId|account_id|accountId)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.rb"
+          ],
+          "pattern": "(?i)(similarity_search|as_retriever|search_points|query_points|client\\.search\\(|index\\.query\\(|\\.similarity_search|vectorstore|vector_store|QdrantClient|PineconeVectorStore|chromadb|weaviate|pgvector|query_vector|match_documents)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.tsx",
+            "**/*.go",
+            "**/*.rb",
+            "**/*.sql",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.md"
+          ],
+          "pattern": "(?i)(namespace\\s*=|namespace:|shard_key|shard_key_selector|row[_ ]?level[_ ]?security|\\brls\\b|require_tenant|enforce_tenant|tenant_guard|tenant_scope|scoped_to_tenant|scope_to_tenant|with_tenant|assert_tenant|TenantScoped|ScopedRetriever|per_tenant_collection|collection_for_tenant|tenant_collection|mandatory_filter|forced_filter|tenant_isolation)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.tsx",
+        "**/*.go",
+        "**/*.rb",
+        "**/*.sql",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)(namespace\\s*=|namespace:|shard_key|shard_key_selector|row[_ ]?level[_ ]?security|\\brls\\b|require_tenant|enforce_tenant|tenant_guard|tenant_scope|scoped_to_tenant|scope_to_tenant|with_tenant|assert_tenant|TenantScoped|ScopedRetriever|per_tenant_collection|collection_for_tenant|tenant_collection|mandatory_filter|forced_filter|tenant_isolation)"
+    },
+    "manual_question": "Name the object in your code that makes an unscoped retrieval impossible rather than merely discouraged, and name the test that fails when a call site omits the tenant. If the answer is that every call site passes a filter, say what would fail if one stopped.",
+    "rationale": "The signature is a repo that both searches a vector store and carries tenant vocabulary, yet spells no enforcement mechanism anywhere: no per-tenant namespace or shard key, no scoped-handle or guard name, no row-level security. Where it can be wrong: a team may enforce the scope in a service layer this repo does not contain (which reads PRESENT and needs the manual question), and a team may spell an enforcement token for an unrelated reason, which pushes the verdict to MANUAL or ABSENT rather than raising a false alarm. The applies_when clause deliberately requires tenant vocabulary, because a single-tenant agent cannot exhibit this gap and should return NOT_APPLICABLE rather than a finding.",
+    "fixtures": {
+      "bad": {
+        "app/retrieval.py": "\"\"\"Shared-collection retrieval for a multi-tenant support agent.\"\"\"\n\nfrom qdrant_client import QdrantClient, models\n\nclient = QdrantClient(url=\"http://vectors.internal:6333\")\nCOLLECTION = \"documents\"\n\n\ndef search(query_vector, tenant_id=None, limit=8):\n    \"\"\"tenant_id is optional. Omit it and the search spans every tenant.\"\"\"\n    query_filter = None\n    if tenant_id is not None:\n        query_filter = models.Filter(\n            must=[\n                models.FieldCondition(\n                    key=\"tenant_id\",\n                    match=models.MatchValue(value=tenant_id),\n                )\n            ]\n        )\n    return client.search(\n        collection_name=COLLECTION,\n        query_vector=query_vector,\n        query_filter=query_filter,\n        limit=limit,\n    )\n\n\ndef answer(question, embed, tenant_id=None):\n    # This call site forgets tenant_id on the summarisation path.\n    hits = search(embed(question), tenant_id=tenant_id, limit=8)\n    context = \"\\n\".join(h.payload[\"text\"] for h in hits)\n    return context\n\n\ndef summarise_recent(embed):\n    # No tenant_id in scope here at all, and nothing refuses the call.\n    hits = search(embed(\"recent escalations\"), limit=20)\n    return [h.payload[\"text\"] for h in hits]\n",
+        "app/models.py": "TENANTS = {\"acme\": 1, \"globex\": 2}\n\n\ndef tenant_id_for(request):\n    return request.headers.get(\"x-tenant\")\n"
+      },
+      "good": {
+        "app/retrieval.py": "\"\"\"Shared-collection retrieval for a multi-tenant support agent.\n\nThe tenant boundary is structural, not a habit: every search goes through a\nscoped handle that cannot be constructed without a tenant, the filter is built\nby enforce_tenant rather than by each call site, and the tenant also selects a\ndedicated shard so a filter bug cannot reach another tenant is data.\n\"\"\"\n\nfrom qdrant_client import QdrantClient, models\n\nclient = QdrantClient(url=\"http://vectors.internal:6333\")\nCOLLECTION = \"documents\"\n\n\ndef enforce_tenant(tenant_id):\n    if not tenant_id:\n        raise ValueError(\"unscoped retrieval is forbidden: tenant_id is required\")\n    return models.Filter(\n        must=[\n            models.FieldCondition(\n                key=\"tenant_id\",\n                match=models.MatchValue(value=tenant_id),\n            )\n        ]\n    )\n\n\nclass TenantScopedIndex:\n    \"\"\"A handle that cannot exist without a tenant.\"\"\"\n\n    def __init__(self, tenant_id):\n        if not tenant_id:\n            raise ValueError(\"unscoped retrieval is forbidden: tenant_id is required\")\n        self.tenant_id = tenant_id\n\n    def search(self, query_vector, limit=8):\n        return client.search(\n            collection_name=COLLECTION,\n            query_vector=query_vector,\n            query_filter=enforce_tenant(self.tenant_id),\n            shard_key_selector=self.tenant_id,\n            limit=limit,\n        )\n\n\ndef answer(question, embed, tenant_id):\n    hits = TenantScopedIndex(tenant_id).search(embed(question), limit=8)\n    return \"\\n\".join(h.payload[\"text\"] for h in hits)\n\n\ndef summarise_recent(embed, tenant_id):\n    hits = TenantScopedIndex(tenant_id).search(embed(\"recent escalations\"), limit=20)\n    return [h.payload[\"text\"] for h in hits]\n",
+        "app/models.py": "TENANTS = {\"acme\": 1, \"globex\": 2}\n\n\ndef tenant_id_for(request):\n    return request.headers.get(\"x-tenant\")\n"
+      }
+    }
+  }
+}

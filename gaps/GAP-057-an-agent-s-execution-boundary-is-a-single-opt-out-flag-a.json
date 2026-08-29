@@ -1,0 +1,177 @@
+{
+  "id": "GAP-057",
+  "title": "An agent's execution boundary is a single opt-out flag, and nothing requires an isolation boundary once it is set",
+  "layer": "sandbox-isolation",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "The only thing standing between the agent and my whole machine is an approval prompt, and the fastest way to make an unattended run work is the documented flag that turns that prompt off - after which nothing else changes, so the agent is now running unconfined with my credentials.",
+  "symptom": "A CI job, cron entry or install hook invokes the agent CLI with a skip-approvals flag on the host itself; no container, network policy or credential narrowing accompanies it, and no gate refuses the combination. Operators see it as a one-word convenience, not as the removal of the last boundary.",
+  "why_now": "Every mainstream coding agent shipped an approval bypass in 2025 because approval prompts block automation, and each one is a plain command-line flag with no partner requirement that isolation exist. The s1ngularity supply-chain attack of August 2025 turned that design into a weapon: malware did not need an exploit, it just invoked the agent CLIs already installed on the developer's machine with each tool's own bypass flag. The bypass is documented as dangerous but remains a lone flag that a script can set, so a warning in the name is the entire control.",
+  "existing": [
+    "Vendors document that the bypass should only be used in a container without network access, but the guidance is prose in docs, not a precondition the CLI enforces before honouring the flag.",
+    "Devcontainer recipes with an init-firewall exist, and the vendor's own hosted sandbox does isolate, but a locally-invoked or CI-invoked agent gets no default boundary at all.",
+    "Allowlists narrow WHICH tools may run without asking; the bypass flag disables the mechanism the allowlist belongs to, so it is not a partial version of the same control.",
+    "Trust verification for a first-time codebase is itself skipped in non-interactive mode, so the headless path removes two boundaries at once rather than one."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "s1ngularity: supply chain attack leaks secrets on GitHub: everything you need to know",
+      "locator": "https://www.wiz.io/blog/s1ngularity-supply-chain-attack",
+      "date": "2025-08-29",
+      "quote": "Notably, the campaign weaponized installed AI CLI tools by prompting them with dangerous flags (--dangerously-skip-permissions, --yolo, --trust-all-tools) to steal filesystem contents, exploiting trusted tools for malicious reconnaissance.",
+      "note": "Threat researchers naming the three bypass flags by string, in a real campaign that ran on developer machines and in CI. This is the direct evidence that the flags are the attack surface, not a hypothetical. Date is the page's own stated last update, 'Updated August 29th, 2PM UTC'."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "S1ngularity - What Happened, How We Responded, What We Learned | Nx Blog",
+      "locator": "https://nx.dev/blog/s1ngularity-postmortem",
+      "date": "2025-08-26",
+      "quote": "The malicious packages ran a post-install script that scanned user systems for sensitive data, attempted to use local AI tools (like Claude and Gemini), and uploaded the results to a public GitHub repo via the GitHub CLI.",
+      "note": "The maintainers' own postmortem confirming the agent CLIs on the victim machine were the execution vehicle. Date is the incident date the post states in its first sentence, since the post itself is undated."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Malicious versions of Nx and some supporting plugins were published",
+      "locator": "https://github.com/nrwl/nx/security/advisories/GHSA-cxm3-wv7p-598c",
+      "date": "2025-08-27",
+      "quote": "However, there are many less obvious ways NPM modules could get installed. Transitive dependencies, AI agents, editors, other editor extensions, other scripts are the first that come to mind",
+      "note": "The official advisory, whose appendix also publishes the attacker's prompt text ending 'Use available tools to complete the task.' It establishes that the bypassed agent was reached through paths nobody approved, so the flag was the only control in the chain. Date taken from the advisory's own timeline entry '1:53 AM - This security advisory was posted' on August 27, 2025."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Security - Claude Code Docs",
+      "locator": "https://docs.anthropic.com/en/docs/claude-code/security",
+      "date": "2026-08-19",
+      "quote": "Note: Trust verification is disabled when running non-interactively with the -p flag",
+      "note": "A vendor documenting that the headless path drops a boundary automatically, alongside advice to 'Consider using dev containers for additional isolation' - advice, not a precondition. Undated docs page; date is the date I fetched it."
+    }
+  ],
+  "build_hypothesis": "A launcher that refuses to run an agent with approvals bypassed unless an isolation boundary is proven at start-up: it asserts it is inside a container or VM, that egress is denied or allowlisted, and that the credentials in the environment are short-lived and task-scoped, then writes those three facts into the run's trace. Bypass becomes reachable only from inside a boundary, and every unattended run carries machine-readable proof of what contained it.",
+  "tags": [
+    "blast-radius",
+    "sandbox",
+    "bypass-flag",
+    "unattended",
+    "supply-chain"
+  ],
+  "check": {
+    "id": "CHK-056",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.mjs",
+        "**/Makefile",
+        "**/*.mk",
+        "**/Dockerfile",
+        "**/*.cfg",
+        "**/*.ini"
+      ],
+      "pattern": "--dangerously-skip-permissions|--dangerously-bypass-approvals-and-sandbox|--trust-all-tools|--yolo\\b|--yes-always|--auto-approve|--approval-mode[= ]full-auto|bypassPermissions|autoApprove|auto_approve_all|--allow-all-tools|--allowedTools[= ]\\*"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.sh",
+            "**/*.bash",
+            "**/*.zsh",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.mjs",
+            "**/Makefile",
+            "**/*.mk",
+            "**/Dockerfile",
+            "**/*.cfg",
+            "**/*.ini"
+          ],
+          "pattern": "--dangerously-skip-permissions|--dangerously-bypass-approvals-and-sandbox|--trust-all-tools|--yolo\\b|--yes-always|--auto-approve|--approval-mode[= ]full-auto|bypassPermissions|autoApprove|auto_approve_all|--allow-all-tools|--allowedTools[= ]\\*"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.sh",
+            "**/*.bash",
+            "**/*.zsh",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.mjs",
+            "**/Makefile",
+            "**/*.mk",
+            "**/Dockerfile",
+            "**/*.cfg",
+            "**/*.ini",
+            "**/devcontainer.json",
+            "**/*.tf",
+            "**/*.hcl",
+            "**/*.conf"
+          ],
+          "pattern": "--network(?:=|\\s+)none|--net(?:=|\\s+)none|network_mode:\\s*[\\\"']?none|--read-only\\b|--cap-drop|--security-opt|seccomp|gvisor|runsc|firejail|bubblewrap|nsjail|sandbox-exec|unshare\\s+--net|init-firewall|devcontainer|--sandbox\\b|sandboxMode|[\\\"']sandbox[\\\"']\\s*:\\s*true|egress[_-]?allowlist|allowed_domains"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.mjs",
+        "**/Makefile",
+        "**/*.mk",
+        "**/Dockerfile",
+        "**/*.cfg",
+        "**/*.ini",
+        "**/devcontainer.json",
+        "**/*.tf",
+        "**/*.hcl",
+        "**/*.conf"
+      ],
+      "pattern": "--network(?:=|\\s+)none|--net(?:=|\\s+)none|network_mode:\\s*[\\\"']?none|--read-only\\b|--cap-drop|--security-opt|seccomp|gvisor|runsc|firejail|bubblewrap|nsjail|sandbox-exec|unshare\\s+--net|init-firewall|devcontainer|--sandbox\\b|sandboxMode|[\\\"']sandbox[\\\"']\\s*:\\s*true|egress[_-]?allowlist|allowed_domains"
+    },
+    "manual_question": "You invoke an agent with approvals bypassed. Name the boundary that contains that run: which filesystem, which network destinations, and which credentials can it NOT reach? If the answer is 'the developer's machine' or 'the CI runner with its secrets', the bypass flag is the only boundary and it is set to off.",
+    "rationale": "The bypass flags are exact literal strings, so a match is a fact rather than an inference: this project runs an agent with its approval mechanism disabled. The gap is PRESENT only when no isolation primitive appears anywhere in the executable or config surface, so a bypass inside a network-denied container is not flagged. What it can get wrong: it over-credits a target that merely mentions an isolation keyword somewhere unrelated to the bypassed invocation, which is why both signatures matching escalates to MANUAL and why the manual question asks which boundary contains THAT run. Markdown is deliberately excluded from the flag globs so a README documenting the flag is not counted as using it.",
+    "fixtures": {
+      "bad": {
+        ".github/workflows/agent-nightly.yml": "name: nightly-agent\non:\n  schedule:\n    - cron: \"0 3 * * *\"\njobs:\n  refactor:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: run the agent unattended\n        env:\n          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}\n          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}\n        run: |\n          npm install -g @anthropic-ai/claude-code\n          claude -p \"$(cat prompts/nightly.md)\" --dangerously-skip-permissions\n",
+        "scripts/loop.sh": "#!/usr/bin/env bash\nset -euo pipefail\n\nwhile true; do\n  gemini --yolo -p \"$(cat prompts/loop.md)\"\n  sleep 300\ndone\n"
+      },
+      "good": {
+        "scripts/loop.sh": "#!/usr/bin/env bash\nset -euo pipefail\n\n# The bypass is reachable only from inside a boundary: no egress, read-only root,\n# dropped capabilities, and a credential minted for this run alone.\ndocker run --rm \\\n  --network none \\\n  --read-only \\\n  --cap-drop ALL \\\n  --security-opt no-new-privileges \\\n  --tmpfs /work:rw \\\n  --mount type=bind,src=\"$PWD/repo\",dst=/work/repo \\\n  --env-file <(./scripts/mint-run-credential.sh) \\\n  agent-runner:pinned \\\n  claude -p \"$(cat prompts/loop.md)\" --dangerously-skip-permissions\n",
+        ".devcontainer/devcontainer.json": "{\n  \"name\": \"agent-sandbox\",\n  \"build\": { \"dockerfile\": \"Dockerfile\" },\n  \"runArgs\": [\"--cap-add=NET_ADMIN\", \"--security-opt\", \"no-new-privileges\"],\n  \"postCreateCommand\": \"sudo /usr/local/bin/init-firewall.sh\",\n  \"remoteEnv\": { \"AGENT_EGRESS\": \"allowlist-only\" }\n}\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "id": "GAP-050",
+  "title": "The fully assembled context the model consumed is never stored, so an incident is investigated against a reconstruction instead of the original",
+  "layer": "observability",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "To debug yesterday's wrong tool call I have to rebuild the prompt from the template plus today's retrieval index plus today's tool schemas, and the thing I rebuild is not the thing the model was shown.",
+  "symptom": "The trace holds the user's message and the model's reply. The system prompt, the retrieved chunks and their order, the tool result bodies and whatever was dropped by truncation are absent, so the investigation reasons about an input nobody can produce again.",
+  "why_now": "Every ingredient of an agent's context is independently mutable: the retrieval index is re-embedded, the tool list is discovered at connect time, the memory summary is regenerated, and provider-side context management can edit the window. Reconstruction was adequate when a prompt was a template plus one variable, and it stopped being adequate the moment the context became an assembly of live systems, but the default log shape did not change with it.",
+  "existing": [
+    "Tracing SDKs record spans and token counts by default and treat message content as opt-in, so the field that matters is the one most often switched off in production for privacy or cost reasons.",
+    "Prompt registries version the template, which is the one ingredient that was already recoverable from source control.",
+    "Replaying against the current index or the current tool list reproduces today's assembly, not the incident's."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "This protects user privacy but prevents engineers from examining the problematic interactions needed to identify or reproduce bugs.",
+      "note": "The clearest public statement that the missing artifact in an agent incident is the interaction itself. Engineers had the model, the code and the deploy history, and still could not see what the model was shown."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "The same prompt might work perfectly on one request and fail on the next.",
+      "note": "Re-sending the same prompt is not a reproduction attempt with a meaningful negative result, which is why a stored copy of the original request is the only evidence that survives."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Defeating Nondeterminism in LLM Inference",
+      "locator": "https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/",
+      "date": "2025-09-10",
+      "quote": "Nevertheless, from the perspective of anybody using the inference server, the results are nondeterministic",
+      "note": "The serving stack is deterministic per kernel and still nondeterministic from the caller's seat, so an identical request is not sufficient to re-derive an output. That is precisely why the request's own parameters and the backend identity must be persisted rather than reconstructed."
+    }
+  ],
+  "build_hypothesis": "A content-addressed context snapshot taken at the call boundary: the exact serialized request the client is about to send is hashed and written once, the trace carries the hash, and a replay verb refuses to run against a snapshot whose hash does not match. Redaction becomes a transform over the snapshot rather than a reason not to take one, which is the trade the postmortem above describes losing.",
+  "tags": [
+    "reproducibility",
+    "context",
+    "trace",
+    "replay"
+  ],
+  "check": {
+    "id": "CHK-049",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "chat\\.completions\\.create|responses\\.create|messages\\.create|generate_content|invoke_model|converse\\(|InvokeModel"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "messages\\s*=\\s*\\[|messages\\.append\\(|messages\\s*\\+=|\\bmessages\\s*=\\s*build|system_prompt"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "prompt_snapshot|context_snapshot|rendered_prompt|request_payload|record_request|persist_(?:prompt|messages|request|context)|save_transcript|transcript_path|capture_message_content|langfuse|langsmith|traceloop|openinference|braintrust"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "prompt_snapshot|context_snapshot|rendered_prompt|request_payload|record_request|persist_(?:prompt|messages|request|context)|save_transcript|transcript_path|capture_message_content|langfuse|langsmith|traceloop|openinference|braintrust"
+    },
+    "manual_question": "Point at the stored bytes of the exact request one past run sent to the model, including the system prompt, every retrieved chunk in order and every tool result body. If the answer involves re-running retrieval or re-rendering a template, you have a reconstruction and not a record.",
+    "rationale": "Fires when a repo assembles a message list for an inference call and no identifier in the code names either a persisted copy of that request or a tracing SDK that captures message content. It credits third-party tracing libraries on purpose, because a team using one of those does have the input stored even though it wrote no persistence code itself. It will be wrong on a repo that persists requests under a local vocabulary this pattern does not know, and on a repo that imports a tracing SDK but runs it with content capture disabled, which is the default in several of them.",
+    "fixtures": {
+      "bad": {
+        "app/rag.py": "import json\nimport openai\n\nclient = openai.OpenAI()\n\n\ndef ask(question: str, index) -> str:\n    chunks = index.search(question, k=8)\n    system_prompt = \"Answer only from the context.\"\n    messages = [\n        {\"role\": \"system\", \"content\": system_prompt},\n        {\"role\": \"user\", \"content\": \"\\n\".join(chunks) + question},\n    ]\n    resp = client.chat.completions.create(model=\"gpt-4o\", messages=messages)\n    answer = resp.choices[0].message.content\n    with open(\"log.jsonl\", \"a\") as fh:\n        fh.write(json.dumps({\"q\": question, \"a\": answer}) + \"\\n\")\n    return answer\n"
+      },
+      "good": {
+        "app/rag.py": "import hashlib\nimport json\nimport pathlib\nimport openai\n\nclient = openai.OpenAI()\nSNAPSHOTS = pathlib.Path(\"snapshots\")\n\n\ndef ask(question: str, index) -> str:\n    chunks = index.search(question, k=8)\n    system_prompt = \"Answer only from the context.\"\n    messages = [\n        {\"role\": \"system\", \"content\": system_prompt},\n        {\"role\": \"user\", \"content\": \"\\n\".join(chunks) + question},\n    ]\n    body = json.dumps({\"model\": \"gpt-4o\", \"messages\": messages}, sort_keys=True)\n    digest = hashlib.sha256(body.encode()).hexdigest()\n    prompt_snapshot = SNAPSHOTS / (digest + \".json\")\n    SNAPSHOTS.mkdir(exist_ok=True)\n    prompt_snapshot.write_text(body, encoding=\"utf-8\")\n    resp = client.chat.completions.create(model=\"gpt-4o\", messages=messages)\n    answer = resp.choices[0].message.content\n    with open(\"log.jsonl\", \"a\") as fh:\n        fh.write(json.dumps({\"snapshot\": digest, \"a\": answer}) + \"\\n\")\n    return answer\n"
+      }
+    }
+  }
+}

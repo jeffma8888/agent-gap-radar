@@ -1,0 +1,103 @@
+{
+  "id": "GAP-075",
+  "title": "The model version that actually served a response is never recorded, so a provider-side behaviour change cannot be attributed or pinned",
+  "layer": "model-runtime",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "My agent got worse this week and I cannot tell whether my prompt change did it or the provider moved the model under me, because nothing in my logs says which model version answered.",
+  "symptom": "The call site names a floating alias or an environment variable, the response object carries a resolved model identifier that the application throws away, and a regression investigation has no way to separate a change made in the repository from a change made upstream.",
+  "why_now": "Providers ship behaviour changes continuously and expose the resolved version on every response, so the data needed to attribute a regression is already in hand at runtime and is routinely discarded; the missing piece is a convention that records it, not a new API.",
+  "existing": [
+    "Alias-to-snapshot pinning removes the drift but only if a project actually pins, and pinning alone still records nothing, so an investigation cannot prove which version ran for a past request.",
+    "Provider status pages and deprecation notices announce planned retirements, not the behavioural deltas of a routine update, and they are not correlated with a given customer request."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "A postmortem of three recent issues",
+      "locator": "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
+      "date": "2025-09-17",
+      "quote": "Although we were aware of an increase in reports online, we lacked a clear way to connect these to each of our recent changes.",
+      "note": "The vendor with the most instrumentation still could not attribute a behaviour change to the deploy that caused it; a consumer who records no served version has strictly less to work with."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "Expanding on what we missed with sycophancy",
+      "locator": "https://openai.com/index/expanding-on-sycophancy/",
+      "date": "2025-05-02",
+      "quote": "Even with what we thought were all the right ingredients in place (A/B tests, offline evals, expert reviews), we still missed this important issue.",
+      "note": "Model updates do change behaviour in ways pre-launch review misses, which is exactly the class of change a consumer can only detect after the fact and only if the served version was recorded."
+    }
+  ],
+  "build_hypothesis": "A thin client wrapper that refuses a floating alias unless an explicit opt-in flag is set, and writes the resolved model identifier returned on the response into the same log line as the request id.",
+  "tags": [
+    "model-version",
+    "pinning",
+    "attribution",
+    "drift"
+  ],
+  "check": {
+    "id": "CHK-074",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "chat\\.completions\\.create|messages\\.create|responses\\.create|generate_content\\(|converse\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "any_of",
+          "rules": [
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py"
+              ],
+              "pattern": "[\"'][A-Za-z0-9._-]*-latest[\"']"
+            },
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py"
+              ],
+              "pattern": "(?i)model(_?id)?\\s*=\\s*os\\.(getenv|environ)"
+            }
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)served_model|model_snapshot|model_version|(response|resp|completion|r)\\.model\\b|\\[[\"']model[\"']\\]"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.toml",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)served_model|model_snapshot|model_version|(response|resp|completion|r)\\.model\\b"
+    },
+    "manual_question": "For a response your system produced last week, can you name the exact model version that generated it, and would a provider-side version change be visible to you without a customer telling you?",
+    "rationale": "A floating alias or an environment-supplied model id means the served version is chosen outside the repository, and the absence of any served-model or model-version token means the resolved identifier the provider returns is never persisted, so a behaviour change has no attributable cause. It can be wrong where the version is recorded by a logging sidecar or a gateway outside this repository, which is what the manual question is for.",
+    "fixtures": {
+      "bad": {
+        "app/llm.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\nMODEL = \"claude-sonnet-4-5-latest\"\n\ndef answer(question: str) -> str:\n    reply = client.messages.create(\n        model=MODEL,\n        max_tokens=512,\n        messages=[{\"role\": \"user\", \"content\": question}],\n    )\n    return reply.content[0].text\n"
+      },
+      "good": {
+        "app/llm.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\n# Pinned snapshot: the served version cannot change without a code change,\n# and the version that actually answered is logged with every call so a\n# regression can be attributed to a deploy rather than guessed at.\nMODEL_SNAPSHOT = \"claude-sonnet-4-5-20250929\"\n\ndef answer(question: str) -> str:\n    reply = client.messages.create(\n        model=MODEL_SNAPSHOT,\n        max_tokens=512,\n        messages=[{\"role\": \"user\", \"content\": question}],\n    )\n    log_call(requested=MODEL_SNAPSHOT, served_model=reply.model)\n    return reply.content[0].text\n"
+      }
+    }
+  }
+}

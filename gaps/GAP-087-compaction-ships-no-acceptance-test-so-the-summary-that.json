@@ -1,0 +1,97 @@
+{
+  "id": "GAP-087",
+  "title": "Compaction ships no acceptance test, so the summary that replaces the transcript is never checked for the items the run cannot proceed without",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent compacted its own history and carried on for another hour without the one constraint the whole task depended on, and nothing in the pipeline noticed that the constraint was no longer in the context.",
+  "symptom": "After a compaction boundary the agent behaves like a competent agent given the wrong brief: it re-does work it already did, re-asks a settled question, or violates a standing prohibition it has stopped being able to see. The transcript looks healthy because the summary is fluent, and the failure is attributed to the model rather than to the reduction step.",
+  "why_now": "Compaction became a default rather than an option during 2025: the loop that runs for hours now summarises and reinitialises its own window as routine, and vendors ship it as a product feature. The quality bar being recommended for it is still a prompt-tuning exercise measured offline against sample traces, not an assertion evaluated on the summary that is about to become the agent's only memory. So the reduction step is the one transformation in an agent pipeline with no output contract, and it runs on every long task.",
+  "existing": [
+    "Prompt tuning of the compaction prompt on complex traces, as recommended by Anthropic, raises average recall but produces no per-run signal: it cannot tell you that THIS summary dropped THIS constraint.",
+    "Tool-result clearing keeps the instruction turns and drops only tool output, which is safer but narrower; it does not cover the case where the load-bearing item is an instruction stated mid-run.",
+    "Framework summarisation nodes expose a token budget and a prompt, and treat the summariser's return value as authoritative: there is no hook where a caller could declare must-carry items and refuse a summary that lost them."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "The art of compaction lies in the selection of what to keep versus what to discard, as overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later.",
+      "note": "The vendor that ships compaction in Claude Code names the failure mode directly: the loss is of context whose importance is not apparent at the moment of the cut, which is exactly the loss no prompt-quality metric can catch at compaction time."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Start by maximizing recall to ensure your compaction prompt captures every relevant piece of information from the trace, then iterate to improve precision by eliminating superfluous content.",
+      "note": "The recommended discipline is offline prompt iteration measured on traces. It is real advice, and it is the evidence for the gap: the recall target is enforced by tuning a prompt, not by a runtime check on the summary the agent is about to run on."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "LLMs Get Lost In Multi-Turn Conversation",
+      "locator": "https://arxiv.org/abs/2505.06120",
+      "date": "2025-05-09",
+      "quote": "We find that LLMs often make assumptions in early turns and prematurely attempt to generate final solutions, on which they overly rely.",
+      "note": "arXiv preprint, not peer-reviewed at the time of fetch. Supports the cost side: an agent that loses a constraint does not recover gracefully, it commits to an assumption and builds on it, so a silent loss at a compaction boundary is expensive rather than merely lossy."
+    }
+  ],
+  "build_hypothesis": "A must-carry contract around the reduction step: the caller declares a small list of load-bearing items (the goal statement, active prohibitions, the open task list, the paths in flight) as literal strings or extraction keys; after compaction a checker asserts each is still present in the new context and, on failure, either re-injects the item verbatim or refuses the compaction and escalates. Roughly a decorator plus an assertion, and it converts a silent lossy transform into a loud one.",
+  "tags": [
+    "compaction",
+    "long-horizon",
+    "context",
+    "contract"
+  ],
+  "check": {
+    "id": "CHK-086",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)def\\s+\\w*compact\\w*|def\\s+\\w*summari[sz]e_(?:history|messages|context|conversation|transcript)|compact_(?:history|messages|context|conversation|transcript)|summari[sz]e_(?:history|messages|conversation|transcript)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(?:messages|history|conversation|transcript|context)\\s*=\\s*\\[?\\s*(?:\\w+\\.)*(?:summar\\w+|compact\\w+)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)must_carry|must_keep|required_context|retention_contract|verify_(?:summary|compaction)|validate_(?:summary|compaction)|check_(?:summary|compaction)|summary_(?:contains|covers)|assert_(?:carried|preserved)|preserved_items|carry_forward_check"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)must_carry|must_keep|required_context|retention_contract|verify_(?:summary|compaction)|validate_(?:summary|compaction)|check_(?:summary|compaction)|summary_(?:contains|covers)|assert_(?:carried|preserved)|preserved_items|carry_forward_check"
+    },
+    "manual_question": "When this agent compacts its history, what specific items is the new context guaranteed to still contain, and which line of code fails if the summary lost one of them?",
+    "rationale": "The signature is a compaction site that assigns a model-produced summary back over the working history, with no vocabulary anywhere in the codebase for declaring or verifying what the summary had to preserve. It can be wrong in two ways: a project may verify with a name this pattern does not know (which shows up as PRESENT and needs the manual question), and a project may name a must-carry list it never enforces (which shows up as ABSENT on the strength of the name alone). Both are visible to a reader because the location is reported.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "def compact_history(client, messages):\n    summary = client.summarise(messages)\n    return [{'role': 'system', 'content': summary}]\n\n\ndef step(client, messages, budget):\n    if tokens(messages) > budget:\n        messages = compact_history(client, messages)\n    return client.respond(messages)\n"
+      },
+      "good": {
+        "app/loop.py": "MUST_CARRY = ('do not touch production', 'goal:')\n\n\ndef compact_history(client, messages):\n    summary = client.summarise(messages)\n    return [{'role': 'system', 'content': summary}]\n\n\ndef verify_summary(summary, items=MUST_CARRY):\n    missing = [i for i in items if i not in summary]\n    if missing:\n        raise CompactionRefused(missing)\n    return summary\n\n\ndef step(client, messages, budget):\n    if tokens(messages) > budget:\n        messages = compact_history(client, messages)\n        verify_summary(messages[0]['content'])\n    return client.respond(messages)\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "id": "GAP-054",
+  "title": "No single chokepoint turns a model-authored URL into a request, so a URL allowlist must be re-applied per surface and one unguarded surface reopens exfiltration",
+  "layer": "tool-action",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My app renders the model's answer and lets it fetch links, so an injected instruction can smuggle my data out inside a URL, and the only thing standing in the way is my remembering to re-apply a URL check at every place model text becomes a network request.",
+  "symptom": "Data leaves through an image load, a link preview or an agent fetch that no tool-call log records as an egress, and a fix applied to one surface leaves the identical channel open on another one, a native client, a new renderer or a newly added tool.",
+  "why_now": "The channel has been known since 2023 and the mitigations shipped for it are per-surface rather than per-application: Microsoft answered it with a Content-Security-Policy header on one web surface in 2023, OpenAI shipped a crawler-index URL allowlist and by its own 2026 paper the letter-at-a-time bypass survives, and the same researcher records surfaces where the mitigation was never applied at all. No agent framework offers an egress chokepoint a repo can point at, so in 2026 the invariant is still enforced by memory.",
+  "existing": [
+    "Crawler-index URL allowlists (OpenAI's url_safe, shipped December 2023 and extended around August 2025): bypasses remain viable, including mapping one indexed URL per character, and the researcher who reported the original bug records client surfaces where it was never applied.",
+    "Content-Security-Policy blocking image loads (Microsoft on Bing Chat, May 2023): closes one web surface and does not travel to native apps, IDE extensions or an agent's own HTTP client.",
+    "Per-link human approval (ChatGPT asking the user to approve certain links): a confirmation on a channel that leaks a few bits per request, and it is a prompt rather than an invariant.",
+    "Banning markdown images outright: repeatedly reopened by a newly added render path such as diagrams, unfurls or raw HTML, because nothing in the codebase enumerates which paths can emit a request.",
+    "Upstream prompt-injection classifiers: they reduce how many injections reach the model and this gap is about the sink, which is reachable by any injection that gets through."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "OpenAI Explains URL-Based Data Exfiltration Mitigations in New Paper",
+      "locator": "https://embracethered.com/blog/posts/2026/data-exfiltration-mitigation-paper-by-openai/",
+      "date": "2026-02-04",
+      "quote": "Additionally, there were places where OpenAI had not added the mitigation at all, like in the macOS and iOS apps.",
+      "note": "The mitigation existed and was still absent on some surfaces, which is the gap: the allowlist is a per-surface habit, not an application-wide chokepoint."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "OpenAI Explains URL-Based Data Exfiltration Mitigations in New Paper",
+      "locator": "https://embracethered.com/blog/posts/2026/data-exfiltration-mitigation-paper-by-openai/",
+      "date": "2026-02-04",
+      "quote": "Despite these mitigations, certain bypasses remain viable.",
+      "note": "Written by the researcher who reported the original 2023 exploit, about the shipped url_safe allowlist and OpenAI's own paper describing it: the mitigation of record narrows the channel rather than closing it."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Agentic Browser Security: Indirect Prompt Injection in Perplexity Comet",
+      "locator": "https://brave.com/blog/comet-prompt-injection/",
+      "date": "2025-08-20",
+      "quote": "the trailing dot creates a different domain, perplexity.ai. vs perplexity.ai, to bypass existing authentication",
+      "note": "A host-string comparison defeated by a trailing dot, in a shipped agent browser. Any allowlist implemented as a netloc match inherits this class of bypass, which is why the check treats a normalising chokepoint, not the presence of a list, as the mitigation."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Understanding prompt injections: a frontier security challenge",
+      "locator": "https://openai.com/index/prompt-injections/",
+      "date": "2025-11-07",
+      "quote": "we will ask you to approve certain links in ChatGPT",
+      "note": "OpenAI's own description of the mitigation class: a per-link user approval, which is a confirmation dialog rather than a code path that cannot be bypassed."
+    }
+  ],
+  "build_hypothesis": "A tiny library plus a lint rule that makes every model-authored URL pass one `egress_check(url, session)` function, and fails the build when a render or fetch call site reachable from model output does not route through it. The value is the enumeration of surfaces, not the allowlist itself.",
+  "tags": [
+    "exfiltration",
+    "url-allowlist",
+    "rendering",
+    "egress",
+    "indirect-injection"
+  ],
+  "check": {
+    "id": "CHK-053",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js"
+      ],
+      "pattern": "\\.chat\\.completions\\.create|\\.messages\\.create|generate_content\\(|invoke_model|llm\\.(?:invoke|complete|generate)|completion\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js"
+          ],
+          "pattern": "\\.chat\\.completions\\.create|\\.messages\\.create|generate_content\\(|invoke_model|llm\\.(?:invoke|complete|generate)|completion\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.js"
+          ],
+          "pattern": "st\\.markdown\\(|st\\.write\\(|dangerouslySetInnerHTML|\\.innerHTML\\s*=|unsafe_allow_html\\s*=\\s*True|markdown\\.markdown\\(|marked\\(|mistune|render_markdown\\(|to_html\\("
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py",
+              "**/*.ts",
+              "**/*.tsx",
+              "**/*.js",
+              "**/*.html",
+              "**/*.yaml",
+              "**/*.yml",
+              "**/*.toml"
+            ],
+            "pattern": "url_safe|is_url_allowed|url_allow(?:ed|list)|allowed_(?:url|host|domain)s?|sanitize_url|strip_images|strip_disallowed_urls|egress_(?:check|guard|allowlist)|Content-Security-Policy|img-src|bleach\\.clean|DOMPurify|nh3\\.clean"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.html",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml"
+      ],
+      "pattern": "url_safe|is_url_allowed|url_allow(?:ed|list)|allowed_(?:url|host|domain)s?|sanitize_url|strip_images|strip_disallowed_urls|egress_(?:check|guard|allowlist)|Content-Security-Policy|img-src|bleach\\.clean|DOMPurify|nh3\\.clean"
+    },
+    "manual_question": "List every place in this codebase where text the model produced can become an outbound HTTP request: a rendered markdown image, a link the user or the agent follows, a diagram source, an unfurl, a tool that takes a URL argument. Which single function do all of them pass through, and what fails the build when a new one does not?",
+    "rationale": "A repo that sends model output to a markup renderer and holds no URL-gating identifier anywhere has no chokepoint, so the exfiltration sink is open by construction. It can be wrong in two ways: a project whose gate lives in a CDN or CSP header outside the repo reads as PRESENT, and a project that merely names an allowlist identifier reads as mitigated without the gate covering every surface, which is exactly why the manual question asks for the enumeration.",
+    "fixtures": {
+      "bad": {
+        "app/ui.py": "import streamlit as st\nfrom openai import OpenAI\n\nclient = OpenAI()\n\n\ndef summarise(question: str, page_text: str) -> None:\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=[{\"role\": \"user\", \"content\": question + page_text}],\n    )\n    answer = reply.choices[0].message.content\n    st.markdown(answer, unsafe_allow_html=True)\n"
+      },
+      "good": {
+        "app/ui.py": "import re\nfrom urllib.parse import urlparse\n\nimport streamlit as st\nfrom openai import OpenAI\n\nclient = OpenAI()\n\nALLOWED_URL_HOSTS = {\"cdn.example.com\", \"docs.example.com\"}\n_URL_IN_MARKDOWN = re.compile(r\"\\((https?://[^)\\s]+)\\)\")\n\n\ndef is_url_allowed(url: str) -> bool:\n    \"\"\"The single chokepoint: no model-authored URL leaves without passing here.\"\"\"\n    host = urlparse(url).netloc.rstrip(\".\").lower()\n    return host in ALLOWED_URL_HOSTS\n\n\ndef strip_disallowed_urls(markdown: str) -> str:\n    return _URL_IN_MARKDOWN.sub(\n        lambda m: \"(about:blank)\" if not is_url_allowed(m.group(1)) else m.group(0),\n        markdown,\n    )\n\n\ndef summarise(question: str, page_text: str) -> None:\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=[{\"role\": \"user\", \"content\": question + page_text}],\n    )\n    answer = reply.choices[0].message.content\n    st.markdown(strip_disallowed_urls(answer), unsafe_allow_html=False)\n"
+      }
+    }
+  }
+}
