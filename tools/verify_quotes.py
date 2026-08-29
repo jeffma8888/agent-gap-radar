@@ -225,6 +225,84 @@ def fetch_all(urls: list[str], workers: int = 8,
         return dict(zip(urls, pool.map(fn, urls)))
 
 
+def select_bounded(paths: list[pathlib.Path], limit: int) -> list[pathlib.Path]:
+    """Choose WHICH records a bounded pass looks at, spreading across `layer`.
+
+    A bounded pass used to take `sorted(paths)[:limit]`, which is alphabetical by
+    filename, and filenames start with the research topic. That is not a neutral
+    sample, it is a permanent bias: with a large backlog the pass can only ever reach
+    the front of the alphabet, so the layers whose names sort late are never
+    verified, never promoted, and silently absent from the register no matter how
+    much research covers them.
+
+    Measured when this was live: 861 queued candidates spanning all 11 layers
+    (observability 136, multi-agent 95, tool-action 92, human-interface 86 ...), and
+    a verified queue of 99 containing exactly THREE -- benchmarkgap, context and
+    cost. The eight missing layers were not under-researched; they were unreachable.
+
+    So take one record from each layer in turn, best-first inside a layer by evidence
+    class, and cycle until the budget is spent. A layer with few candidates
+    contributes all of them and stops; it never blocks the others. Records whose
+    layer cannot be read are pooled under "" and still get their turn, because an
+    unreadable record needs to reach the gate that quarantines it.
+    """
+    if limit <= 0 or limit >= len(paths):
+        return paths
+
+    by_layer: dict[str, list[tuple[int, str, pathlib.Path]]] = {}
+    for path in paths:
+        layer, rank = "", 0
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(doc, dict):
+                layer = doc.get("layer") if isinstance(doc.get("layer"), str) else ""
+                rank = _evidence_rank(doc)
+        except Exception:
+            pass
+        by_layer.setdefault(layer or "", []).append((-rank, path.name, path))
+
+    for bucket in by_layer.values():
+        bucket.sort()
+
+    chosen: list[pathlib.Path] = []
+    order = sorted(by_layer)
+    cursor = {layer: 0 for layer in order}
+    while len(chosen) < limit:
+        took = False
+        for layer in order:
+            if len(chosen) >= limit:
+                break
+            i = cursor[layer]
+            if i < len(by_layer[layer]):
+                chosen.append(by_layer[layer][i][2])
+                cursor[layer] = i + 1
+                took = True
+        if not took:
+            break
+    return sorted(chosen)
+
+
+def _evidence_rank(doc: dict) -> int:
+    """Strongest evidence weight in a record, for ordering inside a layer.
+
+    Kept local and deliberately crude rather than importing the register's scoring:
+    this tool must run on a MALFORMED candidate without raising, and the real scorer
+    validates its input. Getting the order slightly wrong costs nothing, because
+    every selected record is verified identically; refusing to order at all is what
+    would reinstate the filename bias.
+    """
+    weights = {"incident-postmortem": 5, "first-party-field": 5, "peer-reviewed": 4,
+               "maintainer-primary": 4, "vendor-primary": 4, "practitioner-report": 3,
+               "survey-aggregate": 3, "secondary-summary": 1, "model-output": 0}
+    best = 0
+    ev = doc.get("evidence")
+    if isinstance(ev, list):
+        for item in ev:
+            if isinstance(item, dict):
+                best = max(best, weights.get(item.get("source_class"), 0))
+    return best
+
+
 def partition(
     inbox: pathlib.Path,
     quarantine: pathlib.Path,
@@ -250,7 +328,7 @@ def partition(
     """
     paths = sorted(inbox.glob("*.json"))
     if max_records:
-        paths = paths[:max_records]
+        paths = select_bounded(paths, max_records)
     if not paths:
         print(f"No candidates in {inbox}")
         return 0

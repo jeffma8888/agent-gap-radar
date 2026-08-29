@@ -107,6 +107,44 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
         "tests/test_promote_twins.py",
     ),
     (
+        # The alphabetical cut that starved eight of eleven layers for weeks.
+        "bounded_selection_alphabetical",
+        "tools/verify_quotes.py",
+        "        paths = select_bounded(paths, max_records)",
+        "        paths = paths[:max_records]",
+        "tests/test_verify_bounded_selection.py",
+    ),
+    (
+        "bounded_selection_ignores_layer",
+        "tools/verify_quotes.py",
+        '        by_layer.setdefault(layer or "", []).append((-rank, path.name, path))',
+        '        by_layer.setdefault("", []).append((-rank, path.name, path))',
+        "tests/test_verify_bounded_selection.py",
+    ),
+    (
+        "bounded_selection_ignores_evidence",
+        "tools/verify_quotes.py",
+        "(-rank, path.name, path))",
+        "(0, path.name, path))",
+        "tests/test_verify_bounded_selection.py",
+    ),
+    (
+        # An unreadable candidate is the one a human most needs to see. Dropping it
+        # here would leave it in the inbox forever, never quarantined.
+        "bounded_selection_hides_unreadable",
+        "tools/verify_quotes.py",
+        "        except Exception:\n            pass",
+        "        except Exception:\n            continue",
+        "tests/test_verify_bounded_selection.py",
+    ),
+    (
+        "bounded_selection_breaks_the_unbounded_path",
+        "tools/verify_quotes.py",
+        "    if limit <= 0 or limit >= len(paths):",
+        "    if limit < 0 or limit >= len(paths):",
+        "tests/test_verify_bounded_selection.py",
+    ),
+    (
         "advisory_prints_pair_twice",
         "tools/promote.py",
         "        pair = frozenset((gid, partner))\n        if pair in seen:\n            continue",
