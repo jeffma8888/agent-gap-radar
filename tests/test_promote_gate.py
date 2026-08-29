@@ -9,6 +9,7 @@ sample and the accept path gets a known-good one.
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import subprocess
 import sys
@@ -290,3 +291,130 @@ def test_tool_runs_as_a_script(tmp_path):
     )
     assert proc.returncode == 0, proc.stderr
     assert "ACCEPT" in proc.stdout, proc.stdout
+
+
+# --------------------------------------------------------------------------
+# Ranked, capped promotion. Once unattended research can produce candidates
+# faster than anyone reads them, "passes the gate" is no longer a sufficient
+# reason to land: a thousand mechanically-valid records is a junk drawer, and
+# it makes every score already in the register unbelievable.
+# --------------------------------------------------------------------------
+
+def _fresh_register(tmp_path) -> pathlib.Path:
+    gaps = tmp_path / "gaps"
+    gaps.mkdir()
+    for src in (REPO / "gaps").glob("*.json"):
+        (gaps / src.name).write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    return gaps
+
+
+def _distinct(title: str, pattern: str, source_class: str = "vendor-primary",
+              severity: int = 3) -> dict:
+    """A candidate with its own check signature so novelty never rejects it."""
+    doc = _candidate(title=title, severity=severity)
+    doc["evidence"][0]["source_class"] = source_class
+    doc["check"]["present_when"] = {
+        "kind": "content_matches", "globs": ["**/*.py"], "pattern": pattern,
+    }
+    doc["check"]["fixtures"] = {
+        "bad": {"a.py": f"# {pattern}\n"}, "good": {"a.py": "pass\n"},
+    }
+    doc["check"].pop("mitigated_when", None)
+    return doc
+
+
+def test_limit_caps_how_many_land_in_one_pass(tmp_path):
+    gaps = _fresh_register(tmp_path)
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    for i in range(5):
+        (inbox / f"c{i}.json").write_text(
+            json.dumps(_distinct(f"Distinct gap number {i}", f"marker_{i}")),
+            encoding="utf-8")
+    import contextlib, io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        promote.main(["--inbox", str(inbox), "--gaps", str(gaps), "--apply",
+                      "--limit", "2", "--rejected", str(tmp_path / "rej")])
+    out = buf.getvalue()
+    assert out.count("ACCEPT") == 2, out
+    assert "3 left for a later pass" in out, out
+    assert len(list(inbox.glob("*.json"))) == 3, "the rest must survive untouched"
+
+
+def test_stronger_evidence_is_promoted_first(tmp_path):
+    """Confidence outranks a self-assigned severity, because it cannot be inflated."""
+    gaps = _fresh_register(tmp_path)
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    # Weak evidence but maximal self-reported severity.
+    (inbox / "loud.json").write_text(json.dumps(_distinct(
+        "Loud but weakly sourced", "marker_loud",
+        source_class="secondary-summary", severity=5)), encoding="utf-8")
+    # Strong evidence, modest self-reported severity.
+    (inbox / "solid.json").write_text(json.dumps(_distinct(
+        "Quiet but well sourced", "marker_solid",
+        source_class="incident-postmortem", severity=1)), encoding="utf-8")
+    import contextlib, io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        promote.main(["--inbox", str(inbox), "--gaps", str(gaps), "--apply",
+                      "--limit", "1", "--rejected", str(tmp_path / "rej")])
+    out = buf.getvalue()
+    assert "solid.json" in out and "ACCEPT" in out, out
+    assert (inbox / "loud.json").exists(), "the weakly-sourced one should wait"
+
+
+def test_register_cap_escalates_instead_of_flooding_or_discarding(tmp_path):
+    gaps = _fresh_register(tmp_path)
+    existing = len(list(gaps.glob("*.json")))
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    for i in range(3):
+        (inbox / f"c{i}.json").write_text(
+            json.dumps(_distinct(f"Waiting gap {i}", f"marker_w{i}")), encoding="utf-8")
+    import contextlib, io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = promote.main(["--inbox", str(inbox), "--gaps", str(gaps), "--apply",
+                           "--register-cap", str(existing)])
+    out = buf.getvalue()
+    assert rc == 0
+    assert "REGISTER AT CAPACITY" in out, out
+    assert "NOTHING was discarded" in out, out
+    assert len(list(inbox.glob("*.json"))) == 3, "candidates must be preserved"
+    assert len(list(gaps.glob("*.json"))) == existing, "register must not grow"
+
+
+def test_register_cap_allows_only_the_remaining_room(tmp_path):
+    gaps = _fresh_register(tmp_path)
+    existing = len(list(gaps.glob("*.json")))
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    for i in range(4):
+        (inbox / f"c{i}.json").write_text(
+            json.dumps(_distinct(f"Room gap {i}", f"marker_r{i}")), encoding="utf-8")
+    import contextlib, io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        promote.main(["--inbox", str(inbox), "--gaps", str(gaps), "--apply",
+                      "--register-cap", str(existing + 2),
+                      "--rejected", str(tmp_path / "rej")])
+    out = buf.getvalue()
+    assert out.count("ACCEPT") == 2, out
+    assert len(list(gaps.glob("*.json"))) == existing + 2
+
+
+def test_rank_puts_unparseable_last_but_still_reports_it(tmp_path):
+    gaps = _fresh_register(tmp_path)
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    (inbox / "broken.json").write_text("{not json", encoding="utf-8")
+    (inbox / "ok.json").write_text(json.dumps(_distinct("Fine gap", "marker_ok")),
+                                   encoding="utf-8")
+    import contextlib, io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        promote.main(["--inbox", str(inbox), "--gaps", str(gaps)])
+    out = buf.getvalue()
+    assert "ACCEPT" in out and "not valid JSON" in out, out

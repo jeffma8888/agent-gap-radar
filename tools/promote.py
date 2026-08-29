@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from agent_gap_radar.checks import Verdict, run_check  # noqa: E402
 from agent_gap_radar.models import Gap  # noqa: E402
 from agent_gap_radar.registry import load_all  # noqa: E402
+from agent_gap_radar.scoring import confidence, priority  # noqa: E402
 from agent_gap_radar.taxonomy import SOURCE_WEIGHTS  # noqa: E402
 
 
@@ -133,7 +134,38 @@ def _signature(check) -> str:
     )
 
 
-def promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool) -> int:
+def _rank(paths: list[Path]) -> list[tuple[Path, Gap | None]]:
+    """Best-first work queue: CONFIDENCE before priority, deliberately.
+
+    `priority` is built from severity, frequency and tractability, which a
+    research agent assigns to its OWN record. `confidence` is derived from the
+    EVIDENCE CLASS, which is far harder to inflate: you cannot upgrade a blog
+    post into a peer-reviewed paper by claiming it is one. So when the pipeline
+    must choose which of many valid candidates to land, it prefers the records
+    whose backing is strongest over the ones that describe themselves as most
+    urgent.
+
+    A file that does not parse sorts LAST but keeps its place in the queue, so it
+    is still reported by the normal refusal path rather than silently dropped.
+    """
+    scored: list[tuple[Path, Gap | None]] = []
+    for path in paths:
+        try:
+            scored.append(
+                (path, Gap.model_validate(json.loads(path.read_text(encoding="utf-8"))))
+            )
+        except Exception:
+            scored.append((path, None))
+    scored.sort(key=lambda t: (
+        -(confidence(t[1]) if t[1] is not None else -1),
+        -(priority(t[1]) if t[1] is not None else -1),
+        t[0].name,
+    ))
+    return scored
+
+
+def promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool,
+            limit: int = 0, register_cap: int = 0) -> int:
     existing = load_all(gaps_dir)
     gap_ids = [g.id for g in existing]
     chk_ids = [g.check.id for g in existing if g.check]
@@ -152,7 +184,30 @@ def promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool) -> int:
     # for "exactly one summary emitter" unable to tell an accumulator from an emitter.
     accepted: list[tuple[Path, Gap]] = []
     refused: list[tuple[Path, str]] = []
-    for path in candidates:
+
+    # A register is only useful while it stays CURATED. Once research can produce
+    # candidates faster than anyone reads them, "passes the gate" stops being a
+    # sufficient reason to land: a thousand mechanically-valid records is a junk
+    # drawer, and it makes every score already in the register unbelievable. So
+    # automatic growth has a ceiling, and reaching it ESCALATES rather than either
+    # flooding the register or discarding the research.
+    if register_cap and len(existing) >= register_cap:
+        print(f"REGISTER AT CAPACITY: {len(existing)} records, cap {register_cap}. "
+              f"{len(candidates)} candidate(s) waiting; NOTHING was discarded.")
+        print("A human decides what the register carries from here. Strongest "
+              "waiting candidates by evidence class:")
+        for cpath, cgap in _rank(candidates)[:5]:
+            if cgap is None:
+                print(f"  (unparseable)  {cpath.name}")
+            else:
+                print(f"  c{confidence(cgap)} p{priority(cgap):>4}  {cpath.name}")
+        return 0
+
+    room = (register_cap - len(existing)) if register_cap else len(candidates)
+    budget = max(0, min(limit or len(candidates), room, len(candidates)))
+    for path, _prescored in _rank(candidates):
+        if len(accepted) >= budget:
+            break
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
@@ -206,8 +261,10 @@ def promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool) -> int:
             )
             path.replace(rejected / path.name)
 
+    untouched = len(candidates) - len(accepted) - len(refused)
     print(
         f"\n{len(accepted)} accepted, {len(refused)} rejected"
+        + (f", {untouched} left for a later pass" if untouched > 0 else "")
         + ("" if apply else "  (dry run - pass --apply to write)")
     )
     return 0 if accepted or not refused else 1
@@ -219,10 +276,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--gaps", type=Path, default=Path("gaps"))
     ap.add_argument("--rejected", type=Path)
     ap.add_argument("--apply", action="store_true", help="Write. Default is a dry run.")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="accept at most N candidates this pass (0 = no limit)")
+    ap.add_argument("--register-cap", type=int, default=0,
+                    help="refuse to grow the register beyond N records (0 = off)")
     args = ap.parse_args(argv)
     rejected = args.rejected or args.inbox.parent / "rejected"
     try:
-        return promote(args.inbox, args.gaps, rejected, args.apply)
+        return promote(args.inbox, args.gaps, rejected, args.apply,
+                       limit=args.limit,
+                       register_cap=args.register_cap)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

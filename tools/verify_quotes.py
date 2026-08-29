@@ -14,9 +14,25 @@ string -- so the four verdicts, the PARTIAL window, the non-URL refusal and the 
 are all provable with no socket.
 
     python3 tools/verify_quotes.py --gaps gaps
-    python3 tools/verify_quotes.py --inbox <dir>     # before promoting
+    python3 tools/verify_quotes.py --inbox <dir>              # report only
+    python3 tools/verify_quotes.py --inbox <dir> --partition   # act per record
 
 Exit 0 if every quote verifies, 1 if any did not, 2 on a usage error.
+
+WHY `--partition` EXISTS, and it is the important part of this file. Report mode
+returns ONE verdict for the whole directory, so a driver that treats a non-zero
+exit as "do not promote anything" turns this tool into a RATCHET rather than a
+filter: with a growing candidate pool and a non-zero per-quote failure rate, the
+probability that SOME quote fails approaches 1 and stays there, so one bad quote
+vetoes every good candidate behind it, forever. That is not a hypothetical - it
+ran for eleven days and blocked 991 candidates, and fixing individual quotes
+could never have cleared it, because each fix just exposes the next one.
+
+`--partition` makes the verdict PER RECORD and acts on it:
+  verified    -> left in place, so the offline gate sees only checked records
+  quarantined -> a quote is genuinely not on its cited page; needs a human
+  deferred    -> the page could not be fetched, which is NOT a verdict about the
+                 record, so it is retried later instead of being condemned
 
 A LESSON ABOUT THIS TOOL, kept because it cost real time: the first version
 normalised curly quotes in the QUOTE but not in the PAGE, so an honest verbatim
@@ -111,6 +127,177 @@ def fetch(url: str) -> str | None:
 _FetchFn = Callable[[str], str | None]
 
 
+#: Classification of one evidence item against its cited page.
+VERBATIM, PARTIAL, NOT_FOUND, UNREACHABLE = "verbatim", "partial", "not_found", "unreachable"
+
+
+def classify(quote: str, page: str | None) -> str:
+    if page is None:
+        return UNREACHABLE
+    q = _norm(quote)
+    if q and q in page:
+        return VERBATIM
+    window = " ".join(q.split()[:PARTIAL_WINDOW])
+    return PARTIAL if window and window in page else NOT_FOUND
+
+
+def record_defects(gap: object) -> list[str]:
+    """Shape problems that make a record UNJUDGEABLE. Empty list means judgeable.
+
+    Candidates are written by unattended research agents, so "valid JSON that is not
+    the expected shape" is a routine output rather than an edge case. Without this
+    gate `partition` reaches an unguarded `.get` while collecting urls -- BEFORE it
+    has judged anything -- so one malformed file aborts the entire pass with an
+    AttributeError and reinstates the all-or-nothing veto that `--partition` exists
+    to remove. The ratchet would come back wearing a traceback instead of an exit
+    code, which is strictly worse, because a crash records no verdict at all.
+
+    Returns a LIST of human-readable defects, not a bool, because the quarantine
+    reason file is the only channel to the person who has to decide what to do.
+
+    A record citing NO evidence is a defect too, and deliberately so: zero quotes
+    trivially satisfies "no quote failed", so without this an unsupported record
+    would promote on a technicality -- the opposite of what the register is for.
+
+    Only `partition` uses this. `verify` stays defensive with `.get` on purpose: it
+    is the REPORT path and is handed records that have not passed through here.
+    """
+    if not isinstance(gap, dict):
+        return [f"record is a {type(gap).__name__}, not a JSON object"]
+    evidence = gap.get("evidence", [])
+    if not isinstance(evidence, list):
+        return [f"'evidence' is a {type(evidence).__name__}, not a list"]
+    if not evidence:
+        return ["record cites no evidence, so no quote could be verified"]
+    defects: list[str] = []
+    for i, item in enumerate(evidence):
+        if not isinstance(item, dict):
+            defects.append(
+                f"evidence[{i}] is a {type(item).__name__}, not an object")
+            continue
+        for field in ("locator", "quote"):
+            value = item.get(field)
+            if not isinstance(value, str):
+                defects.append(
+                    f"evidence[{i}].{field} is a {type(value).__name__}, "
+                    f"not a string")
+    return defects
+
+
+def fetch_all(urls: list[str], workers: int = 8,
+              fetch_fn: _FetchFn | None = None) -> dict[str, str | None]:
+    """Fetch each UNIQUE url once.
+
+    Candidates cite the same primary sources heavily (measured on a real backlog:
+    3251 citations over 638 unique pages), so caching by url is a ~5x reduction
+    in network work and is what makes verifying a large backlog feasible at all.
+    """
+    import concurrent.futures
+
+    # Resolved at CALL time, not bound as a default: a default argument is
+    # evaluated once at definition, so `fetch_fn=fetch` in the signature would
+    # silently ignore any later substitution of the module-level fetch and every
+    # page would read as unreachable. That failure looks like a dead network.
+    fn = fetch_fn or fetch
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        return dict(zip(urls, pool.map(fn, urls)))
+
+
+def partition(
+    inbox: pathlib.Path,
+    quarantine: pathlib.Path,
+    deferred: pathlib.Path,
+    max_records: int = 0,
+    workers: int = 8,
+    fetch_fn: _FetchFn | None = None,
+) -> int:
+    """Verify per record and move each record according to its OWN result.
+
+    Returns 0 even when records are quarantined: partitioning is this tool doing
+    its job, and a non-zero exit is exactly what let a caller build the
+    all-or-nothing veto that this mode exists to remove.
+    """
+    paths = sorted(inbox.glob("*.json"))
+    if max_records:
+        paths = paths[:max_records]
+    if not paths:
+        print(f"No candidates in {inbox}")
+        return 0
+
+    loaded: list[tuple[pathlib.Path, dict]] = []
+    malformed: list[tuple[pathlib.Path, str]] = []
+    for path in paths:
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            malformed.append((path, f"not valid JSON: {exc}"))
+            continue
+        defects = record_defects(doc)
+        if defects:
+            malformed.append((path, "\n".join(defects)))
+        else:
+            loaded.append((path, doc))
+
+    # Indexed rather than `.get`-ed: `record_defects` has already established that
+    # every survivor is an object whose `evidence` is a non-empty list of objects
+    # with string `locator` and `quote`. A defensive `.get` here would hide a future
+    # regression in that gate behind a silently empty url set.
+    urls = sorted({
+        ev["locator"]
+        for _, gap in loaded
+        for ev in gap["evidence"]
+        if ev["locator"].startswith(("http://", "https://"))
+    })
+    print(f"{len(loaded)} judgeable record(s), {len(malformed)} malformed, "
+          f"{len(urls)} unique page(s) to fetch")
+    pages = fetch_all(urls, workers=workers, fetch_fn=fetch_fn)
+
+    def move(path: pathlib.Path, dest: pathlib.Path, reason: str | None) -> None:
+        dest.mkdir(parents=True, exist_ok=True)
+        if reason is not None:
+            (dest / (path.stem + ".reason.txt")).write_text(
+                path.name + "\n\n" + reason + "\n", encoding="utf-8")
+        path.replace(dest / path.name)
+
+    kept = quarantined = deferred_n = 0
+    for path, gap in loaded:
+        verdicts = []
+        for ev in gap["evidence"]:
+            url, quote = ev["locator"], ev["quote"]
+            if not url.startswith(("http://", "https://")):
+                verdicts.append((NOT_FOUND, url, quote))
+            else:
+                verdicts.append((classify(quote, pages.get(url)), url, quote))
+
+        kinds = {v for v, _, _ in verdicts}
+        if NOT_FOUND in kinds:
+            move(path, quarantine, "\n\n".join(
+                f"quote not found at {u}\n    {q}"
+                for v, u, q in verdicts if v == NOT_FOUND))
+            quarantined += 1
+            print(f"QUARANTINE  {path.name}")
+        elif UNREACHABLE in kinds:
+            # NOT a verdict about the record. A rate-limited or JS-rendered page
+            # is not evidence that a citation is fake, so retry it on a later
+            # pass rather than condemning a good record.
+            move(path, deferred, None)
+            deferred_n += 1
+            print(f"DEFER       {path.name}  (a cited page could not be fetched)")
+        else:
+            kept += 1
+            print(f"VERIFIED    {path.name}")
+
+    for path, reason in malformed:
+        move(path, quarantine, reason)
+        quarantined += 1
+        print(f"QUARANTINE  {path.name}  ({reason.splitlines()[0]})")
+
+    remaining = len(list(inbox.glob("*.json")))
+    print(f"\npartition: {kept} verified, {quarantined} quarantined, "
+          f"{deferred_n} deferred; {remaining} file(s) now in the inbox")
+    return 0
+
+
 def verify(records: list[tuple[str, dict]], fetch: _FetchFn = fetch) -> int:
     """Print a verdict per quote and return 0 only if every one of them is accounted for.
 
@@ -176,11 +363,31 @@ def main(argv: list[str] | None = None) -> int:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--gaps", type=pathlib.Path, help="a register directory")
     src.add_argument("--inbox", type=pathlib.Path, help="a candidate inbox")
+    ap.add_argument("--partition", action="store_true",
+                    help="act per record: quarantine failures, defer unreachable")
+    ap.add_argument("--quarantine", type=pathlib.Path)
+    ap.add_argument("--deferred", type=pathlib.Path)
+    ap.add_argument("--max-records", type=int, default=0,
+                    help="bound one pass (0 = all)")
+    ap.add_argument("--workers", type=int, default=8)
     args = ap.parse_args(argv)
     directory = args.gaps or args.inbox
     if not directory.is_dir():
         print(f"Error: not a directory: {directory}", file=sys.stderr)
         return 2
+    if args.partition:
+        if args.gaps:
+            print("Error: --partition operates on an --inbox, not a register",
+                  file=sys.stderr)
+            return 2
+        return partition(
+            directory,
+            args.quarantine or directory.parent / "quarantine",
+            args.deferred or directory.parent / "deferred",
+            max_records=args.max_records,
+            workers=args.workers,
+        )
+
     records = []
     for path in sorted(directory.glob("*.json")):
         try:
