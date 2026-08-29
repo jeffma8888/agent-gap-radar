@@ -21,6 +21,22 @@ Write one JSON file per candidate into the inbox directory you were given.
    known-bad sample reports health it never measured.
 4. **Novelty** — a check whose rule signature already exists is rejected as a
    restatement. Read the existing register first.
+5. **Twins** — a check that is INTERCHANGEABLE with one already held is rejected,
+   even when it is worded and spelled completely differently. Two checks are
+   interchangeable when each fires on the other's `fixtures.bad` tree and stays
+   SILENT on the other's `fixtures.good` tree. Gate 4 only catches a copied
+   signature; this is the gate that catches the same gap described twice.
+
+   This is the most common way a research pass wastes its own work. Measured on one
+   real backlog: **seven** records for unscoped multi-tenant retrieval, **five** for
+   an approval gate that records no decision, **three** for single-attempt scoring.
+   All of them passed gates 1 to 4. Only one of each survived.
+
+   What makes two records genuinely different is a different **fix**, not different
+   words. If your `fixtures.good` mitigates the problem the same way an existing
+   record's does, you are restating it. If it mitigates it a different way — and an
+   existing check therefore still fires on your good tree — you have found something
+   new, and that is exactly what the silent-on-good half of the test detects.
 
 ## Honesty rules, which override completeness
 
@@ -163,6 +179,22 @@ Every run opens with a census — `examined N candidates in <inbox>` — and clo
 `N accepted, M rejected`, an empty inbox included. Both lines are unconditional on purpose:
 an unattended caller reads a missing summary as proof the tool died, so the census is what
 keeps "there was nothing to do" distinguishable from a crash.
+
+Before you even write a candidate, check whether the register already covers it, by
+pointing the existing checks at your own fixtures:
+
+```
+cd <repo> && uv run radar scan <dir holding your fixtures.bad tree>
+```
+
+Any existing gap that comes back `PRESENT` there is a gap your bad fixture already
+exhibits, which is a strong hint you are about to restate it. Ignore records that
+fire because the directory is small rather than because of what you wrote — a
+fixture tree has no `evals/` directory and no CI config, so the records about those
+will report `PRESENT` on anything. The scan works the same with or without `git
+init`, so there is no need to make the fixture a repository first. Then run the same scan
+against your `fixtures.good` tree: if that same record flips off, gate 5 will refuse
+you. If it stays `PRESENT`, your fix is a different fix and your record is new.
 
 **Exit 0 on its own does not mean YOUR candidate was accepted.** The status is 0 whenever
 anything was accepted OR nothing was refused, so a batch that accepted another agent's file
