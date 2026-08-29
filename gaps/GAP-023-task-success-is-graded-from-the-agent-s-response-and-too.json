@@ -1,0 +1,141 @@
+{
+  "id": "GAP-023",
+  "title": "Task success is graded from the agent's response and tool calls, so a wrong, missing or extra side effect scores as a pass",
+  "layer": "eval-verification",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "My grader reads what the agent said and which tools it called, and nothing reads the system afterwards, so a run that ends politely with plausible tool calls and the wrong persistent state is recorded as a success.",
+  "symptom": "The eval suite is green and the operations team finds duplicate refunds, half-completed workflows and records the task never mentioned; a failure only becomes visible when a human inspects the database, and the benchmark score cannot be reconciled with the support queue.",
+  "why_now": "Agent benchmarks moved into executable environments in 2025 and 2026, but the grader mostly stayed at the language layer: an answer-string match, a rubric, or an LLM judge over the transcript, sometimes plus an assertion that the expected tool was called. Grading the terminal STATE requires the harness to own a resettable backend and to express the intended transition as executable postconditions including the absence of extra writes, which is real engineering, so almost nothing outside code repair benchmarks does it.",
+  "existing": [
+    "Answer-string and rubric grading scores the report of the work rather than the work; an agent that describes a correct refund it never issued is scored correct.",
+    "LLM-as-judge over a transcript inherits the same blind spot, because the transcript records what was attempted, not what persisted.",
+    "Tool-call assertions check that a call was made with plausible arguments; they cannot see a second unintended call, a partially applied multi-step change, or a write that failed silently downstream.",
+    "Code benchmarks do verify outcome by running tests, which is why they were the first place a benchmark's own reward design was audited; non-code domains have no equivalent default."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows",
+      "locator": "https://arxiv.org/abs/2608.19741",
+      "date": "2026-08-20",
+      "quote": "many failed trials show clean termination and valid state-changing actions, showing that response or tool-call-level signals are not clear proxies for end-to-end task completion",
+      "note": "The measured statement of exactly this gap: runs that look correct at the response and tool-call layer are not correct at the state layer, so a grader that reads only those two layers is scoring the wrong variable. arXiv preprint from an industry team, not peer reviewed."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows",
+      "locator": "https://arxiv.org/abs/2608.19741",
+      "date": "2026-08-20",
+      "quote": "accept valid trajectories while rejecting wrong, missing, or extra effects",
+      "note": "Names the three failure classes a response-level grader cannot see, and in particular EXTRA effects, which no answer-match or judge rubric asks about. This is the shape of the missing primitive: an executable check over the terminal state, not a better string comparison."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "From benchmarks to deployment: a comprehensive review of agentic AI evaluation",
+      "locator": "https://link.springer.com/article/10.1007/s10462-026-11571-0",
+      "date": "2026-04-24",
+      "quote": "Current evaluation practices exhibit a critical disconnect between benchmark performance and deployment viability",
+      "note": "Peer-reviewed review in Artificial Intelligence Review, published 24 April 2026, positioning evaluation methodology rather than model capability as the binding constraint on deployment."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "From benchmarks to deployment: a comprehensive review of agentic AI evaluation",
+      "locator": "https://link.springer.com/article/10.1007/s10462-026-11571-0",
+      "date": "2026-04-24",
+      "quote": "A critical analysis demonstrating how test-passing metrics fail to capture deployment-critical dimensions",
+      "note": "The same peer-reviewed source states as one of its contributions that pass-style metrics miss the dimensions deployment depends on, which is the general form of the specific defect this check looks for."
+    }
+  ],
+  "build_hypothesis": "A grading contract with two required parts per task: a resettable backend fixture, and postconditions expressed as executable assertions over the terminal state that must include a no-extra-effects clause (the diff against the initial snapshot contains nothing the task did not ask for). The smallest useful version wraps an existing harness: snapshot before, snapshot after, and fail any run whose diff has an unexplained row. That alone converts the silent class of failure into a visible one without writing a single new task.",
+  "tags": [
+    "outcome-verification",
+    "state",
+    "grader",
+    "side-effects",
+    "benchmark"
+  ],
+  "check": {
+    "id": "CHK-022",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(def\\s+(grade|score|judge|evaluate)\\w*\\s*\\(|expected_answer|expected_output|llm_judge|rubric|pass@1|success_rate)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)def\\s+(grade|score|judge|evaluate)\\w*\\s*\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(expected_answer|expected_output|final_answer|final_text|messages\\[-1\\]|response\\s*==|output\\s*==|llm_judge|judge_prompt|rubric|tool_calls)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.cfg",
+            "**/*.ini"
+          ],
+          "pattern": "(?i)(final_state|state_after|terminal_state|end_state|state_diff|state_snapshot|snapshot_state|assert_state|verify_state|postcondition|post_condition|side_effect|extra_effect|collateral)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.md",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json",
+        "**/*.cfg",
+        "**/*.ini"
+      ],
+      "pattern": "(?i)(final_state|state_after|terminal_state|end_state|state_diff|state_snapshot|snapshot_state|assert_state|verify_state|postcondition|post_condition|side_effect|extra_effect|collateral)"
+    },
+    "manual_question": "Your grader decides whether an attempt passed. After the agent stops, does anything read the system it acted on and compare it against the intended change, including checking that nothing ELSE changed?",
+    "rationale": "A grading function that reaches for the final message, an expected answer, a judge or the tool-call list is grading the language layer, and the absence anywhere in the repo of terminal-state vocabulary (a snapshot, a state diff, a postcondition, a side-effect assertion) is good evidence that nothing verifies what the run left behind. What it can get wrong: a project may verify outcome by running a target test suite (the code-repair pattern), which is a genuine state check spelled in different words, and a project whose backend is verified in a separate service will read as exhibiting the gap. Both are reasons to treat a hit as a signature to confirm, not a verdict.",
+    "fixtures": {
+      "bad": {
+        "evals/grade.py": "\"\"\"Grade an attempt from what the agent said and which tools it called.\"\"\"\n\n\ndef grade(task: dict, transcript) -> bool:\n    final_answer = transcript.messages[-1].content.strip().lower()\n    if task[\"expected_answer\"].lower() not in final_answer:\n        return False\n    called = [c.name for c in transcript.tool_calls]\n    return all(name in called for name in task[\"required_tools\"])\n",
+        "evals/tasks.jsonl": "{\"id\": \"retail-001\", \"prompt\": \"cancel order 4471 and refund the card\", \"tools\": [\"orders\", \"payments\"], \"expected\": \"refunded\"}\n"
+      },
+      "good": {
+        "evals/grade.py": "\"\"\"Grade an attempt from what the agent said AND from the state it left behind.\"\"\"\n\nfrom evals.state_check import verify_state\n\n\ndef grade(task: dict, transcript, backend) -> bool:\n    final_answer = transcript.messages[-1].content.strip().lower()\n    if task[\"expected_answer\"].lower() not in final_answer:\n        return False\n    called = [c.name for c in transcript.tool_calls]\n    if not all(name in called for name in task[\"required_tools\"]):\n        return False\n    return verify_state(task, backend)\n",
+        "evals/state_check.py": "\"\"\"Outcome verification over the terminal backend state.\n\nA response-level grader cannot see a wrong write, a missing write, or a write the\ntask never asked for, so success is decided here: the state the run left behind\nmust match the intended transition exactly, with no extra effects.\n\"\"\"\n\n\ndef verify_state(task: dict, backend) -> bool:\n    final_state = backend.snapshot()\n    state_diff = backend.diff(task[\"initial_state\"], final_state)\n    if state_diff.missing or state_diff.wrong:\n        return False\n    if state_diff.extra:\n        return False\n    for postcondition in task[\"postconditions\"]:\n        if not postcondition(final_state):\n            return False\n    return True\n",
+        "evals/tasks.jsonl": "{\"id\": \"retail-001\", \"prompt\": \"cancel order 4471 and refund the card\", \"tools\": [\"orders\", \"payments\"], \"expected\": \"refunded\"}\n"
+      }
+    }
+  }
+}

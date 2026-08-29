@@ -1,0 +1,125 @@
+{
+  "id": "GAP-017",
+  "title": "An agent eval records the score but not the spend that produced it, so accuracy bought with compute is indistinguishable from a better agent",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent's eval score went from 54% to 61% and I cannot tell whether it got smarter or whether I just let it retry more, because my harness records pass/fail and nothing else.",
+  "symptom": "A leaderboard row or an internal dashboard shows one number per configuration. Nobody can answer 'what did that cost per task', so a scaffold that buys three points with ten times the tokens ranks above a cheaper agent, and the same score is then quoted as a real-task capability claim even though the real deployment has a per-task budget the benchmark run never had.",
+  "why_now": "Agent runs are multi-step, so spend per task now varies by orders of magnitude between configurations of the SAME model, which was not true for single-shot model evals where accuracy alone was a fair ranking. 2025 harness work reports both that measuring this at scale is expensive and that spend does not move accuracy monotonically, so the ranking a score-only harness produces is not merely incomplete, it can be inverted relative to what a budgeted deployment would choose.",
+  "existing": [
+    "Cost-controlled and Pareto-style evaluation was prescribed in 2024 (AI Agents That Matter) and implemented in 2025 harnesses such as HAL, but it is a property of those specific harnesses, not a contract a team's own eval suite is held to.",
+    "Provider dashboards report spend per API key, aggregated across runs, so they cannot attribute cost to a task or a configuration.",
+    "Wall-clock timing is sometimes recorded, which correlates with spend but does not price parallel or cached calls."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "Holistic Agent Leaderboard: The Missing Infrastructure for AI Agent Evaluation",
+      "locator": "https://arxiv.org/abs/2510.11977",
+      "date": "2025-10-13",
+      "quote": "We validate the harness by conducting 21,730 agent rollouts across 9 models and 9 benchmarks in coding, web navigation, science, and customer service with a total cost of about $40,000.",
+      "note": "First-party report by the harness authors. Spend is reported as a first-class quantity of the evaluation, which is the primitive a score-only harness omits. arXiv preprint; the fetched abstract page names no peer-review venue, so classed maintainer-primary rather than peer-reviewed."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Holistic Agent Leaderboard: The Missing Infrastructure for AI Agent Evaluation",
+      "locator": "https://arxiv.org/abs/2510.11977",
+      "date": "2025-10-13",
+      "quote": "Our analysis reveals surprising insights, such as higher reasoning effort reducing accuracy in the majority of runs.",
+      "note": "Direct evidence that spend and accuracy are not monotonically related, so a score reported without its spend cannot be ranked or compared - the omission changes the conclusion, it does not merely lose detail."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "First, there is a narrow focus on accuracy without attention to other metrics.",
+      "note": "Prior art, dated 2024 and therefore OUTSIDE the 2025-2026 window this pass was asked about; cited to show the diagnosis is two years old and still unclosed. Same page: SOTA agents are described as needlessly complex and costly, with mistaken community conclusions about the sources of accuracy gains."
+    }
+  ],
+  "build_hypothesis": "A per-task usage record in the harness: wrap the model client so every call accumulates input/output tokens and a priced cost into the task's result row, then emit accuracy AND spend-per-task together and refuse to print a bare score. A CI gate can then fail a change that buys accuracy above a declared cost-per-task ceiling. This is a wrapper plus one column, and it makes every later comparison legitimate.",
+  "tags": [
+    "evals",
+    "cost-accounting",
+    "pareto",
+    "benchmark-validity"
+  ],
+  "check": {
+    "id": "CHK-016",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(def\\s+(run_)?eval(uate)?\\b|pass_at_k|pass@[0-9]|swe[-_]?bench|tau[-_]?bench|webarena|agentbench|benchmark_task)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(openai|anthropic|litellm|bedrock|chat\\.completions|messages\\.create|generate_content|langchain|langgraph)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(def\\s+(run_)?eval(uate)?\\b|pass_at_k|pass@[0-9]|swe[-_]?bench|tau[-_]?bench|webarena|agentbench|benchmark_task)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(openai|anthropic|litellm|bedrock|chat\\.completions|messages\\.create|generate_content|langchain|langgraph)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)(prompt_tokens|completion_tokens|input_tokens|output_tokens|total_tokens|token_count|cost_usd|usd_cost|total_cost|cost_per_|price_per_|budget_usd|dollars_spent|spend_usd)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)(prompt_tokens|completion_tokens|input_tokens|output_tokens|total_tokens|token_count|cost_usd|usd_cost|total_cost|cost_per_|price_per_|budget_usd|dollars_spent|spend_usd)"
+    },
+    "manual_question": "For the last eval score you quoted, what was the spend per task that produced it? If the harness did not record tokens or dollars alongside pass/fail, that score cannot be compared against another configuration or against a budgeted deployment.",
+    "rationale": "A tree that both grades agent runs and calls a model API, yet never names a token or cost field anywhere in its code or config, is not recording spend. What it can get wrong: a team may read spend from a provider dashboard or a gateway (Helicone, Langfuse) outside the repo, which reads as PRESENT while the practice exists at lower fidelity; and a repo that mentions total_tokens only for context-window trimming reads as mitigated while never attributing cost to a task. Because mitigated_when excludes test files, a token assertion that exists only in a unit test is correctly not credited.",
+    "fixtures": {
+      "bad": {
+        "eval/harness.py": "from openai import OpenAI\n\nclient = OpenAI()\n\n\ndef act(task):\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=[{\"role\": \"user\", \"content\": task[\"goal\"]}],\n    )\n    return reply.choices[0].message.content\n\n\ndef run_eval(tasks):\n    rows = []\n    for task in tasks:\n        out = act(task)\n        rows.append({\"task\": task[\"id\"], \"passed\": task[\"marker\"] in out})\n    score = sum(r[\"passed\"] for r in rows) / len(rows)\n    print(f\"score={score:.3f}\")\n    return score\n",
+        "eval/config.yaml": "model: gpt-4o\nmax_retries: 8\nparallel: 16\n"
+      },
+      "good": {
+        "eval/harness.py": "from openai import OpenAI\n\nfrom eval.cost import price\n\nclient = OpenAI()\n\n\ndef act(task):\n    reply = client.chat.completions.create(\n        model=\"gpt-4o\",\n        messages=[{\"role\": \"user\", \"content\": task[\"goal\"]}],\n    )\n    usage = reply.usage\n    return reply.choices[0].message.content, usage.prompt_tokens, usage.completion_tokens\n\n\ndef run_eval(tasks):\n    rows = []\n    for task in tasks:\n        out, tin, tout = act(task)\n        rows.append({\n            \"task\": task[\"id\"],\n            \"passed\": task[\"marker\"] in out,\n            \"cost_usd\": price(\"gpt-4o\", tin, tout),\n        })\n    score = sum(r[\"passed\"] for r in rows) / len(rows)\n    spend = sum(r[\"cost_usd\"] for r in rows)\n    # never print a bare score: accuracy is only interpretable next to its spend\n    print(f\"score={score:.3f} spend_usd={spend:.2f} usd_per_task={spend / len(rows):.4f}\")\n    return score, spend\n",
+        "eval/cost.py": "PRICES = {\"gpt-4o\": (2.50 / 1_000_000, 10.00 / 1_000_000)}\n\n\ndef price(model, prompt_tokens, completion_tokens):\n    \"\"\"Dollars for one call, so every task row carries a cost_usd.\"\"\"\n    pin, pout = PRICES[model]\n    return prompt_tokens * pin + completion_tokens * pout\n",
+        "eval/config.yaml": "model: gpt-4o\nmax_retries: 8\nparallel: 16\nbudget_usd_per_task: 0.35\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "id": "GAP-027",
+  "title": "Eval task records carry no realism attribute, so a suite pass rate cannot be conditioned on how unlike real work its tasks are",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "I can quote a pass rate for my agent, but I cannot tell anyone how much of it survives contact with real work, because nothing in my task records says how realistic each task is.",
+  "symptom": "The suite reports a high pass rate and the same agent stalls on the first real ticket. Nobody can decompose the number, because every task looks identical in the record: an id, a prompt, an expected output. The only available explanation is anecdote.",
+  "why_now": "The 2025-2026 literature established that the effect is real and that the attribute is missing at the same time. METR had to invent a 16-factor messiness rubric and hand-label two existing suites to measure it, and found that models do worse on messier tasks even after controlling for task length. Nothing that measurement needed exists in any task schema, so every consumer of a pass rate has to re-derive it or do without.",
+  "existing": [
+    "Task LENGTH or human time-to-complete labels: a genuine advance, but METR's own result is that messiness costs success rate BEYOND what length predicts, so a length label does not carry the information.",
+    "Building a more realistic suite (TheAgentCompany's simulated company, GDPval-style task sourcing): moves the population, but the realism stays a property of the suite's construction rather than a per-task field, so scores still cannot be split by it or compared across suites.",
+    "Prose limitations sections: state the caveat where no tool can read it, and they are written once at publication while the suite is consumed for years."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks",
+      "locator": "https://arxiv.org/abs/2503.14499",
+      "date": "2025-03-18",
+      "quote": "Despite rapid progress on AI benchmarks, the real-world meaning of benchmark performance remains unclear.",
+      "note": "Peer-reviewed: the arXiv abstract page carries 'Journal reference: NeurIPS 2025'. The paper's opening sentence states the gap this record is about as an open problem, not a solved one."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks (full text, Appendix F.2 Messiness factors)",
+      "locator": "https://arxiv.org/html/2503.14499v4",
+      "date": "2025-03-18",
+      "quote": "Controlling for task length, we find models perform worse on tasks that have higher messiness scores.",
+      "note": "The authors had to INVENT a 16-factor realism attribute and label tasks by hand to make this measurable, because no benchmark task record carries one. That the effect is real (and length-independent) is what makes the missing attribute a measurement gap rather than a nicety."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks (full text, Appendix F.2)",
+      "locator": "https://arxiv.org/html/2503.14499v4",
+      "date": "2025-03-18",
+      "quote": "None of these tasks have a messiness score above 8/16.",
+      "note": "Quantifies the ceiling: the suites used to make headline agent claims occupy the low half of the realism range the authors defined, and a consumer of the pass rate cannot see that from the task records."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "TheAgentCompany: Benchmarking LLM Agents on Consequential Real World Tasks",
+      "locator": "https://arxiv.org/abs/2412.14161",
+      "date": "2025-09-10",
+      "quote": "We build a self-contained environment with internal web sites and data that mimics a small software company environment",
+      "note": "Classified practitioner-report, NOT peer-reviewed: the arXiv abs page Comments field reads 'Preprint'. Cited for one thing only, that the realism of an agentic suite is a property of its construction that the task records do not carry."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "Such issues can lead to under- or overestimation of agents' performance by up to 100% in relative terms.",
+      "note": "Classified survey-aggregate, NOT peer-reviewed: as fetched, the arXiv abs page (v5) lists no venue. It synthesises a survey of best practices plus an assessment of 17 widely used agentic benchmarks, which is what earns the non-zero weight."
+    }
+  ],
+  "build_hypothesis": "A small, closed realism vocabulary as OPTIONAL task-record fields (resource_limited, novel_situation, dynamic_environment, real_world_sourced, underspecified, real_time_coordination) plus one reporting verb that emits pass rate SPLIT by realism score instead of a single aggregate. The labels are cheap (METR used two contractors and one researcher) and the value appears the moment a second suite adopts the same vocabulary, because scores become comparable along the axis that predicts real-task transfer.",
+  "tags": [
+    "benchmarks",
+    "external-validity",
+    "task-metadata",
+    "realism"
+  ],
+  "check": {
+    "id": "CHK-026",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.py"
+      ],
+      "pattern": "(?i)(^\\s*tasks\\s*:|task_id|\\\"tasks\\\"\\s*:)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.py"
+          ],
+          "pattern": "(?i)(^\\s*tasks\\s*:|task_id|\\\"tasks\\\"\\s*:)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.py",
+            "**/*.md",
+            "**/*.toml"
+          ],
+          "pattern": "(?i)messiness|realism|underspecif|ill[_-]?specified|resource[_-]?limited|dynamic[_-]?environment|real[_-]?world[_-]?sourced"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json"
+      ],
+      "pattern": "(?i)messiness|realism_(score|factors|label)|realism[_-]?rubric"
+    },
+    "manual_question": "For each task in your eval suite, can a consumer of the pass rate read off how unlike real work that task is (resource limits, novelty, a dynamic environment, underspecification, real-world provenance), and can you report the pass rate split by that attribute rather than only as one aggregate?",
+    "rationale": "The signature is the ABSENCE of any realism vocabulary anywhere near a task record, in a repo that plainly has task records. It is a label-presence check and that is deliberate: the gap IS that the field does not exist, so there is no behaviour to detect, only a schema. What it can get wrong, both ways: a project that spells the attribute with vocabulary of its own (difficulty tiers meaning realism, a 'production_like' flag) reads as PRESENT when it is not; and a repo that merely mentions the word 'realism' in an unrelated docstring reads as mitigated when nothing computes it, which is why mitigated_when demands a scored form (messiness, realism_score, realism_factors) rather than the bare word.",
+    "fixtures": {
+      "bad": {
+        "evals/tasks.yaml": "tasks:\n  - task_id: refund-001\n    prompt: Refund the customer's last order.\n    expected_output: refunded\n    timeout_s: 120\n  - task_id: triage-002\n    prompt: Triage the open bug reports.\n    expected_output: triaged\n    timeout_s: 300\n",
+        "evalkit/report.py": "def suite_pass_rate(results):\n    \"\"\"One aggregate number over every task in the suite.\"\"\"\n    return sum(1 for r in results if r.passed) / len(results)\n"
+      },
+      "good": {
+        "evals/tasks.yaml": "tasks:\n  - task_id: refund-001\n    prompt: Refund the customer's last order.\n    expected_output: refunded\n    realism_factors: [resource_limited]\n  - task_id: triage-002\n    prompt: Triage the open bug reports.\n    expected_output: triaged\n    realism_factors: [underspecified, dynamic_environment, real_world_sourced]\n",
+        "evalkit/report.py": "REALISM_VOCAB = (\n    'resource_limited', 'novel_situation', 'dynamic_environment',\n    'real_world_sourced', 'underspecified', 'real_time_coordination',\n)\n\ndef realism_score(task):\n    \"\"\"Count of realism factors carried by this task record.\"\"\"\n    return len([f for f in task['realism_factors'] if f in REALISM_VOCAB])\n\ndef pass_rate_by_realism(tasks, results):\n    \"\"\"Pass rate SPLIT by realism score, never a bare aggregate.\"\"\"\n    buckets = {}\n    for task, result in zip(tasks, results):\n        buckets.setdefault(realism_score(task), []).append(result.passed)\n    return {k: sum(v) / len(v) for k, v in buckets.items()}\n"
+      }
+    }
+  }
+}

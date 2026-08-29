@@ -1,0 +1,133 @@
+{
+  "id": "GAP-038",
+  "title": "A spending agent is supervised by a keep-alive policy and exposes no durable stop control, so ending a runaway means defeating the supervisor",
+  "layer": "cost-governance",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent burned tokens all night and I could not stop it, because the thing I killed was a process and the thing that owned it was a keep-alive supervisor that started a fresh one within seconds.",
+  "symptom": "Spend keeps climbing after the operator believes the agent has been stopped. The kill succeeds, the PID changes, consumption continues, and the remedies that actually work are ones no runbook names: unloading the daemon, disabling the unit, or revoking the API key. Every one of those has a wider blast radius than the single workload that is misbehaving, and none of them is a control the agent itself offers.",
+  "why_now": "Agent loops are deliberately long-running, so they get placed under launchd, systemd, supervisord, pm2 or a container restart policy, whose entire purpose is to defeat termination. That was a correct default when the supervised thing was a stateless server whose downtime cost more than its uptime. It is the wrong default when each iteration spends money, because the supervisor cannot tell crashed, restart it from burning money, do not come back. No mainstream agent runtime ships a halt primitive that survives process death, so the stop control is improvised per project or absent, and it is discovered to be absent during the incident.",
+  "existing": [
+    "Provider account-level spend caps do end the burn, but they act on the whole organisation or key, so the blast radius is every other workload sharing it rather than the one loop that is misbehaving.",
+    "Rate limiting slows a runaway without ending it. The incident report is explicit that a throttled infinite loop is still infinite, because every request still pays the full input context cost.",
+    "Supervisor commands such as launchctl bootout or systemctl disable do work, but they are operator knowledge rather than a control the system publishes, and they require knowing which supervisor owns the process, which is precisely what the responder in this incident did not know.",
+    "In-process budget guards, signal handlers and atexit hooks are re-initialised from zero by the restart, so they cannot express do not come back and are silently reset by the very event they should prevent."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "400 Million Tokens Burned Overnight - A Multi-Agent AI Postmortem",
+      "locator": "https://raw.githubusercontent.com/nerudek/hermes-token-loop-postmortem/main/README.md",
+      "date": "2026-05-24",
+      "quote": "the bridge was managed by launchd. Killing it spawned a new instance. The daemon had to be fully unloaded",
+      "note": "First-hand postmortem of a 400 million input token, 15 hour runaway across 5,080 sessions. It names the supervisor as the reason the obvious stop action failed: killing the process was undone by launchd, and the responder had to know to unload the daemon instead. Date is the incident date stated in the page (Sunday, May 24, 2026); the page gives no exact publication date beyond May 2026, and this locator is the raw README, which is the byte-for-byte text I fetched."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "400 Million Tokens Burned Overnight - A Multi-Agent AI Postmortem",
+      "locator": "https://github.com/nerudek/hermes-token-loop-postmortem",
+      "date": "2026-05-24",
+      "quote": "You have to know to UNLOAD the daemon, not just kill the process",
+      "note": "Same postmortem, rendered page, from its table of remedies that do not work. The author lists killing the process as a defeated remedy, and the reason is stated as supervisor policy rather than as a bug. This is the sentence that makes the gap a missing primitive rather than an operator error: the correct action was undiscoverable from inside the system."
+    }
+  ],
+  "build_hypothesis": "A one-file stop-sentinel contract plus a conformance scanner. The contract: an agent loop checks a documented path at the top of every iteration, exits with a documented non-restart exit code when it is present, and the generated supervisor unit is written to honour that code (systemd RestartPreventExitStatus, launchd SuccessfulExit semantics) so the halt survives the supervisor rather than fighting it. The scanner asserts that every entry point named by a supervisor unit in the repo performs the check, which is a static property and therefore cheap to enforce in CI.",
+  "tags": [
+    "cost",
+    "runaway",
+    "supervisor",
+    "stop-control",
+    "loop"
+  ],
+  "check": {
+    "id": "CHK-037",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "messages\\.create|chat\\.completions\\.create|responses\\.create|invoke_model|generate_content|Runner\\.run|AgentExecutor|create_react_agent"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.plist",
+            "**/*.service",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.conf",
+            "**/*.ini",
+            "**/*.sh",
+            "**/Procfile",
+            "**/*.tf",
+            "**/*.json"
+          ],
+          "pattern": "(?i)<key>\\s*KeepAlive\\s*</key>|Restart\\s*=\\s*(?:always|on-failure)|autorestart\\s*=\\s*true|restart:\\s*(?:always|unless-stopped)|--restart[= ](?:always|unless-stopped)|<key>\\s*StartInterval\\s*</key>|pm2\\s+start"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.plist",
+            "**/*.service",
+            "**/*.yml",
+            "**/*.yaml",
+            "**/*.conf",
+            "**/*.ini",
+            "**/*.sh",
+            "**/Procfile",
+            "**/*.tf",
+            "**/*.json"
+          ],
+          "pattern": "(?i)<key>\\s*KeepAlive\\s*</key>|Restart\\s*=\\s*(?:always|on-failure)|autorestart\\s*=\\s*true|restart:\\s*(?:always|unless-stopped)|--restart[= ](?:always|unless-stopped)|<key>\\s*StartInterval\\s*</key>|pm2\\s+start"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)stop[_-]?file|stopfile|kill[_-]?switch|killswitch|stop[_-]?sentinel|halt[_-]?file|pause[_-]?file|stop[_-]?requested|should[_-]?stop|emergency[_-]?stop|budget[_-]?halt|launchctl\\s+(?:unload|bootout|disable)|systemctl\\s+(?:stop|disable)|docker\\s+(?:stop|update\\s+--restart)|supervisorctl\\s+stop"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.sh"
+      ],
+      "pattern": "(?i)stop[_-]?file|stopfile|kill[_-]?switch|killswitch|stop[_-]?sentinel|halt[_-]?file|pause[_-]?file|stop[_-]?requested|emergency[_-]?stop|budget[_-]?halt"
+    },
+    "manual_question": "Something in this repo restarts a process automatically. If that process is spending money per iteration, what is the documented way for a human to make it stop and STAY stopped, and does the loop itself check for that signal on every iteration rather than relying on the operator knowing which supervisor owns it?",
+    "rationale": "Fires when the repo ships an automatic-restart policy for a tree that also makes model calls, and nothing anywhere in the tree names a durable stop control. The two halves are deliberately asymmetric. The absence rule is broad, spanning every tracked file and every plausible spelling of a stop sentinel, so any project that has thought about halting at all escapes a PRESENT verdict; the mitigation rule is narrower and must match executable code, so documentation alone lands on MANUAL rather than being credited as a control. Known failure directions: a stop control implemented in an external control plane, an orchestrator outside this repo, or a cloud console reads as PRESENT when the capability genuinely exists; and merely spelling stop_file somewhere does not prove the loop consults it before the next paid call, which is why a double match escalates to MANUAL instead of passing.",
+    "fixtures": {
+      "bad": {
+        "deploy/com.example.agent.plist": "<plist version=\"1.0\">\n<dict>\n  <key>Label</key><string>com.example.agent</string>\n  <key>ProgramArguments</key><array><string>python3</string><string>app/loop.py</string></array>\n  <key>KeepAlive</key><true/>\n  <key>RunAtLoad</key><true/>\n</dict>\n</plist>\n",
+        "app/loop.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\n\ndef main():\n    while True:\n        reply = client.messages.create(\n            model='claude-sonnet-4-5',\n            max_tokens=2048,\n            messages=[{'role': 'user', 'content': next_task()}],\n        )\n        act(reply)\n\n\nif __name__ == '__main__':\n    main()\n",
+        "README.md": "Run the agent under launchd so it comes back after a reboot.\n"
+      },
+      "good": {
+        "deploy/com.example.agent.plist": "<plist version=\"1.0\">\n<dict>\n  <key>Label</key><string>com.example.agent</string>\n  <key>ProgramArguments</key><array><string>python3</string><string>app/loop.py</string></array>\n  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>\n  <key>RunAtLoad</key><true/>\n</dict>\n</plist>\n",
+        "app/control.py": "import pathlib\n\nSTOP_SENTINEL = pathlib.Path('/var/run/example-agent.stop')\n\n\ndef halt_requested() -> bool:\n    \"\"\"A stop_file on disk outlives this process, so the supervisor cannot undo it.\"\"\"\n    return STOP_SENTINEL.exists()\n",
+        "app/loop.py": "import sys\n\nimport anthropic\n\nfrom app.control import halt_requested\n\nclient = anthropic.Anthropic()\n\n\ndef main():\n    while True:\n        if halt_requested():\n            sys.exit(0)\n        reply = client.messages.create(\n            model='claude-sonnet-4-5',\n            max_tokens=2048,\n            messages=[{'role': 'user', 'content': next_task()}],\n        )\n        act(reply)\n\n\nif __name__ == '__main__':\n    main()\n",
+        "README.md": "Stopping the agent: touch the stop_file at /var/run/example-agent.stop. The\nloop checks it before every paid call and exits 0, which launchd is configured\nnot to restart.\n"
+      }
+    }
+  }
+}

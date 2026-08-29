@@ -1,0 +1,164 @@
+{
+  "id": "GAP-040",
+  "title": "An eval bank records no per-task size label, so one aggregate pass rate cannot be projected onto the longer tasks real users bring",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent passes 74 percent of my task bank, and I cannot tell you whether that means it can finish a four-minute task or a four-hour one, because nothing in the bank records how big each task was.",
+  "symptom": "A single headline pass rate that stays flat while real users report the agent failing on exactly the long, multi-step work they wanted it for; every regression argument turns into an argument about which tasks are in the bank.",
+  "why_now": "The peer-reviewed 2025 work that set out to connect benchmark scores to real work had to introduce a length-denominated metric to do it: METR's NeurIPS 2025 paper states outright that the real-world meaning of benchmark performance remains unclear and proposes a 50 percent task-completion time horizon, timing human experts per task to get there. Almost no in-house eval bank carries that label, so the conversion METR performs is unavailable to the teams who need it, and the aggregate they do have is dominated by whatever length distribution their bank happens to hold.",
+  "existing": [
+    "Aggregate pass@1 on a task bank: a mean over an unstated length distribution, so adding short tasks raises the score without any capability change.",
+    "Human-eval spot checks: catch that long tasks fail, but produce an anecdote rather than a curve, so nothing can be tracked release over release.",
+    "Step or token caps in the harness: bound cost per run, and are sometimes mistaken for a difficulty label, but a cap is an input constraint and not a measurement of how much work the task actually is."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks",
+      "locator": "https://arxiv.org/abs/2503.14499",
+      "date": "2025-03-18",
+      "quote": "Despite rapid progress on AI benchmarks, the real-world meaning of benchmark performance remains unclear. To quantify the capabilities of AI systems in terms of human capabilities, we propose a new metric: 50%-task-completion time horizon.",
+      "note": "The arXiv abstract page for this version carries the journal reference NeurIPS 2025, so the venue is verified rather than assumed. It names the exact gap in the first sentence and names the missing primitive in the second: a per-task human-time label, without which no benchmark score can be expressed in units a stakeholder recognises."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "An Illusion of Progress? Assessing the Current State of Web Agents",
+      "locator": "https://arxiv.org/abs/2504.01382",
+      "date": "2025-04-02",
+      "quote": "Our results depict a very different picture of the competency of current agents, suggesting over-optimism in previously reported results. This gap can be attributed to shortcomings in existing benchmarks.",
+      "note": "Journal reference COLM 2025 on the abstract page, so peer-reviewed. Independent confirmation that the benchmark-to-real gap is a property of how the bank was built, not of the agent, and that re-collecting tasks to approximate real use changes the ranking."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "However, we show that many agentic benchmarks have issues in task setup or reward design. For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "Classified survey-aggregate rather than peer-reviewed on purpose: the abstract page lists no venue, only page and figure counts, and the paper describes itself as synthesised from a survey of best practices and previously reported issues. Supports the same conclusion from the construction side: an aggregate score inherits every defect of the bank's composition."
+    }
+  ],
+  "build_hypothesis": "A two-field addition to a task record plus one reporting rule: require every task to carry a size label (human minutes, or a step-count reference solution) and make the harness refuse to emit a single scalar pass rate, emitting a pass rate per size band instead. The smallest useful version is a linter over an existing bank that reports what fraction of tasks are unlabelled and what the score would be if the bank's length distribution were reweighted.",
+  "tags": [
+    "evals",
+    "benchmark-gap",
+    "horizon",
+    "measurement",
+    "task-length"
+  ],
+  "check": {
+    "id": "CHK-039",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "**/evals/**/*.py",
+        "**/eval/**/*.py",
+        "**/*eval*.py",
+        "**/*grader*.py",
+        "**/*scorer*.py",
+        "**/*benchmark*.py",
+        "evals/**/*.json",
+        "evals/**/*.jsonl",
+        "evals/**/*.yaml",
+        "evals/**/*.yml",
+        "eval/**/*.json",
+        "eval/**/*.jsonl",
+        "**/tasks/**/*.json",
+        "**/tasks/**/*.jsonl"
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "**/*eval*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*benchmark*.py",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "eval/**/*.json",
+            "eval/**/*.jsonl",
+            "**/tasks/**/*.json",
+            "**/tasks/**/*.jsonl"
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:human[_-]?(?:minutes|hours|time|seconds)|time[_-]?horizon|task[_-]?(?:minutes|duration|length|hours)|(?:expected|estimated|reference)[_-]?(?:minutes|duration|hours)|difficulty[_-]?(?:bucket|bin|band|tier)|horizon[_-]?(?:bucket|bin|band|minutes))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:human[_-]?(?:minutes|hours|time|seconds)|time[_-]?horizon|task[_-]?(?:minutes|duration|length|hours)|(?:expected|estimated|reference)[_-]?(?:minutes|duration|hours)|difficulty[_-]?(?:bucket|bin|band|tier)|horizon[_-]?(?:bucket|bin|band|minutes))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:group_?by|groupby|stratif|bucket|binned|by[_-]?(?:horizon|length|duration|difficulty)|per[_-]?(?:horizon|length|duration|difficulty)[_-]?(?:bucket|bin|band|tier)?)"
+        }
+      ]
+    },
+    "manual_question": "For your eval bank: what is the distribution of task sizes in it, in human minutes or reference step counts, and can you report your pass rate separately for the largest band? If you cannot, your headline number is a weighted average over a length distribution you did not choose.",
+    "rationale": "A repo that ships an eval bank but has no size label anywhere in its code or data cannot report success as a function of task length, which is the conversion the peer-reviewed work needs to connect a benchmark number to real work. Markdown is deliberately excluded from the absence search because a README that discusses time horizons is not a recorded per-task label. Known failure modes: a repo that stores the label under a name outside the vocabulary reads as PRESENT when it is not, and a repo that happens to use the words bucket or groupby for an unrelated purpose while also carrying a length label reads as mitigated when the grouping is not by length, which is why both sides are lexical evidence and the manual question asks for the distribution directly.",
+    "fixtures": {
+      "bad": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Refund the last order for user_7\", \"expect\": \"refund_created\"}\n{\"id\": \"t2\", \"prompt\": \"Change the shipping address on order 91\", \"expect\": \"address_updated\"}\n{\"id\": \"t3\", \"prompt\": \"Migrate the billing module to the new SDK\", \"expect\": \"tests_pass\"}\n",
+        "evals/report.py": "\"\"\"Score the task bank and report one number.\"\"\"\nimport json\n\ndef load(path):\n    return [json.loads(line) for line in open(path)]\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\"):\n    tasks = load(path)\n    passed = 0\n    for task in tasks:\n        result = agent(task[\"prompt\"])\n        if result == task[\"expect\"]:\n            passed += 1\n    # One aggregate. Nothing records how big each task was, so the number\n    # cannot be projected onto a longer real task.\n    return {\"pass_rate\": passed / len(tasks), \"n\": len(tasks)}\n"
+      },
+      "good": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Refund the last order for user_7\", \"expect\": \"refund_created\", \"human_minutes\": 4}\n{\"id\": \"t2\", \"prompt\": \"Change the shipping address on order 91\", \"expect\": \"address_updated\", \"human_minutes\": 9}\n{\"id\": \"t3\", \"prompt\": \"Migrate the billing module to the new SDK\", \"expect\": \"tests_pass\", \"human_minutes\": 240}\n",
+        "evals/report.py": "\"\"\"Score the task bank and report success as a function of task size.\"\"\"\nimport json\n\nHORIZON_BANDS = [(0, 5), (5, 30), (30, 120), (120, 10000)]\n\ndef load(path):\n    return [json.loads(line) for line in open(path)]\n\ndef band_of(human_minutes):\n    for low, high in HORIZON_BANDS:\n        if low <= human_minutes < high:\n            return \"%d-%dmin\" % (low, high)\n    return \"unbanded\"\n\ndef run_bank(agent, path=\"evals/tasks.jsonl\"):\n    tasks = load(path)\n    # Every task carries a human_minutes label, so the score is reported\n    # stratified by horizon band and never collapsed to one mean.\n    by_band = {}\n    for task in tasks:\n        band = band_of(task[\"human_minutes\"])\n        ok = agent(task[\"prompt\"]) == task[\"expect\"]\n        hit, total = by_band.get(band, (0, 0))\n        by_band[band] = (hit + int(ok), total + 1)\n    return {band: hit / total for band, (hit, total) in by_band.items()}\n"
+      }
+    }
+  }
+}

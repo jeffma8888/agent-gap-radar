@@ -1,0 +1,97 @@
+{
+  "id": "GAP-018",
+  "title": "Memory retrieval has no relevance floor, so a top-k lookup returns k rows however far away they are and a long-lived store guarantees stale context on every turn",
+  "layer": "context-memory",
+  "gap_type": "wrong-default",
+  "status": "open",
+  "problem": "My agent's memory lookup asks for the five nearest rows and always gets five, so on a turn where the store holds nothing relevant it confidently hands the model five old rows about something else.",
+  "symptom": "The agent references a decision from a different task, or re-applies a preference that was superseded weeks ago, and the retrieval log looks perfectly normal because the query returned the number of rows it was asked for. The failure rate grows with the store, not with the code, so it appears as the agent getting worse over time with no change deployed.",
+  "why_now": "Unconditional top-k is the shape of every default retrieval API and the shape of nearly every memory tutorial, because a fixed k is what a vector index is cheapest to serve. It is a defensible default for document search, where the user reads the results and discards the bad ones, and a bad default for agent memory, where the rows are spliced into a prompt and there is no reader in between. The threshold primitive exists in the libraries and is optional and off; the arrival of long-lived per-user agent memory in 2025 and 2026 is what turned an optional filter into a load-bearing one.",
+  "existing": [
+    "Score thresholds exist in the retrieval libraries (LangChain's score_threshold kwarg and its similarity_score_threshold search type) but they are optional and default to off, so the ergonomic path is the unfiltered one.",
+    "Reranking reorders the k rows it is given; it changes which stale row lands first, and does not decide that none of them should be injected.",
+    "Recency filters and TTLs bound how OLD a row can be, which is a different axis: a fresh row about an unrelated task is still a distractor, and a threshold is what excludes it."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_core/vectorstores/base.py (LangChain core, master)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/core/langchain_core/vectorstores/base.py",
+      "date": "2026-08-19",
+      "quote": "Should include `score_threshold`, an optional floating point value between `0` to `1` to filter the resulting set of retrieved docs.",
+      "note": "The maintainer's own source shows the shape of the default: the relevance floor is an OPTIONAL kwarg on a separate scored method, while the ordinary similarity_search path takes k and no threshold at all. Date is the date this file was fetched from master, since a moving branch has no publication date. Note that the same file's threshold branch already logs a warning when the filter empties the result set, which is the signal an unfiltered call can never produce."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Our experiments reveal that the impact of distractors and their non-uniformity amplifies as input length grows across models, including the latest state-of-the-art models.",
+      "note": "Measured across 18 models by a vector-database vendor, so it is evidence about the cost of the unfiltered row rather than about a competitor's product: a topically-related but wrong row is not neutral padding, and its damage grows exactly as the transcript grows, which is the regime a long-horizon agent lives in."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Our results reveal that models do not use their context uniformly; instead, their performance grows increasingly unreliable as input length grows.",
+      "note": "Supports the framing that every injected row has a price. Under an unconditional top-k that price is paid on every turn whether or not anything relevant existed."
+    }
+  ],
+  "build_hypothesis": "A retrieval wrapper for agent memory that requires a floor: it takes a threshold as a mandatory argument, returns an explicit empty result with the best observed score when nothing clears it, and emits that near-miss as a metric. Returning nothing must be a first-class outcome the prompt template renders as no relevant memory, so the calling code cannot quietly interpolate five distractors.",
+  "tags": [
+    "memory",
+    "retrieval",
+    "threshold",
+    "stale"
+  ],
+  "check": {
+    "id": "CHK-017",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)similarity_search|as_retriever|\\.get_relevant_documents\\s*\\(|n_results\\s*=|top_k\\s*=|\\bquery_embeddings\\s*=|\\.query\\s*\\(\\s*(?:query_texts|vector|embedding)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(?:similarity_search|max_marginal_relevance_search|get_relevant_documents|\\.query|\\.search|retrieve|recall)\\s*\\([^)]{0,200}?(?:\\bk\\s*=|n_results\\s*=|top_k\\s*=|limit\\s*=)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)score_threshold|similarity_threshold|relevance_threshold|distance_threshold|min_score|min_similarity|min_relevance|max_distance|search_type\\s*=\\s*[\\\"']similarity_score_threshold[\\\"']|if\\s+(?:score|similarity|relevance|distance)\\s*[<>]=?|(?:score|similarity|relevance)\\s*[<>]=?\\s*(?:self\\.)?(?:MIN|min|threshold|cutoff)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)score_threshold|similarity_threshold|relevance_threshold|distance_threshold|min_score|min_similarity|min_relevance|max_distance|search_type\\s*=\\s*[\\\"']similarity_score_threshold[\\\"']|if\\s+(?:score|similarity|relevance|distance)\\s*[<>]=?|(?:score|similarity|relevance)\\s*[<>]=?\\s*(?:self\\.)?(?:MIN|min|threshold|cutoff)"
+    },
+    "manual_question": "When this agent's memory lookup finds nothing relevant, what does it return, and which line decides that a row was too far away to be worth injecting?",
+    "rationale": "The signature is a bounded retrieval call (a k, a top_k, a limit or an n_results) with no relevance-floor vocabulary anywhere in the code that runs. It is deliberately lexical and it can be wrong two ways: a project may enforce a floor inside the vector store's own server-side config or in a language this pattern does not read, which surfaces as PRESENT and is what the manual question is for; and a project may name a threshold constant it never applies, which surfaces as ABSENT on the strength of the name. The reported location lets a reader check which case they are in.",
+    "fixtures": {
+      "bad": {
+        "app/memory.py": "def recall(store, query):\n    rows = store.similarity_search(query, k=5)\n    return \"\\n\".join(r.page_content for r in rows)\n\n\ndef build_prompt(store, task):\n    return PROMPT.format(memories=recall(store, task), task=task)\n"
+      },
+      "good": {
+        "app/memory.py": "MIN_RELEVANCE = 0.75\n\n\ndef recall(store, query):\n    scored = store.similarity_search_with_relevance_scores(\n        query, k=5, score_threshold=MIN_RELEVANCE)\n    if not scored:\n        return \"\"\n    return \"\\n\".join(doc.page_content for doc, _ in scored)\n\n\ndef build_prompt(store, task):\n    memories = recall(store, task)\n    return PROMPT.format(memories=memories or \"no relevant memory\", task=task)\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "id": "GAP-024",
+  "title": "An eval records the agent's outcome but not the oversight the task consumed, so no score converts into a real-work claim",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My suite says the agent passes 62% of tasks and I still cannot answer the only question my business asks, which is whether the work now takes less human time than it did before, because nothing in my result rows records the unblocking, the clarifications or the acceptance review that each pass needed.",
+  "symptom": "Scores rise release over release while the people doing the work report no time saved, and the disagreement is unresolvable because the two sides are measuring different quantities: the eval measures terminal task success, the team experiences elapsed time including supervision. Teams then settle it with self-report, which measures perception rather than duration.",
+  "why_now": "Realistic agentic tasks need a human to answer questions mid-run, so 2026 harnesses replace that human with a simulated user to make evaluation scalable. That substitution is what makes automated rollout possible and it also deletes the only variable that decides whether a deployment pays: the human effort per completed task. Meanwhile the one controlled field measurement available reports the sign of that variable being opposite to what practitioners and experts predicted, so it cannot be estimated and has to be recorded.",
+  "existing": [
+    "Token and dollar cost per task: now common, and it prices the machine side only. A task that costs two cents and forty minutes of an engineer's attention scores as cheap.",
+    "A simulated user or user-simulation agent supplying iterative feedback: it makes the run reproducible and unattended, and it emits no measure of how much intervention it supplied, so a task needing twenty clarifications and one needing none produce identical rows.",
+    "Wall-clock latency of the run: measures the agent waiting on itself, not a person waiting on the agent, and it is unaffected by how many times a human had to step in.",
+    "Practitioner self-report and expert forecasts of time saved: measured against a controlled baseline they were wrong by tens of percentage points and in the wrong direction, which is why perception cannot substitute for a recorded number.",
+    "Partial-credit or checkpoint scoring: a real improvement on all-or-nothing grading, and still entirely agent-side; it refines the outcome axis rather than adding the oversight axis."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "first-party-field",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-12",
+      "quote": "Before starting tasks, developers forecast that allowing AI will reduce completion time by 24%.",
+      "note": "The authors ran the randomized controlled trial themselves on 246 real tasks in mature repositories, so this is first-party field measurement rather than a claim about someone else's data; it is an arXiv preprint and the page states no peer-reviewed venue. This quote is the forecast half of the divergence."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-12",
+      "quote": "we find that allowing AI actually increases completion time by 19%",
+      "note": "The measured half. Forecast and measurement disagree by more than forty points and in opposite directions, which is the direct argument that human time per completed task must be recorded rather than estimated, and that a capability score cannot stand in for it."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "AgencyBench: Benchmarking the Frontiers of Autonomous Agents in 1M-Token Real-World Contexts",
+      "locator": "https://arxiv.org/abs/2601.11044",
+      "date": "2026-01-16",
+      "quote": "Moreover, the reliance on human-in-the-loop feedback for realistic tasks creates a scalability bottleneck, hindering automated rollout collection and evaluation.",
+      "note": "Accepted at ACL 2026 Main Conference per the arXiv page. It states that realistic tasks require human feedback and that the fix adopted is to simulate the human away. The paper is right about the bottleneck; the point for this gap is that the substitution is not accompanied by any recorded measure of how much feedback was supplied."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Agents' Last Exam",
+      "locator": "https://arxiv.org/abs/2606.05405",
+      "date": "2026-06-03",
+      "quote": "Recent AI systems have achieved strong results on a wide range of benchmarks, yet these gains have not translated into economically meaningful deployment across many professional domains.",
+      "note": "States the benchmark-to-real gap as the motivating problem and attributes it to evaluation design rather than to model capability. arXiv preprint with 250+ collaborating industry experts and no venue stated on the page; classed as peer-reviewed following this register's existing convention for arXiv research papers, and the note is here so a reader can discount it."
+    }
+  ],
+  "build_hypothesis": "Three fields on the result row and one refusal. Every task record gains a recorded human baseline in minutes for the same work; the harness counts every point at which the run had to be unblocked, whether by a person or by a user simulator standing in for one, and how long acceptance review took; and the runner refuses to report a pass rate for rows missing those fields. The derived number worth publishing is the unattended pass rate, meaning tasks passed with zero interventions, which is the quantity a deployment decision actually needs and which no current leaderboard reports. Roughly 100 lines on top of an existing harness.",
+  "tags": [
+    "eval-verification",
+    "oversight-cost",
+    "human-time",
+    "benchmark-validity",
+    "unattended-rate"
+  ],
+  "check": {
+    "id": "CHK-023",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(pass_rate|solve_rate|success_rate|run_eval|eval_suite|evaluate_suite|benchmark_run)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(pass_rate|solve_rate|success_rate|[\"']?(passed|solved|success)[\"']?\\s*[:=])"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.md"
+          ],
+          "pattern": "(?i)(human[_ -]?(baseline|time|minutes|seconds|effort|review|oversight)|intervention[_ -]?count|interventions|oversight[_ -]?(ledger|cost|budget)|time[_ -]on[_ -]task|hints?[_ -]?used|clarification[_ -]?(count|turns)|operator[_ -]?(time|minutes)|unattended[_ -]?(pass|rate))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.json",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "pattern": "(?i)(human[_ -]?(baseline[_ -]?(time|minutes|seconds)?|review[_ -]?(seconds|minutes|time)|effort)|intervention[_ -]?count|interventions_used|hints?[_ -]?used|clarification[_ -]?turns|time[_ -]on[_ -]task|oversight[_ -]?ledger|unattended[_ -]?(pass|rate))"
+    },
+    "manual_question": "For the last task your suite scored as passed, how many times did a person or a user simulator have to unblock the agent, and how long does the same task take the team today? If neither number exists on the row, what in your evaluation would notice a release that passes more tasks while consuming more supervision per task?",
+    "rationale": "The signature is a repo that computes a suite-level success rate or writes per-task outcome rows while carrying no vocabulary anywhere for the people-side cost of a task: no human baseline, no intervention or clarification count, no review time, no unattended rate. The bad fixture records tokens, latency and tool calls, which is the common shape and is entirely agent-side; the good fixture adds an oversight ledger invoked from the run path and a human baseline on the task record, which is why the mitigation pattern is written against code that runs rather than a test that names the idea. What it can get wrong: a harness may hold these fields in an external results database or a bespoke schema whose names share no tokens with this list, which reads as present here; the word interventions occurs in guardrail code for an unrelated reason and will suppress the finding, which is the conservative direction; and a repo whose eval is a thin client of a hosted evaluation product legitimately has nothing local to match. It is a signature, not a verdict, which is why the manual question asks for one concrete row.",
+    "fixtures": {
+      "bad": {
+        "evals/run_eval.py": "\"\"\"Run the agent over the task suite and report a pass rate.\"\"\"\nimport json\nimport pathlib\nimport time\n\nfrom app.agent import Agent\nfrom evals.grading import graded\n\n\ndef run_task(agent: Agent, task: dict) -> dict:\n    started = time.monotonic()\n    transcript = agent.run(task[\"prompt\"])\n    return {\n        \"task_id\": task[\"id\"],\n        \"passed\": graded(task, transcript),\n        \"tokens\": agent.tokens_used,\n        \"latency_s\": round(time.monotonic() - started, 2),\n        \"tool_calls\": agent.tool_call_count,\n    }\n\n\ndef main() -> None:\n    tasks = json.loads(pathlib.Path(\"evals/tasks.json\").read_text())\n    rows = [run_task(Agent(), task) for task in tasks]\n    pathlib.Path(\"evals/results.json\").write_text(json.dumps(rows, indent=2))\n    pass_rate = sum(1 for r in rows if r[\"passed\"]) / len(rows)\n    print(f\"pass_rate={pass_rate:.2%}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "evals/grading.py": "\"\"\"Decide whether a transcript satisfied a task.\"\"\"\n\n\ndef graded(task: dict, transcript: str) -> bool:\n    return task[\"expected\"].lower() in transcript.lower()\n",
+        "evals/tasks.json": "[\n  {\n    \"id\": \"t1\",\n    \"prompt\": \"Close the open billing discrepancy for account 4471.\",\n    \"expected\": \"credit memo issued\"\n  },\n  {\n    \"id\": \"t2\",\n    \"prompt\": \"Migrate the reporting job to the new scheduler.\",\n    \"expected\": \"job runs on the new scheduler\"\n  }\n]\n"
+      },
+      "good": {
+        "evals/run_eval.py": "\"\"\"Run the agent over the task suite and report a pass rate with its oversight cost.\n\nA bare pass rate cannot be compared against how the work is done today, so every\nresult row also carries what the task consumed on the people side: the recorded\nhuman baseline for the same task, how many times the agent had to be unblocked,\nand how long acceptance took. A row missing those fields is not scoreable.\n\"\"\"\nimport json\nimport pathlib\nimport time\n\nfrom app.agent import Agent\nfrom evals.grading import graded\nfrom evals.oversight import OversightLedger\n\n\ndef run_task(agent: Agent, task: dict) -> dict:\n    ledger = OversightLedger(task_id=task[\"id\"])\n    started = time.monotonic()\n    transcript = agent.run(task[\"prompt\"], on_block=ledger.record_intervention)\n    row = {\n        \"task_id\": task[\"id\"],\n        \"passed\": graded(task, transcript),\n        \"tokens\": agent.tokens_used,\n        \"latency_s\": round(time.monotonic() - started, 2),\n        \"tool_calls\": agent.tool_call_count,\n        \"intervention_count\": ledger.intervention_count,\n        \"human_baseline_minutes\": task[\"human_baseline_minutes\"],\n        \"human_review_seconds\": ledger.review_seconds,\n    }\n    ledger.assert_complete(row)\n    return row\n\n\ndef main() -> None:\n    tasks = json.loads(pathlib.Path(\"evals/tasks.json\").read_text())\n    rows = [run_task(Agent(), task) for task in tasks]\n    pathlib.Path(\"evals/results.json\").write_text(json.dumps(rows, indent=2))\n    pass_rate = sum(1 for r in rows if r[\"passed\"]) / len(rows)\n    unattended = sum(1 for r in rows if r[\"passed\"] and r[\"intervention_count\"] == 0) / len(rows)\n    print(f\"pass_rate={pass_rate:.2%} unattended_pass_rate={unattended:.2%}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "evals/grading.py": "\"\"\"Decide whether a transcript satisfied a task.\"\"\"\n\n\ndef graded(task: dict, transcript: str) -> bool:\n    return task[\"expected\"].lower() in transcript.lower()\n",
+        "evals/oversight.py": "\"\"\"The oversight ledger: what a task cost on the people side.\n\nThe agent-side numbers (tokens, latency, tool calls) say nothing about whether a\npass was unattended, so this counts every unblock the run needed and the time\nacceptance took, and refuses to let a row be reported without them.\n\"\"\"\nimport dataclasses\nimport time\n\n\nREQUIRED_FIELDS = (\"intervention_count\", \"human_baseline_minutes\", \"human_review_seconds\")\n\n\nclass UnscoreableRow(RuntimeError):\n    \"\"\"Raised instead of reporting an outcome with no oversight cost attached.\"\"\"\n\n\n@dataclasses.dataclass\nclass OversightLedger:\n    task_id: str\n    intervention_count: int = 0\n    review_seconds: float = 0.0\n\n    def record_intervention(self, reason: str) -> None:\n        self.intervention_count += 1\n\n    def record_review(self, seconds: float) -> None:\n        self.review_seconds += seconds\n\n    def assert_complete(self, row: dict) -> None:\n        missing = [f for f in REQUIRED_FIELDS if row.get(f) is None]\n        if missing:\n            raise UnscoreableRow(\n                f\"task {self.task_id!r} reports an outcome with no oversight cost: {missing}\"\n            )\n",
+        "evals/tasks.json": "[\n  {\n    \"id\": \"t1\",\n    \"prompt\": \"Close the open billing discrepancy for account 4471.\",\n    \"expected\": \"credit memo issued\",\n    \"human_baseline_minutes\": 55\n  },\n  {\n    \"id\": \"t2\",\n    \"prompt\": \"Migrate the reporting job to the new scheduler.\",\n    \"expected\": \"job runs on the new scheduler\",\n    \"human_baseline_minutes\": 210\n  }\n]\n"
+      }
+    }
+  }
+}

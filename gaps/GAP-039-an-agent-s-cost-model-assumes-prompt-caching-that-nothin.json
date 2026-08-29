@@ -1,0 +1,154 @@
+{
+  "id": "GAP-039",
+  "title": "An agent's cost model assumes prompt caching that nothing verifies, so a silent cache miss bills the whole repeated context at full input price and the first signal is the invoice",
+  "layer": "cost-governance",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "The economics of my agent loop only work if the large repeated prefix is served from the cache, and when caching quietly stopped applying nothing in the stack failed, warned, or slowed down: the first evidence was a five-figure bill.",
+  "symptom": "The agent behaves normally and no request errors, but cost per turn is several times the modelled figure and the usage breakdown shows nearly all input tokens billed as uncached. Budget alerts fire after the money is spent, and the loop keeps running.",
+  "why_now": "Prompt caching is the lever that makes long-context agent loops affordable, yet it is a best-effort optimisation with no contract attached: it is skipped without an error when the input is under a provider minimum, any edit to the cached prefix invalidates it, and each proxy or gateway hop in a modern stack (agent to OpenAI-compatible endpoint to router to cloud backend) can drop the cache markers. The fields needed to detect the miss come back on every single response, so this is not an observability hole in the provider; it is that no default client path or agent framework reads them and nothing enforces a floor.",
+  "existing": [
+    "Cloud and provider budget alerts are asynchronous notifications rather than enforcement. The incident report cited here concludes exactly that: budget alerts are not a kill switch, and by the time one fired the spend had happened.",
+    "LiteLLM normalises the cache usage fields across providers and explicitly warns that caching is silently skipped below a provider minimum, but the verification is left to the caller: the library reports the field, it does not fail the request or halt the caller.",
+    "Provider consoles report cache hit ratios after the fact at billing granularity, which is hours behind an agent loop that runs unattended overnight.",
+    "Prompt-cache documentation explains how to construct a cacheable prefix, which is a correctness-by-authoring approach: it does not survive a change of gateway, a model swap that moves the minimum token threshold, or a prefix that grows a volatile element."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "$38k AWS Bedrock bill caused by a simple prompt caching miss",
+      "locator": "https://news.ycombinator.com/item?id=47933355",
+      "date": "2026-04-28",
+      "quote": "The expensive line item was not output. It was repeated uncached input",
+      "note": "First-person incident account with the billed breakdown: roughly 6.47B uncached input tokens for about 35.6k dollars against 1.67B cache-read tokens for about 918 dollars, in a Droid to OpenAI-compatible API to LiteLLM to Bedrock to Claude Opus chain. Classified practitioner-report rather than incident-postmortem because it is a forum write-up by the affected engineer, not a published organisational postmortem."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "$38k AWS Bedrock bill caused by a simple prompt caching miss",
+      "locator": "https://news.ycombinator.com/item?id=47933355",
+      "date": "2026-04-28",
+      "quote": "The thing that makes me angry is that all of this was allowed to fail silently.",
+      "note": "Names the gap type precisely: not a leaked key, not an infinite loop, not one bad request. Every layer supported caching, none asserted that caching was happening, and the same post asks why no hard per-principal spend cap exists at the API level."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Prompt Caching | liteLLM",
+      "locator": "https://docs.litellm.ai/docs/completion/prompt_caching",
+      "date": "2026-08-18",
+      "quote": "Always verify caching occurred by checking cache_creation_input_tokens in the response.",
+      "note": "The maintainers of the routing layer in the incident chain document that caching is skipped with no error returned below a per-provider minimum (1,024 to 4,096 input tokens depending on model), and place the verification burden on the caller. That is the missing primitive stated by the people best placed to add it. Living documentation, so the date is the date fetched."
+    }
+  ],
+  "build_hypothesis": "A cache-efficiency assertion in the model-call wrapper rather than a dashboard: record cache-read, cache-write and uncached input tokens per call, maintain a rolling cached-input fraction per session, and fail closed (halt the loop or refuse the next call) once the fraction sits below a configured floor for N consecutive calls. Ship it first as middleware for one proxy, since a proxy is the one place in these stacks that sees every call and already parses usage.",
+  "tags": [
+    "cost",
+    "prompt-cache",
+    "silent-failure",
+    "gateway",
+    "invariant"
+  ],
+  "check": {
+    "id": "CHK-038",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "chat\\.completions\\.create|messages\\.create|responses\\.create|litellm\\.(?:completion|acompletion)|invoke_model|converse\\(|generate_content"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "cache_control|cachePoint|anthropic-beta|base_url\\s*=|api_base|litellm|openrouter|OPENAI_BASE_URL|OPENAI_API_BASE|bedrock"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "chat\\.completions\\.create|messages\\.create|responses\\.create|litellm\\.(?:completion|acompletion)|invoke_model|converse\\(|generate_content"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "cache_control|cachePoint|anthropic-beta|base_url\\s*=|api_base|litellm|openrouter|OPENAI_BASE_URL|OPENAI_API_BASE|bedrock"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "cache_read_input_tokens|cache_creation_input_tokens|cacheReadInputTokens|cacheWriteInputTokens|prompt_tokens_details|cached_tokens|cache_hit_rate|cache_hit_ratio|cached_input_(?:fraction|ratio|share)|uncached_input_tokens|cache_efficiency"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json"
+      ],
+      "pattern": "cache_read_input_tokens|cache_creation_input_tokens|cacheReadInputTokens|cacheWriteInputTokens|prompt_tokens_details|cached_tokens|cache_hit_rate|cache_hit_ratio|cached_input_(?:fraction|ratio|share)|uncached_input_tokens|cache_efficiency"
+    },
+    "manual_question": "What share of this agent's input tokens is billed as cache reads in production, and what happens AUTOMATICALLY when that share falls? If the answer is that someone would eventually notice on the invoice, the cost model is an assumption rather than an invariant.",
+    "rationale": "The signature is a project that depends on cached input or routes model calls through a gateway, while no tracked file anywhere reads the cache accounting fields the provider returns on every response. What it can get wrong, in both directions: a team may enforce a cache-hit floor in a proxy outside this repo, so PRESENT means no in-tree verification rather than proven overspend; and a repo may name a cache field in a log line without acting on it, which is why the mitigation side is deliberately weak evidence and the manual question asks what happens automatically when the fraction drops. It also cannot judge a project whose prompts are short enough that caching is irrelevant, which is why the gateway or cache marker is required before the check applies.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "\"\"\"Coding agent loop: one long static prefix, many turns, through a gateway.\"\"\"\nimport os\n\nfrom openai import OpenAI\n\nclient = OpenAI(base_url=os.environ[\"LLM_GATEWAY_URL\"], api_key=os.environ[\"LLM_KEY\"])\n\nwith open(\"context/repo_digest.txt\", encoding=\"utf-8\") as fh:\n    REPO_CONTEXT = fh.read()  # tens of thousands of tokens, resent on every turn\n\n\ndef system_blocks() -> list[dict]:\n    return [{\n        \"type\": \"text\",\n        \"text\": REPO_CONTEXT,\n        \"cache_control\": {\"type\": \"ephemeral\"},\n    }]\n\n\ndef turn(history: list[dict], task: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"claude-opus-4-6\",\n        messages=[{\"role\": \"system\", \"content\": system_blocks()},\n                  *history,\n                  {\"role\": \"user\", \"content\": task}],\n        max_tokens=4096,\n    )\n    # Usage is logged as one total. Whether the prefix was served from the cache\n    # or billed at full input price is never asked, so a silent miss is invisible.\n    print(\"tokens:\", resp.usage.total_tokens)\n    return resp.choices[0].message.content\n"
+      },
+      "good": {
+        "app/loop.py": "\"\"\"Coding agent loop that treats cache efficiency as an invariant, not a hope.\"\"\"\nimport os\n\nfrom openai import OpenAI\n\nclient = OpenAI(base_url=os.environ[\"LLM_GATEWAY_URL\"], api_key=os.environ[\"LLM_KEY\"])\n\nwith open(\"context/repo_digest.txt\", encoding=\"utf-8\") as fh:\n    REPO_CONTEXT = fh.read()\n\n# Below this share of input served from the cache, the economics of the loop no\n# longer hold, so the loop stops instead of continuing at full input price.\nCACHED_INPUT_FLOOR = 0.6\n\n\ndef system_blocks() -> list[dict]:\n    return [{\n        \"type\": \"text\",\n        \"text\": REPO_CONTEXT,\n        \"cache_control\": {\"type\": \"ephemeral\"},\n    }]\n\n\ndef cached_input_fraction(usage) -> float:\n    \"\"\"OpenAI-shaped gateways report prompt_tokens_details.cached_tokens.\n\n    A native Anthropic response reports cache_read_input_tokens and\n    cache_creation_input_tokens instead; both are read so a gateway that\n    silently drops the cache markers cannot hide behind a missing field.\n    \"\"\"\n    details = getattr(usage, \"prompt_tokens_details\", None)\n    cached_tokens = getattr(details, \"cached_tokens\", 0) or 0\n    cached_tokens += getattr(usage, \"cache_read_input_tokens\", 0) or 0\n    return cached_tokens / max(getattr(usage, \"prompt_tokens\", 0) or 1, 1)\n\n\ndef turn(history: list[dict], task: str) -> str:\n    resp = client.chat.completions.create(\n        model=\"claude-opus-4-6\",\n        messages=[{\"role\": \"system\", \"content\": system_blocks()},\n                  *history,\n                  {\"role\": \"user\", \"content\": task}],\n        max_tokens=4096,\n    )\n    fraction = cached_input_fraction(resp.usage)\n    if fraction < CACHED_INPUT_FLOOR:\n        raise RuntimeError(\n            f\"prompt caching is not taking effect ({fraction:.2f} of input cached); \"\n            \"halting before the next call\")\n    return resp.choices[0].message.content\n"
+      }
+    }
+  }
+}

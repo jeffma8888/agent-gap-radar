@@ -1,0 +1,85 @@
+{
+  "id": "GAP-033",
+  "title": "The forecast an agent rollout was approved on is never recorded beside the measured effect, so systematic overestimation cannot be detected",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "We adopted the agent because we believed it would make this work substantially faster. Nothing wrote that belief down in a comparable form, so when the measured effect arrives there is nothing to compare it against and no way to learn how wrong we tend to be.",
+  "symptom": "Adoption decisions are justified with a number nobody records; afterwards, participants report the tool helped and the measured throughput is flat or worse. With only one of the two numbers on file, the discrepancy is argued rather than measured, and the same overestimate is made again on the next rollout.",
+  "why_now": "The single strongest 2025 result on this gap is a randomised controlled trial where the direction of the effect was not merely mis-sized but inverted: participants forecast a large speedup, estimated a large speedup afterwards, and were measured slower. It was only detectable because the forecast was elicited and recorded BEFORE the work. No agent platform or eval harness offers a place to put that number, so outside a deliberate study the comparison cannot be made at all - and post-hoc self-report is proven not to substitute, since it stayed wrong in the same direction as the forecast.",
+  "existing": [
+    "A/B and holdout comparisons measure the effect well, but they compare agent against no-agent - not the measured effect against the effect that was PREDICTED, which is the quantity that tells you whether your adoption decisions are calibrated.",
+    "Post-hoc user satisfaction and self-reported time saved are widely collected, and the RCT above shows they track the forecast rather than the measurement, so collecting them without a forecast record measures belief twice and reality never.",
+    "Pre-registration exists in research practice but has no engineering artifact: there is no field on a rollout, an experiment record or an eval run to hold an ex-ante expected effect and its owner."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "Before starting tasks, developers forecast that allowing AI will reduce completion time by 24%.",
+      "note": "Classified practitioner-report, NOT peer-reviewed: the arXiv abs page (v2) lists no venue. This is the ex-ante forecast half of the pair; it was only comparable to the measured effect because the RCT deliberately elicited and recorded it first."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "After completing the study, developers estimate that allowing AI reduced completion time by 20%.",
+      "note": "The post-hoc self-report stayed wrong in the same direction as the forecast, which is why self-report cannot stand in for the measurement: both halves of the pair must be recorded."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "This slowdown also contradicts predictions from experts in economics (39% shorter) and ML (38% shorter).",
+      "note": "Establishes that the overestimation is not an artifact of naive users: domain experts erred in the same direction and by a similar magnitude, so a forecast record is worth keeping even when the forecaster is credentialed."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks",
+      "locator": "https://arxiv.org/abs/2503.14499",
+      "date": "2025-03-18",
+      "quote": "Despite rapid progress on AI benchmarks, the real-world meaning of benchmark performance remains unclear.",
+      "note": "Peer-reviewed: the arXiv abstract page carries 'Journal reference: NeurIPS 2025'. The paper's opening sentence states the gap this record is about as an open problem, not a solved one."
+    }
+  ],
+  "build_hypothesis": "One record written before the rollout starts and one report after: an expected-effect entry (metric, direction, magnitude, who forecast it, date) stored next to the measurement it will be compared against, and a calibration report that plots forecast against measured across past rollouts. It is a two-field schema addition plus a join, and it is the only artifact that makes an organisation's own overestimation rate visible.",
+  "tags": [
+    "calibration",
+    "forecast",
+    "field-outcome",
+    "adoption"
+  ],
+  "check": {
+    "id": "CHK-032",
+    "applies_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.go"
+          ],
+          "pattern": "(?i)(cycle_time|time_to_complete|completion_time|time_saved|throughput)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.md"
+          ],
+          "pattern": "(?i)(rollout|adoption|pilot)"
+        }
+      ]
+    },
+    "manual_question": "Before this agent was rolled out, was an expected effect recorded in a form comparable to the metric you now measure - the metric, the direction, a magnitude, and who forecast it - and is that record joined to the measured outcome so the gap between the two is itself reportable across rollouts?",
+    "rationale": "Deliberately MANUAL and shipped with no present_when. Whether a forecast was recorded is a fact about an organisation's decision process, not about its source tree: the number usually lives in a slide, a ticket or a planning document, and any regex over code would either miss it or match unrelated uses of the word 'expected', which is ubiquitous in test and validation code. An honest manual question is worth more here than an automated signal that cannot distinguish a recorded forecast from an assertion in a docstring. applies_when narrows it to targets that actually measure delivery-time or throughput metrics, or that describe a rollout, so the question is not asked of projects it cannot apply to."
+  }
+}

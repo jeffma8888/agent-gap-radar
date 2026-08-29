@@ -1,0 +1,93 @@
+{
+  "id": "GAP-034",
+  "title": "An agent eval harness has no null-agent control, so a task passable without doing the work scores as a pass",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My harness tells me an agent solved 62 percent of the tasks, but nothing in it tells me how many of those tasks could have been passed by an agent that did nothing at all, so I cannot tell capability from reward design.",
+  "symptom": "A leaderboard number moves and nobody can say whether the agent got better or the grader got looser. Reward bugs surface only when an outsider re-implements the benchmark and gets a materially different score for the same model.",
+  "why_now": "Outcome-based reward is now the dominant way to score agents on long, multi-step, real-world tasks, and the reward function is bespoke per benchmark rather than a standard library. Published audits in 2025 found that widely used agentic benchmarks credited empty or non-answering responses and used test sets too weak to separate a solved task from an unsolved one, with relative error large enough to reorder models. The missing artifact is small and mechanical: a control run whose expected score is zero.",
+  "existing": [
+    "Human-curated benchmark subsets such as SWE-bench Verified filter unsolvable tasks, but they audit task SETUP by inspection rather than running a control agent, so an over-permissive grader still passes unnoticed.",
+    "Checklists for benchmark authors state the requirement, but a checklist is a document that a harness cannot execute, so nothing fails when the control is skipped.",
+    "Reporting a random or naive baseline is normal in classification evals, and has not carried over to agentic harnesses where the naive submission is the empty one."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "we show that many agentic benchmarks have issues in task setup or reward design",
+      "note": "Directly names reward design, not agent capability, as a source of benchmark error, and the paper's own example is a benchmark counting empty responses as successful - exactly what a null-agent control run would surface before publication. Classified survey-aggregate, NOT peer-reviewed: the paper says it synthesises a survey of best practices and previously reported issues, and Semantic Scholar records its publication venue as arXiv.org, so no peer review is evidenced."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "This has led to agents that are fragile because they take shortcuts and overfit to the benchmark in various ways",
+      "note": "Establishes that benchmark-scored agents exploit the scoring path rather than the task. A null control cannot detect all shortcutting, but it detects the strongest form: a task whose reward is reachable with no work at all. Peer-reviewed: DBLP records this as Transactions on Machine Learning Research 2025 (journals/tmlr/KapoorSSNN25); the arXiv page cited here is the same paper and is where the quote was fetched."
+    }
+  ],
+  "build_hypothesis": "A harness-level `null_agent` fixture plus a gate: the eval CLI refuses to publish a score until a control run with a no-op agent has been executed and reported per task, and it names every task the control passed. Under an hour of work per harness, and its output is a list of broken tasks rather than a number nobody can interpret.",
+  "tags": [
+    "evals",
+    "benchmarks",
+    "reward-design",
+    "negative-control",
+    "validity"
+  ],
+  "check": {
+    "id": "CHK-033",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "def\\s+(?:grade|score|evaluate|reward|compute_reward)\\b|pass_rate|success_rate|pass@|resolved_rate|accuracy\\s*="
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "def\\s+(?:grade|score|evaluate|reward|compute_reward)\\b|pass_rate|success_rate|pass@|resolved_rate|accuracy\\s*="
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "null[_ ]?agent|no[_ ]?op[_ ]?agent|noop[_ ]?agent|null[_ ]?baseline|negative[_ ]?control|empty[_ ]?submission|do[_ ]?nothing[_ ]?agent|trivial[_ ]?baseline|dummy[_ ]?agent"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "null[_ ]?agent|no[_ ]?op[_ ]?agent|noop[_ ]?agent|null[_ ]?baseline|negative[_ ]?control|empty[_ ]?submission|do[_ ]?nothing[_ ]?agent|trivial[_ ]?baseline|dummy[_ ]?agent"
+    },
+    "manual_question": "Run your eval harness with an agent that returns an empty submission and does no tool calls. What score does it get, and which tasks does it pass? If nobody has ever run that, your pass rate has an unmeasured floor.",
+    "rationale": "A harness that computes a pass rate or reward is a scoring path; a repo that scores agents and never names a null, no-op or negative-control baseline has no measured floor for its own metric. It can be wrong in two ways: a project may run the control in an external script outside the repo (so the finding is a prompt to point at it), and a repo may use different vocabulary for the same control, which is why the mitigation pattern covers several spellings rather than one.",
+    "fixtures": {
+      "bad": {
+        "harness.py": "\"\"\"Agent eval harness: run each task, grade the outcome, report a pass rate.\"\"\"\nimport json\n\ndef load_tasks(path):\n    return [json.loads(l) for l in open(path)]\n\ndef grade(task, response):\n    # outcome-based reward: did the response contain the expected marker?\n    return 1.0 if task[\"expected\"] in response else 0.0\n\ndef evaluate(agent, tasks):\n    scores = [grade(t, agent(t)) for t in tasks]\n    return {\"pass_rate\": sum(scores) / len(scores)}\n\nif __name__ == \"__main__\":\n    from my_agent import agent\n    print(evaluate(agent, load_tasks(\"tasks.jsonl\")))\n",
+        "tasks.jsonl": "{\"expected\": \"ok\"}\n"
+      },
+      "good": {
+        "harness.py": "\"\"\"Agent eval harness: run each task, grade the outcome, report a pass rate.\"\"\"\nimport json\n\ndef load_tasks(path):\n    return [json.loads(l) for l in open(path)]\n\ndef grade(task, response):\n    # outcome-based reward: did the response contain the expected marker?\n    return 1.0 if task[\"expected\"] in response else 0.0\n\ndef evaluate(agent, tasks):\n    scores = [grade(t, agent(t)) for t in tasks]\n    return {\"pass_rate\": sum(scores) / len(scores)}\n\nif __name__ == \"__main__\":\n    from my_agent import agent\n    print(evaluate(agent, load_tasks(\"tasks.jsonl\")))\n",
+        "null_baseline.py": "\"\"\"Negative control: a null agent must score zero on every task.\n\nIf the null agent scores above zero on a task, that task is passable without\ndoing the work and the reward design, not the agent, produced the number.\n\"\"\"\nfrom harness import evaluate, load_tasks\n\n\ndef null_agent(task):\n    \"\"\"Does no work at all. Returns the empty submission.\"\"\"\n    return \"\"\n\n\ndef assert_null_baseline_is_zero(tasks_path=\"tasks.jsonl\"):\n    tasks = load_tasks(tasks_path)\n    result = evaluate(null_agent, tasks)\n    if result[\"pass_rate\"] > 0.0:\n        raise SystemExit(\n            \"negative_control failed: null_agent scored %.3f, so some tasks \"\n            \"are solvable by an empty response\" % result[\"pass_rate\"]\n        )\n    return result\n\n\nif __name__ == \"__main__\":\n    print(assert_null_baseline_is_zero())\n",
+        "tasks.jsonl": "{\"expected\": \"ok\"}\n"
+      }
+    }
+  }
+}

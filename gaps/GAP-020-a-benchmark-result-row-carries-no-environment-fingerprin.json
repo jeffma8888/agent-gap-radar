@@ -1,0 +1,113 @@
+{
+  "id": "GAP-020",
+  "title": "A benchmark result row carries no environment fingerprint, so a score cannot be reproduced or compared with the one it is plotted against",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "Our agent scores 4 points lower than the paper reported and I have no way to tell whether the agent regressed or the task image, a pip resolution, or a live website moved underneath the benchmark.",
+  "symptom": "A results file holds task ids, pass flags and wall time, and nothing about the environment that produced them - no image digest, no dependency lock hash, no harness commit, no network policy. Re-running the same suite next month gives a different number and no field in either record can say why, so agent-to-agent and paper-to-paper comparisons quietly compare different experiments.",
+  "why_now": "Traditional benchmarks shipped a fixed dataset, so the artifact WAS the environment. An agentic benchmark ships a container, a tool set and often a live network dependency, all of which drift on their own schedule, yet the result record is still just a score per task. 2025 guidance explicitly asks for the environment to be frozen at release and for tool versions to be stated, and finds real benchmarks failing both.",
+  "existing": [
+    "Committing a Dockerfile pins the recipe, not the result: an unpinned base tag or an unlocked dependency install resolves differently on every build, so two runs of the same commit are two different environments.",
+    "Some benchmarks pin package versions in the task repository, which the ABC assessment credits, but the pin lives in the benchmark rather than in the emitted result, so a published number still cannot be traced to the environment that produced it.",
+    "Leaderboards record the model and the scaffold, sometimes the date, but not a machine-checkable environment identity, so leaderboard rows from different months are compared as if they were one experiment."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "Finally, the environment setup should be fully reproducible and frozen at the time of benchmark release",
+      "note": "Checklist item T.6, whose next sentence advises against relying on dynamic resources such as continually updated external websites. The primitive being asked for is a frozen, identifiable environment; a result row with no environment identity cannot even show whether that requirement held for the run that produced it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "For self-hosted tools, it is essential to explicitly specify the correct tool or package versions in the prompt",
+      "note": "Checklist item T.1. Tool and package version identity is treated as a validity condition rather than hygiene, and the per-benchmark assessment marks real benchmarks down for omitting it."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/html/2507.02825v5",
+      "date": "2025-08-07",
+      "quote": "The prompt does not specify the versions of important tools, such as Python and Pytorch.",
+      "note": "The per-benchmark assessment table scoring a widely used agentic benchmark 0 on that item, which is direct evidence the omission is the norm rather than a hypothetical."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "Before starting tasks, developers forecast that allowing AI will reduce completion time by 24%.",
+      "note": "Establishes the size of the belief-to-measurement gap this record is about closing: expectations formed off benchmark-era evidence were wrong in sign on real tasks, so the environment a score was measured in is load-bearing information."
+    }
+  ],
+  "build_hypothesis": "An env_fingerprint() the harness calls once per run and stamps into every result row - image digest, dependency lockfile hash, harness commit, model and scaffold identity, network policy - plus a compare command that refuses to diff two result sets whose fingerprints differ without saying which fields moved. The value is not the hash, it is that a score becomes a measurement with its conditions attached rather than a number.",
+  "tags": [
+    "eval",
+    "benchmark",
+    "reproducibility",
+    "provenance",
+    "drift"
+  ],
+  "check": {
+    "id": "CHK-019",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.md",
+        "**/*.json",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml"
+      ],
+      "pattern": "(?i)\\b(?:benchmark|evals?|evaluation|leaderboard|task_suite|pass(?:ed)?[_ ]rate|success[_ ]rate)\\b"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "[\"']?(?:passed|success|succeeded|solved|resolved|score|reward|accuracy)[\"']?\\s*[:=]\\s*"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*"
+          ],
+          "pattern": "(?i)image[_-]?digest|@sha256:|env(?:ironment)?[_-]?(?:fingerprint|digest|manifest|hash)|lock(?:file)?[_-]?(?:sha256|hash|digest)|requirements\\.lock|uv\\.lock|poetry\\.lock|pip freeze|conda env export|--require-hashes"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)image[_-]?digest|@sha256:|env(?:ironment)?[_-]?(?:fingerprint|digest|manifest)|lock(?:file)?[_-]?(?:sha256|hash|digest)|requirements\\.lock|uv\\.lock|--require-hashes"
+    },
+    "manual_question": "Open the newest result file your eval suite wrote. Which fields in a single row let a stranger rebuild the exact environment that produced it - image digest, dependency lock hash, harness commit, network policy - and if none do, what evidence do you have that last month's number was measured under the same conditions?",
+    "rationale": "The signature is a project that emits per-task scores while no file anywhere names an environment identity primitive, which is the measurable form of a score with no conditions attached. What it can get wrong: a project may pin its environment somewhere this vocabulary does not cover (a Nix flake, a Bazel lock, an internal build id), which reads as PRESENT when the practice is actually in place, so a hit is a prompt to look rather than a conviction; conversely the mitigation rule credits the mere presence of a digest or lock anywhere in the tree, which is weaker than proving it is stamped into the result row.",
+    "fixtures": {
+      "bad": {
+        "harness/report.py": "\"\"\"Write the benchmark result rows that go on the leaderboard.\"\"\"\nimport json\n\n\ndef write_result(task_id, passed, wall_seconds):\n    row = {\"task_id\": task_id, \"passed\": passed, \"wall_seconds\": wall_seconds}\n    with open(\"results.jsonl\", \"a\") as fh:\n        fh.write(json.dumps(row) + \"\\n\")\n",
+        "Dockerfile": "FROM python:latest\nRUN pip install requests pytest playwright\nCOPY harness /harness\n"
+      },
+      "good": {
+        "harness/report.py": "\"\"\"Write benchmark result rows, each pinned to the environment that produced it.\"\"\"\nimport hashlib\nimport json\nimport os\nimport subprocess\n\n\ndef env_fingerprint():\n    \"\"\"Everything a reader needs to reproduce this row a year from now.\"\"\"\n    return {\n        \"image_digest\": os.environ[\"EVAL_IMAGE_DIGEST\"],\n        \"lockfile_sha256\": hashlib.sha256(open(\"uv.lock\", \"rb\").read()).hexdigest(),\n        \"harness_commit\": subprocess.check_output(\n            [\"git\", \"rev-parse\", \"HEAD\"]).decode().strip(),\n        \"network\": os.environ.get(\"EVAL_NETWORK_POLICY\", \"denied\"),\n    }\n\n\ndef write_result(task_id, passed, wall_seconds):\n    row = {\"task_id\": task_id, \"passed\": passed, \"wall_seconds\": wall_seconds,\n           \"env_fingerprint\": env_fingerprint()}\n    with open(\"results.jsonl\", \"a\") as fh:\n        fh.write(json.dumps(row) + \"\\n\")\n",
+        "Dockerfile": "FROM python@sha256:9e1c1b1d5b9d2e0e46a1a1c4f9b8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0\nCOPY uv.lock requirements.lock /\nRUN uv pip sync --require-hashes requirements.lock\nCOPY harness /harness\n"
+      }
+    }
+  }
+}

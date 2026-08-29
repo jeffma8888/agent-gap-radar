@@ -1,0 +1,112 @@
+{
+  "id": "GAP-030",
+  "title": "Context compaction rewrites the run with no invariant that load-bearing constraints survived it",
+  "layer": "context-memory",
+  "gap_type": "silent-failure",
+  "status": "open",
+  "problem": "My run was compacted at the window limit and the one constraint that made the work correct was summarised away, so the agent kept going confidently under rules it no longer had.",
+  "symptom": "After a compaction boundary the agent redoes work it was told to skip, re-asks a settled question, or breaks a prohibition it had obeyed for the previous hour - and nothing in the logs, the token metrics or the exit status marks the boundary as the cause, because the compaction itself succeeded.",
+  "why_now": "Compaction shipped as an on-by-default behaviour in mainstream agent harnesses during 2025-2026, and the published guidance is to tune the summarisation PROMPT for recall. That improves the expected loss over a corpus of traces; it asserts nothing about whether a specific named constraint survived a specific rewrite. No widely adopted harness declares a must-survive set or checks the rebuilt context against one, so the failure is unobservable by construction: the transform reports success either way.",
+  "existing": [
+    "Tuning the compaction prompt for recall on complex traces (Anthropic's guidance) raises the average fidelity of the summariser but is a statistical improvement, not a per-run assertion - it cannot tell an operator that THIS boundary dropped THAT rule.",
+    "Tool-result clearing is the safe narrow form of compaction and is now a platform feature, but it covers tool outputs only; operator constraints that arrived mid-run as ordinary user turns are still inside the span being summarised.",
+    "Structured note-taking and file-backed memory tools persist text outside the window, but nothing verifies that a note which MUST be re-read actually re-entered the context after the reset - the write is checked, the read is assumed.",
+    "Larger context windows postpone the boundary rather than removing it, and measured recall degrades with input length regardless, so the constraint is at risk from length even before it is at risk from summarisation."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "The art of compaction lies in the selection of what to keep versus what to discard, as overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later.",
+      "note": "The harness vendor names the exact loss mode and its late-detection property. The remedy it then prescribes is prompt tuning for recall, which is an expected-value improvement rather than a checkable invariant - that difference is the gap. The page carries no visible publication date; 2025-09-29 is the earliest Internet Archive capture of this URL and is therefore a verified upper bound on publication, not a claim read off the page."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "LLMs Get Lost In Multi-Turn Conversation",
+      "locator": "https://arxiv.org/abs/2505.06120",
+      "date": "2025-05-09",
+      "quote": "all the top open- and closed-weight LLMs we test exhibit significantly lower performance in multi-turn conversations than single-turn, with an average drop of 39% across six generation tasks",
+      "note": "Large-scale evidence that long multi-turn runs degrade and do not self-recover, which is what makes a silently dropped constraint expensive rather than merely untidy. Graded practitioner-report deliberately and not peer-reviewed: the arXiv listing states no publication venue, so the conservative class is the honest one."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Across all experiments, model performance consistently degrades with increasing input length.",
+      "note": "Measured across 18 models with task complexity held constant, which rules out the reading that longer runs simply pose harder problems. It establishes that a constraint sitting in a long context is already at risk of not being attended to, before any compaction step rewrites it. Date is the earliest Internet Archive capture of this URL, as the page shows no publication date."
+    }
+  ],
+  "build_hypothesis": "A compaction guard, as middleware for one harness so it runs where the rewrite happens rather than where the prompt is authored: a declared must-survive set (a file or a decorator), a hook invoked after every compaction or summarisation that asserts each entry is still present in the rebuilt context, and a hard failure plus re-injection when one is missing. The smallest useful version needs no entailment model - exact-string presence of operator-declared rules catches the common case and is trivially auditable.",
+  "tags": [
+    "compaction",
+    "context-window",
+    "long-horizon",
+    "instruction-drift"
+  ],
+  "check": {
+    "id": "CHK-029",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(?:messages|chat_history|conversation)\\s*=|\\.messages\\.create|chat\\.completions\\.create|invoke_model|\\.generate_content"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "any_of",
+          "rules": [
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py"
+              ],
+              "pattern": "(?i)\\b(?:compact|summari[sz]e|summari[sz]ing|condense|trim|truncate|prune)\\w*\\s*\\(\\s*(?:self\\s*\\.\\s*)?(?:messages|msgs|history|chat_history|conversation|transcript)\\b"
+            },
+            {
+              "kind": "content_matches",
+              "globs": [
+                "**/*.py"
+              ],
+              "pattern": "(?i)\\b(?:messages|msgs|history|chat_history|conversation|transcript)\\b\\s*=\\s*[^\\n=]*\\[\\s*-\\s*\\d+\\s*:\\s*\\]"
+            }
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)must_survive|survives?_compaction|reassert|re_assert|reinject|re_inject|pinned_(?:constraint|instruction|rule)|preserve_(?:constraint|instruction)|assert_(?:constraint|invariant)s?|verify_compaction|compaction_(?:audit|invariant|check|guard)|carry_forward"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)must_survive|survives?_compaction|reassert|re_assert|reinject|re_inject|pinned_(?:constraint|instruction|rule)|preserve_(?:constraint|instruction)|assert_(?:constraint|invariant)s?|verify_compaction|compaction_(?:audit|invariant|check|guard)|carry_forward"
+    },
+    "manual_question": "Name the constraints that MUST survive a compaction boundary in this system, and show the code that asserts each one is still present in the rebuilt context after the rewrite. If the answer is the compaction prompt, that tunes expected recall and asserts nothing about any particular run.",
+    "rationale": "Fires where a project both destroys conversational history (a summarise/compact/trim call applied to a message list, or a tail slice reassigned over it) and nowhere names an invariant over the result. What it can get wrong, in both directions: a project may keep constraints in an immutable system prompt that the harness re-sends on every request, in which case the signature is present but the risk is not, so the verdict needs the manual question rather than a fix; and a project can defeat the check by naming a variable must_survive without asserting anything, which is why the mitigation branch is written to match assertion verbs (verify_compaction, assert_invariant) as well as the declaration. Delegating compaction entirely to a hosted harness leaves no local signature at all and reads NOT_APPLICABLE, which understates the exposure - the constraint is at risk in someone else's summariser instead.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "\"\"\"Long-running coding agent. Compacts its own history at the window limit.\"\"\"\n\nWINDOW = 180000\n\n\ndef compact(messages):\n    # Nearing the window: ask the model to summarise the run so far, then\n    # continue from the summary in a fresh context.\n    summary = client.messages.create(\n        model=\"claude\",\n        messages=messages + [{\"role\": \"user\", \"content\": \"Summarise this run.\"}],\n    )\n    return [{\"role\": \"user\", \"content\": summary.content}]\n\n\ndef step(messages, task):\n    if count_tokens(messages) > WINDOW:\n        messages = compact(messages)\n    return client.messages.create(model=\"claude\", messages=messages)\n"
+      },
+      "good": {
+        "app/agent.py": "\"\"\"Long-running coding agent. Compacts its own history at the window limit.\"\"\"\n\nWINDOW = 180000\n\n# Constraints that MUST_SURVIVE every compaction boundary. Losing one silently\n# is worse than running out of window, so the rewrite is checked, not trusted.\nMUST_SURVIVE = (\n    \"never force-push\",\n    \"ask before deleting production data\",\n)\n\n\ndef compact(messages):\n    summary = client.messages.create(\n        model=\"claude\",\n        messages=messages + [{\"role\": \"user\", \"content\": \"Summarise this run.\"}],\n    )\n    rebuilt = [\n        {\"role\": \"user\", \"content\": PINNED_RULES},\n        {\"role\": \"user\", \"content\": summary.content},\n    ]\n    verify_compaction(rebuilt)\n    return rebuilt\n\n\ndef verify_compaction(messages):\n    \"\"\"Fail loudly if a load-bearing constraint did not survive the rewrite.\"\"\"\n    joined = \"\\n\".join(m[\"content\"] for m in messages)\n    lost = [c for c in MUST_SURVIVE if c not in joined]\n    if lost:\n        raise CompactionLostConstraint(lost)\n\n\ndef step(messages, task):\n    if count_tokens(messages) > WINDOW:\n        messages = compact(messages)\n    return client.messages.create(model=\"claude\", messages=messages)\n"
+      }
+    }
+  }
+}

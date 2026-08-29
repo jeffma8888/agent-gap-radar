@@ -1,0 +1,156 @@
+{
+  "id": "GAP-036",
+  "title": "The guard that decides when context is reduced counts messages, while the window and the degradation it is meant to prevent are both denominated in tokens",
+  "layer": "context-memory",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My loop trims history at thirty messages and it still blew the context window on turn nine, because one of those messages was a scraped page and the guard I wrote cannot tell that message from a one line diff.",
+  "symptom": "Two failure shapes from the same defect. Either a hard overflow the guard was supposed to prevent - a rejected request or a provider truncation part way through a long run, on an input the message counter called safe - or the opposite, a run that never trips the threshold because its messages are few and enormous, so the agent works for hours deep in the range where recall is already falling off, and the operator sees quiet quality decay with no error anywhere.",
+  "why_now": "The limit is a token count and the documented degradation is a function of token count, so a message count is a proxy whose error is unbounded: message size varies by four or five orders of magnitude once tool results, file reads and fetched pages enter the history. Token counting is now a cheap API call or a local encoder, so the primitive exists - what is missing is the contract that the reduction trigger be expressed in the same unit as the thing it is protecting. Message-count thresholds persist because they are free, they need no model identity, and they look right in review.",
+  "existing": [
+    "Framework trimming helpers accept a pluggable counter and will happily count messages, so the wrong unit is a supported configuration rather than a mistake the library rejects.",
+    "Catching the provider's context-length error and compacting on the rebound bounds the damage but only after a failed request, and it does nothing about the slow-decay case where no error is ever raised.",
+    "A per-tool output cap reduces the variance of one message class but leaves every other path unbounded, and it is a bound on a single tool rather than on the prompt actually being sent.",
+    "Larger context windows raise the ceiling without changing the unit mismatch, and the published degradation curves apply inside the larger window too."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Every new token introduced depletes this budget by some amount, increasing the need to carefully curate the tokens available to the LLM.",
+      "note": "The budget being spent is per TOKEN, so a threshold expressed in messages is not measuring the resource it claims to protect."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Context refers to the set of tokens included when sampling from a large-language model (LLM).",
+      "note": "Establishes the unit of the quantity being managed, in the same document that recommends compaction for long-horizon runs."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Context, therefore, must be treated as a finite resource with diminishing marginal returns.",
+      "note": "Diminishing returns before the hard limit is why the reduction threshold is a quality budget, not just an overflow guard - and a message count cannot express either."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "We demonstrate that even under these minimal conditions, model performance degrades as input length increases, often in surprising and non-uniform ways.",
+      "note": "An 18-model study holding task difficulty constant and varying only input length. The independent variable is input length in tokens, which is the variable a message-count guard does not observe."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Each task remains intentionally simple and is deliberately controlled to isolate the impact of context length alone.",
+      "note": "Confirms the degradation is attributable to context length itself rather than to harder tasks, which is what makes the unit mismatch consequential rather than pedantic."
+    }
+  ],
+  "build_hypothesis": "A one-function budget primitive plus a lint. The primitive takes the exact system, tools and messages about to be sent, returns a measured token count for the target model, and exposes two named thresholds - a hard capacity limit and a lower quality threshold at which reduction fires. The lint is the part that changes behaviour: flag any comparison against a length of the message list in a file that also issues a model call, the way a linter flags a bare except. Both are small, and together they convert an invisible proxy error into a build failure.",
+  "tags": [
+    "tokens",
+    "context-window",
+    "proxy-metric",
+    "trimming",
+    "long-horizon"
+  ],
+  "check": {
+    "id": "CHK-035",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java",
+            "**/*.go"
+          ],
+          "pattern": "\\.messages\\.create\\s*\\(|\\.chat\\.completions\\.create\\s*\\(|invoke_model\\s*\\(|generate_content\\s*\\(|responses\\.create\\s*\\(|llm\\.(?:invoke|complete|generate)\\s*\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java",
+            "**/*.go"
+          ],
+          "pattern": "(?i)(def\\s+\\w*(?:trim|truncat|compact|prune|bound)\\w*|trim_messages\\s*\\(|MAX_(?:MESSAGES|TURNS|HISTORY)|max_(?:messages|turns|history)\\b|(?:messages|history)\\s*=\\s*(?:self\\.)?(?:messages|history)\\s*\\[\\s*-)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java",
+            "**/*.go"
+          ],
+          "pattern": "(?i)(len\\s*\\(\\s*(?:self\\.)?(?:messages|_messages|history|_history|conversation|transcript|chat_history)\\s*\\)\\s*[<>]=?\\s*\\w+|(?:self\\.)?(?:messages|history|chatHistory)\\.length\\s*[<>]=?\\s*\\w+|MAX_(?:MESSAGES|TURNS|HISTORY)\\s*[:=]\\s*\\d+|max_(?:messages|turns)\\s*[:=]\\s*\\d+)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java",
+            "**/*.go"
+          ],
+          "pattern": "\\.messages\\.create\\s*\\(|\\.chat\\.completions\\.create\\s*\\(|invoke_model\\s*\\(|generate_content\\s*\\(|responses\\.create\\s*\\(|llm\\.(?:invoke|complete|generate)\\s*\\("
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*"
+            ],
+            "pattern": "(?i)(count_tokens|count_message_tokens|tiktoken|token_counter|encoding_for_model|get_encoding\\s*\\(|num_tokens|n_tokens|token_budget|token_limit|prompt_tokens|input_tokens|total_tokens|estimate_tokens|approx(?:imate)?_tokens|tokens_used|len\\s*\\(\\s*enc(?:oding|oder)?\\.encode)"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*"
+      ],
+      "pattern": "(?i)(count_tokens|count_message_tokens|tiktoken|token_counter|encoding_for_model|get_encoding\\s*\\(|num_tokens|n_tokens|token_budget|token_limit|prompt_tokens|input_tokens|total_tokens|estimate_tokens|approx(?:imate)?_tokens|tokens_used|len\\s*\\(\\s*enc(?:oding|oder)?\\.encode)"
+    },
+    "manual_question": "In this project, what unit does the trigger that reduces conversation history use? If it is a message or turn count, what bounds the size of a single message, and what would stop one oversized tool result from carrying the prompt past the window while the counter still reads safe?",
+    "rationale": "The signature is a project that issues model calls, bounds its history, decides that bound by comparing a length of the message list against a number, and contains nowhere in the tree any token accounting at all. The absence clause is what makes it discriminating: a project that counts tokens anywhere is not the target, even if it also caps message count as a secondary guard, and that case surfaces as MANUAL or ABSENT rather than as a finding. Two ways it can be wrong. False positive: the token budget may be enforced outside this repo, in a gateway or a shared library, in which case the code here legitimately counts messages and the check cannot see the real guard. False negative: any file spelling a token-accounting token for an unrelated reason - logging a usage field, a comment - silences it, which is the safe direction for a lexical check but does mean a green result here is not proof.",
+    "fixtures": {
+      "bad": {
+        "app/loop.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\n# The window guard for this loop. Note what it does not know: how large any\n# single message is. A three line diff and a scraped page count the same.\nMAX_MESSAGES = 30\n\n\nclass ResearchLoop:\n    def __init__(self, system):\n        self.system = system\n        self.messages = []\n\n    def _bound_history(self):\n        if len(self.messages) > MAX_MESSAGES:\n            self.messages = self.messages[-MAX_MESSAGES:]\n\n    def record_tool_result(self, name, payload):\n        self.messages.append({\"role\": \"user\", \"content\": payload})\n        self._bound_history()\n\n    def step(self, user_text):\n        self.messages.append({\"role\": \"user\", \"content\": user_text})\n        self._bound_history()\n        reply = client.messages.create(\n            model=\"claude-sonnet-4-5\",\n            max_tokens=2048,\n            system=self.system,\n            messages=self.messages,\n        )\n        self.messages.append({\"role\": \"assistant\", \"content\": reply.content[0].text})\n        return reply\n",
+        "README.md": "# research loop\n\nKeeps the last thirty messages so the window does not overflow.\n"
+      },
+      "good": {
+        "app/loop.py": "import anthropic\n\nfrom app.window import over_budget\n\nclient = anthropic.Anthropic()\n\n\nclass ResearchLoop:\n    def __init__(self, system):\n        self.system = system\n        self.messages = []\n\n    def trim_to_budget(self):\n        # Drop the oldest turns until the MEASURED prompt fits the budget, so a\n        # single oversized tool result cannot walk past the guard.\n        while self.messages and over_budget(self.system, self.messages):\n            self.messages.pop(0)\n\n    def record_tool_result(self, name, payload):\n        self.messages.append({\"role\": \"user\", \"content\": payload})\n        self.trim_to_budget()\n\n    def step(self, user_text):\n        self.messages.append({\"role\": \"user\", \"content\": user_text})\n        self.trim_to_budget()\n        reply = client.messages.create(\n            model=\"claude-sonnet-4-5\",\n            max_tokens=2048,\n            system=self.system,\n            messages=self.messages,\n        )\n        self.messages.append({\"role\": \"assistant\", \"content\": reply.content[0].text})\n        return reply\n",
+        "app/window.py": "\"\"\"Measure context pressure in the unit the context window is denominated in.\n\nTwo separate numbers, deliberately. The hard limit is a capacity bound: past it\nthe request is rejected. The reduction threshold is a QUALITY bound, set well\nbelow the limit, because recall falls off as input length grows long before the\nrequest stops being accepted.\n\"\"\"\n\nimport anthropic\n\nclient = anthropic.Anthropic()\n\nCONTEXT_WINDOW_TOKENS = 200000\nREDUCE_AT_TOKENS = 120000\n\n\ndef prompt_tokens(system, messages, model=\"claude-sonnet-4-5\"):\n    counted = client.messages.count_tokens(\n        model=model, system=system, messages=messages\n    )\n    return counted.input_tokens\n\n\ndef over_budget(system, messages):\n    return prompt_tokens(system, messages) > REDUCE_AT_TOKENS\n",
+        "README.md": "# research loop\n\nReduces history against a measured token budget.\n"
+      }
+    }
+  }
+}

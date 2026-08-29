@@ -372,7 +372,13 @@ def test_b5_the_rendered_verdict_agrees_with_what_scan_actually_does(capsys):
     """The section's prose makes a checkable promise about `scan`; check it against `scan`.
 
     Asserted in the sound direction only: a record rendered `none` must be reported
-    uncheckable and never scored, and a record rendered `manual` must come back MANUAL.
+    uncheckable and never scored, and a record rendered `manual` must come back MANUAL --
+    or NOT_APPLICABLE, but only when the record SCOPES its question with an `applies_when`
+    that did not match this target. A manual question may legitimately be conditional
+    ("if your repo grades tasks, answer this"), and on a target outside that condition
+    NOT_APPLICABLE is the correct answer, not a failure. That case was absent from the
+    register when this test was written, so the narrower invariant held vacuously.
+
     The converse is FALSE by measurement -- an automated record whose signature simply does
     not match also lands on MANUAL -- so requiring `automated` records to be non-MANUAL
     would red a correct suite.
@@ -383,6 +389,7 @@ def test_b5_the_rendered_verdict_agrees_with_what_scan_actually_does(capsys):
     assert code in (0, 1), f"scan exited {code}"
 
     verdicts = {f["gap_id"]: f["verdict"] for f in payload["findings"]}
+    reasons = {f["gap_id"]: f.get("reason", "") for f in payload["findings"]}
     uncheckable = set(payload["uncheckable"])
     assert verdicts, "scan returned no findings -- the cross-check would be vacuous"
 
@@ -400,6 +407,21 @@ def test_b5_the_rendered_verdict_agrees_with_what_scan_actually_does(capsys):
             assert gap_id in uncheckable, f"{gap_id} rendered `none` but scan did not skip it"
             assert gap_id not in verdicts, f"{gap_id} rendered `none` yet scan scored it"
         elif "`manual`" in body:
-            assert verdicts.get(gap_id) == "MANUAL", (
-                f"{gap_id} rendered `manual` but scan returned {verdicts.get(gap_id)!r}"
-            )
+            got = verdicts.get(gap_id)
+            scoped = (record.get("check") or {}).get("applies_when") is not None
+            if got == "NOT_APPLICABLE":
+                # Allowed for exactly one reason, and the reason is asserted rather than
+                # trusted: a blanket allowance here would also swallow a manual record
+                # that came back NOT_APPLICABLE for some other cause.
+                assert scoped, (
+                    f"{gap_id} rendered `manual` and scan returned NOT_APPLICABLE, but the "
+                    "record has no applies_when to be out of scope of"
+                )
+                assert "applies_when" in reasons.get(gap_id, ""), (
+                    f"{gap_id}: NOT_APPLICABLE is only sound when applies_when missed; "
+                    f"reason was {reasons.get(gap_id)!r}"
+                )
+            else:
+                assert got == "MANUAL", (
+                    f"{gap_id} rendered `manual` but scan returned {got!r}"
+                )

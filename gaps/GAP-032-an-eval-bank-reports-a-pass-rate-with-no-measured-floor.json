@@ -1,0 +1,161 @@
+{
+  "id": "GAP-032",
+  "title": "An eval bank reports a pass rate with no measured floor, so credit the grader awards for nothing is read as agent capability",
+  "layer": "eval-verification",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent scores 74 percent on my task bank and I cannot tell you what a policy with no capability at all would score on the same bank, so I do not know how much of that number is my agent.",
+  "symptom": "A score exists and cannot be attributed. Later someone submits an empty string, a fixed refusal, or an echo of the prompt and it is credited on a chunk of the bank, which means every historical number silently included that credit and the deltas the team shipped on were measured against a moving floor.",
+  "why_now": "Agent evals inherited the assertion contract of unit tests, where a passing test is meaningful because the author wrote it against a known-good AND a known-bad case. An agent grader is written against the expected good answer only, and the reward is then computed by substring match, an LLM judge, or an end-state probe that a degenerate submission can satisfy. Work through 2025 and 2026 documents this in the most scrutinised public benchmarks rather than in careless ones, which is the signal that the missing thing is not diligence but a primitive: a floor the harness measures and refuses to omit.",
+  "existing": [
+    "Trial repetition and pass@k measure variance AROUND a score; they cannot tell you what the score is worth, because every trial is scored by the same grader that may be crediting nothing.",
+    "Human task review catches unfair or ambiguous tasks, not degenerate-submission credit, because a reviewer reads the task and the reference answer instead of probing the grader with a null policy.",
+    "Benchmark checklists and reviewer guidance exist as voluntary prose. A checklist item is not a number the harness has to print next to the score.",
+    "LLM-judge calibration against human labels measures agreement on plausible answers, which is not the region a null policy occupies.",
+    "Contamination and holdout discipline address a different failure: they ask whether the agent has seen the task, not whether passing the task requires doing it."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Cheating Automatic LLM Benchmarks: Null Models Achieve High Win Rates",
+      "locator": "https://arxiv.org/abs/2410.07137",
+      "date": "2025-03-02",
+      "quote": "that always outputs a constant response (irrelevant to input instructions) can cheat automatic benchmarks and achieve top-ranked win rates",
+      "note": "The abs page Comments field reads ICLR 2025 (Oral), so this is peer-reviewed. It is the strongest available demonstration that a benchmark which never measured its own floor reports capability it did not measure: the constant-response policy reaches an 86.5 percent length-controlled win rate on AlpacaEval 2.0. Date is the v2 submission date shown on the page."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Cheating Automatic LLM Benchmarks: Null Models Achieve High Win Rates",
+      "locator": "https://arxiv.org/abs/2410.07137",
+      "date": "2025-03-02",
+      "quote": "Our findings call for the development of anti-cheating mechanisms for reliable automatic benchmarks.",
+      "note": "The paper names the missing thing as a mechanism rather than as more careful task authoring, which is the same conclusion this record reaches from the operator side."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "Deliberately classified BELOW peer-reviewed: as fetched, the abs page lists only 39 pages, 15 tables, 6 figures in Comments and names no venue, so it is an arXiv preprint. The finding is the exact failure this record checks for, in two of the most scrutinised agentic benchmarks, and the paper reports that such issues move measured performance by up to 100 percent in relative terms. Date is the v5 submission date on the page."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring what Matters: Construct Validity in Large Language Model Benchmarks",
+      "locator": "https://arxiv.org/abs/2511.04703",
+      "date": "2025-11-03",
+      "quote": "we find patterns related to the measured phenomena, tasks, and scoring metrics which undermine the validity of the resulting claims",
+      "note": "Comments field reads 39th Conference on Neural Information Processing Systems (NeurIPS 2025) Track on Datasets and Benchmarks, so peer-reviewed. 29 reviewers over 445 benchmarks from leading NLP and ML conferences establishes that scoring-metric defects are systemic rather than anecdotal, which is what makes a per-repository check worth running."
+    }
+  ],
+  "build_hypothesis": "A floor primitive the harness cannot bypass: a tiny library of null policies (empty string, fixed refusal, echo of the prompt, a patch that changes nothing, zero tool calls) submitted to the REAL grader before the agent is, plus a reporting rule that prints every score as capability-above-floor and fails the run when the floor is non-trivial. A few dozen lines turns an unfalsifiable pass rate into a bounded one.",
+  "tags": [
+    "evals",
+    "grader",
+    "baseline",
+    "reward-design",
+    "benchmark-validity"
+  ],
+  "check": {
+    "id": "CHK-031",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "**/*eval*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "eval/**/*.json",
+            "eval/**/*.yaml"
+          ]
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts"
+          ],
+          "pattern": "openai|anthropic|bedrock|litellm|langchain|langgraph|crewai|messages\\.create|chat\\.completions|generate_content|ollama"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "**/*eval*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "eval/**/*.json",
+            "eval/**/*.yaml"
+          ]
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.json",
+            "**/*.toml",
+            "**/*.md",
+            "**/*.sh",
+            "**/*.ts"
+          ],
+          "pattern": "(?i)null[_ -]?(model|agent|baseline|polic\\w*)|trivial[_ -]?(agent|baseline|polic\\w*|submission)|no[_ -]?op[_ -]?(agent|baseline)|dummy[_ -]?(agent|baseline)|constant[_ -]?(response|answer|output)|empty[_ -]?(response|answer|submission|patch)|negative[_ -]?control|known[_ -]?bad[_ -]?(solution|answer|patch|submission)|anti[_ -]?vacu\\w+|vacuity|floor[_ -]?baseline|lower[_ -]?bound[_ -]?baseline|degenerate[_ -]?(submission|answer|solution)|grader[_ -]?(sanity|self)[_ -]?(check|test)|mutation[_ -]?test\\w*|random[_ -]?baseline"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.sh",
+        "**/*.ts"
+      ],
+      "pattern": "(?i)null[_ -]?(model|agent|baseline|polic\\w*)|trivial[_ -]?(agent|baseline|polic\\w*|submission)|no[_ -]?op[_ -]?(agent|baseline)|dummy[_ -]?(agent|baseline)|constant[_ -]?(response|answer|output)|empty[_ -]?(response|answer|submission|patch)|negative[_ -]?control|known[_ -]?bad[_ -]?(solution|answer|patch|submission)|anti[_ -]?vacu\\w+|floor[_ -]?baseline|degenerate[_ -]?(submission|answer|solution)"
+    },
+    "manual_question": "Submit the most degenerate thing you can think of to your real grader: an empty string, a fixed refusal, an echo of the prompt, a patch that changes nothing, an agent that makes zero tool calls. What pass rate does it get, and is that number printed anywhere next to your agent's score?",
+    "rationale": "The signature is a repository that ships an eval bank against a model API and contains no vocabulary anywhere for a null, trivial, or degenerate baseline, nor for a negative control on the grader. Such a harness has never measured what its own grader awards for nothing, so its pass rate has no floor and cannot be attributed. What it can get wrong: a project could measure a floor in words this pattern does not know, which yields a false PRESENT; conversely any mention of the vocabulary anywhere, including a README, blocks PRESENT and lands on MANUAL, which is the fail-closed direction. The mitigation pattern is deliberately TIGHTER than the absence pattern - it drops mutation testing and random baselines, which are common general practices that say nothing about what this grader pays out for nothing - because a loose mitigation is the fail-open direction and would credit unrelated code. Markdown is searched for the absence but excluded from the mitigation, so a repository that only DISCUSSES a null baseline in prose escalates to MANUAL rather than being reported safe. Scope is Python, TypeScript and config, so a harness written in another language reads NOT_APPLICABLE rather than healthy.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\ndef solve(task: str) -> str:\n    msg = client.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": task}],\n    )\n    return msg.content[0].text\n",
+        "evals/bank.json": "[{\"prompt\": \"Refund order 4471 for the customer.\", \"expect\": \"refund\"}]\n",
+        "evals/run_bank.py": "\"\"\"Score the task bank and gate the build on the resulting pass rate.\"\"\"\nimport json\nimport pathlib\n\nfrom app.agent import solve\n\nBANK = pathlib.Path(\"evals/bank.json\")\n\ndef grade(task, submission):\n    return 1 if task[\"expect\"].lower() in submission.lower() else 0\n\ndef main():\n    bank = json.loads(BANK.read_text())\n    scores = [grade(t, solve(t[\"prompt\"])) for t in bank]\n    rate = sum(scores) / len(scores)\n    print(f\"pass rate {rate:.1%}\")\n    assert rate >= 0.8, \"the agent regressed\"\n\nif __name__ == \"__main__\":\n    main()\n"
+      },
+      "good": {
+        "app/agent.py": "import anthropic\n\nclient = anthropic.Anthropic()\n\ndef solve(task: str) -> str:\n    msg = client.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": task}],\n    )\n    return msg.content[0].text\n",
+        "evals/bank.json": "[{\"prompt\": \"Refund order 4471 for the customer.\", \"expect\": \"refund\"}]\n",
+        "evals/run_bank.py": "\"\"\"Score the task bank, but only above the floor the grader hands out.\"\"\"\nimport json\nimport pathlib\n\nfrom app.agent import solve\nfrom evals.floor_baseline import measure_floor\n\nBANK = pathlib.Path(\"evals/bank.json\")\n\ndef grade(task, submission):\n    return 1 if task[\"expect\"].lower() in submission.lower() else 0\n\ndef main():\n    bank = json.loads(BANK.read_text())\n    floor = measure_floor(bank, grade)\n    scores = [grade(t, solve(t[\"prompt\"])) for t in bank]\n    rate = sum(scores) / len(scores)\n    print(f\"pass rate {rate:.1%} over a measured floor of {floor:.1%}\")\n    assert floor <= 0.02, f\"the grader credits a no-capability policy on {floor:.1%}\"\n    assert rate - floor >= 0.8, \"the agent adds nothing above the floor\"\n\nif __name__ == \"__main__\":\n    main()\n",
+        "evals/floor_baseline.py": "\"\"\"What this task bank pays out to a policy with no capability at all.\n\nA pass rate is only evidence of capability above whatever the grader awards\nfor nothing. Each policy below is submitted to the REAL grader and the worst\nof them becomes the floor the agent has to clear.\n\"\"\"\n\nPOLICIES = {\n    \"empty_response\": lambda task: \"\",\n    \"constant_response\": lambda task: \"I cannot help with that request.\",\n    \"echo_of_the_prompt\": lambda task: task[\"prompt\"],\n}\n\ndef measure_floor(bank, grade):\n    worst = 0.0\n    for name, policy in POLICIES.items():\n        awarded = [grade(t, policy(t)) for t in bank]\n        rate = sum(awarded) / len(awarded)\n        print(f\"null policy {name} was credited on {rate:.1%} of tasks\")\n        worst = max(worst, rate)\n    return worst\n"
+      }
+    }
+  }
+}

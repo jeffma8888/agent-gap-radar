@@ -1,0 +1,96 @@
+{
+  "id": "GAP-021",
+  "title": "Task success is decided from the text the agent produced, with no assertion against the end state of the environment",
+  "layer": "eval-verification",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "My grader reads what the agent said it did, so a run that claims the refund was issued and a run that actually issued the refund earn the same score, and only the second one is worth anything to a real user.",
+  "symptom": "A high benchmark pass rate collapses in deployment on tasks that require the world to change; failures are found by users noticing the record was never written, not by the eval suite.",
+  "why_now": "Agentic suites moved from question answering to tasks with side effects, but the reward path stayed textual because comparing end states requires the harness to own a seedable environment and an annotated goal state. Audits of widely used agentic benchmarks published in 2025 still find rewards that a response with no work behind it can satisfy.",
+  "existing": [
+    "An LLM judge over the final message or transcript, which grades the claim rather than the effect and inherits the agent's own framing.",
+    "Unit tests over an artifact the agent produced, which cover written code but not tasks whose result is a state change in a service.",
+    "Trajectory review by a human, which finds the defect after the score is already published."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "A named, audited instance of the defect: in a widely used agentic benchmark a response carrying no work at all was scored as a success, which is only possible where the reward can be satisfied without reading the world."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "many agentic benchmarks have issues in task setup or reward design",
+      "note": "Sizes the consequence: the same audit reports that defects of this class move reported performance by up to 100 percent in relative terms, so part of the benchmark-to-real-task gap is manufactured inside the grader rather than in the agent."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains",
+      "locator": "https://arxiv.org/abs/2406.12045",
+      "date": "2024-06-17",
+      "quote": "We employ an efficient and faithful evaluation process that compares the database state at the end of a conversation with the annotated goal state.",
+      "note": "The mitigation in the benchmark authors' own words - an annotated goal state compared against the environment at the end of the run - which is the primitive this check looks for. That this same benchmark was later audited as crediting empty responses is why a state comparison is treated as evidence of mitigation rather than proof of correctness."
+    }
+  ],
+  "build_hypothesis": "A reward contract that takes the environment as an argument and cannot be satisfied by the transcript alone: each task ships an annotated goal state, the harness snapshots the environment before and after the run, and a reward function that never reads the end state fails a conformance test at registration time.",
+  "tags": [
+    "eval",
+    "outcome-validity",
+    "state-oracle"
+  ],
+  "check": {
+    "id": "CHK-020",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)def\\s+\\w*(?:reward|grade|grader|score|evaluate|is_correct|is_solved)\\w*\\s*\\("
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)def\\s+\\w*(?:reward|grade|score|evaluate|is_correct|is_solved)\\w*\\s*\\([^)]*\\b(?:final_answer|final_message|final_response|answer|response|completion|transcript|messages|output_text)\\b"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(goal_state|expected_state|final_state|end_state|db_state|database_state|state_diff|state_delta|assert_state|verify_state|check_state|snapshot_state)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "(?i)(goal_state|expected_state|final_state|end_state|db_state|database_state|state_diff|state_delta|assert_state|verify_state|snapshot_state)"
+    },
+    "manual_question": "Take one task in your suite whose point is that something changed - a row written, a ticket closed, a refund issued. Name the line in your grader that reads that change back out of the environment. If every line reads the agent's own text, an agent that says it did the work scores the same as one that did it.",
+    "rationale": "A grading function whose parameters are the agent's answer or transcript is grading a claim. If no file in the tree names an end-state or goal-state comparison, nothing in the reward path can distinguish a claim from an effect. It can be wrong for suites whose tasks legitimately have no side effects, such as pure question answering, where the text IS the deliverable, so the check gates on grader signatures and defers to the manual question rather than asserting the suite is defective.",
+    "fixtures": {
+      "bad": {
+        "harness/reward.py": "def reward(task, final_answer):\n    return task[\"expected\"].lower() in final_answer.lower()\n\n\ndef grade_run(task, transcript):\n    return {\"passed\": reward(task, transcript[-1][\"content\"])}\n"
+      },
+      "good": {
+        "harness/reward.py": "def reward(task, final_answer, env):\n    observed = env.database_state()\n    return observed == task[\"goal_state\"]\n\n\ndef grade_run(task, transcript, env):\n    return {\"passed\": reward(task, transcript[-1][\"content\"], env)}\n"
+      }
+    }
+  }
+}

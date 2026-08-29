@@ -1,0 +1,124 @@
+{
+  "id": "GAP-028",
+  "title": "Standing instructions are stated once at run start and never re-asserted, so adherence decays as the transcript grows",
+  "layer": "context-memory",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I put the run's hard constraints in the system prompt at turn one, and four hundred turns later the agent violates one of them, because the instruction is still in the window but is now buried in the middle of a very long transcript where recall is measurably worst.",
+  "symptom": "An agent obeys a standing rule early in a run and quietly stops obeying it late in the same run, with no error and no context overflow: the instruction was never dropped, only diluted, so a diff of the transcript shows the rule still present.",
+  "why_now": "Positional recall degradation is one of the best-replicated findings in long-context evaluation, and vendor guidance already recommends restating instructions when the context is long, yet agent frameworks in 2026 still model instructions as a single construction-time argument. There is no primitive for a re-assertion cadence, and nothing measures adherence as a function of turn depth, so the mitigation exists only as folklore a builder must reimplement by hand.",
+  "existing": [
+    "Longer context windows: the degradation is a function of how much content sits between the instruction and the current turn, so a bigger window postpones the cliff and does not remove it.",
+    "Compaction and trimming: both target overflow, not dilution. A compaction step that faithfully preserves the system prompt still leaves it far from the generation point.",
+    "Prompt-engineering advice to repeat instructions at the top and bottom of a long prompt: correct, but it is per-call advice, and an agent loop makes thousands of calls whose transcript grows between them, so a one-time placement decision does not survive the run."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "Lost in the Middle: How Language Models Use Long Contexts",
+      "locator": "https://arxiv.org/abs/2307.03172",
+      "date": "2023-07-06",
+      "quote": "we observe that performance is often highest when relevant information occurs at the beginning or end of the input context, and significantly degrades when models must access relevant information in the middle of long contexts, even for explicitly long-context models",
+      "note": "TACL 2023. The standing instruction of a long agent run is exactly the case described: it starts at the beginning of the context and, as the transcript grows around it, ends up in the region where measured recall is worst."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "Studies on needle-in-a-haystack style benchmarking have uncovered the concept of context rot",
+      "note": "Anthropic's applied AI team states the degradation is a property of all models they have observed, and frames context as a finite attention budget depleted by every additional token - which is the mechanism by which a still-present instruction loses force."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "locator": "https://research.trychroma.com/context-rot",
+      "date": "2025-07-14",
+      "quote": "Across all experiments, model performance consistently degrades with increasing input length.",
+      "note": "An 18-model study that holds task difficulty constant and varies only input length, so the drop is attributable to length rather than to a harder question. This is the controlled version of the claim an agent loop depends on."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "GPT-4.1 Prompting Guide",
+      "locator": "https://cookbook.openai.com/examples/gpt4-1_prompting_guide",
+      "date": "2025-04-14",
+      "quote": "Especially in long context usage, placement of instructions and context can impact performance. If you have long context in your prompt, ideally place your instructions at both the beginning and end of the provided context, as we found this to perform better than only above or below.",
+      "note": "OpenAI states the mitigation directly: with long context, the same instruction works better when it is repeated near the generation point. That is a per-call recommendation, and an agent loop makes thousands of calls whose transcript grows between them, which is exactly the gap - the guidance exists and the loop primitive to apply it continuously does not."
+    }
+  ],
+  "build_hypothesis": "A re-assertion scheduler in the agent loop: standing constraints are declared once as data, and the harness re-emits them near the end of the window on a cadence measured in tokens-since-last-assertion rather than turns, tagging each re-emission so it can be excluded from compaction input. Ship it with the measurement that justifies it - a turn-depth adherence probe that asserts a known constraint at increasing transcript depth and reports the depth at which compliance falls off - because without that number the cadence is a guess.",
+  "tags": [
+    "long-horizon",
+    "instruction-drift",
+    "context-rot",
+    "prompt-cadence"
+  ],
+  "check": {
+    "id": "CHK-027",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "\\.messages\\.create|\\.chat\\.completions\\.create|invoke_model|generate_content|llm\\.(?:invoke|complete|generate)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(\\{\\s*[\\\"']role[\\\"']\\s*:\\s*[\\\"']system[\\\"']|system_prompt\\s*=|SYSTEM_PROMPT\\s*=|system\\s*=\\s*(?:self\\.)?(?:system_prompt|SYSTEM_PROMPT|instructions))"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?:self\\.)?(?:messages|_messages|history|_history|conversation|transcript)\\.append\\s*\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(while\\s+True\\s*:|for\\s+\\w+\\s+in\\s+range\\s*\\(\\s*max_|while\\s+\\w+\\s*<\\s*max_|for\\s+step\\s+in)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md"
+          ],
+          "pattern": "(?i)(re[-_]?inject|re[-_]?assert|reassert|system_reminder|refresh_(?:instructions|system|rules|goal)|restate_(?:instructions|rules|goal)|instruction_(?:cadence|interval|refresh)|reminder_every|every_n_turns|turns_since_(?:reminder|instructions))"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(re[-_]?inject|re[-_]?assert|reassert|system_reminder|refresh_(?:instructions|system|rules|goal)|restate_(?:instructions|rules|goal)|instruction_(?:cadence|interval|refresh)|reminder_every|every_n_turns|turns_since_(?:reminder|instructions))"
+    },
+    "manual_question": "The standing constraints are placed in the context once, at construction. Over a long run, how far from the generation point do they end up, and what re-asserts them? If the answer is nothing, what measurement tells you the agent still obeys them at turn 300?",
+    "rationale": "The signature is a model-calling loop that builds a system/instruction block once, then appends turns without bound, with no token anywhere in the project naming a re-assertion mechanism. What it can get wrong: a project may re-assert instructions with vocabulary this pattern does not know (a per-call rebuild of the whole prompt from a template is a legitimate mitigation that spells nothing like reinject), which yields a false PRESENT; and a project that merely mentions a reminder in prose reads as mitigated, which is why the mitigation side excludes test paths and the manual_question asks for the measurement rather than the mechanism.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "SYSTEM_PROMPT = \"\"\"You are a release agent.\nNever push to main. Always run the suite before you commit.\n\"\"\"\n\n\nclass Agent:\n    def __init__(self, client):\n        self.client = client\n        self.messages = [{\"role\": \"system\", \"content\": SYSTEM_PROMPT}]\n\n    def run(self, goal, max_steps=400):\n        self.messages.append({\"role\": \"user\", \"content\": goal})\n        for step in range(max_steps):\n            reply = self.client.messages.create(messages=self.messages)\n            self.messages.append({\"role\": \"assistant\", \"content\": reply.text})\n            if reply.done:\n                return reply\n            self.messages.append({\"role\": \"user\", \"content\": reply.tool_result})\n        return None\n"
+      },
+      "good": {
+        "app/agent.py": "SYSTEM_PROMPT = \"\"\"You are a release agent.\nNever push to main. Always run the suite before you commit.\n\"\"\"\n\nREASSERT_EVERY = 20\n\n\nclass Agent:\n    def __init__(self, client):\n        self.client = client\n        self.messages = [{\"role\": \"system\", \"content\": SYSTEM_PROMPT}]\n\n    def _reassert_standing_rules(self):\n        # Recall of material in the middle of a long transcript degrades, so the\n        # standing rules are restated near the end of the window on a cadence.\n        self.messages.append(\n            {\"role\": \"user\", \"content\": \"<standing_rules>\" + SYSTEM_PROMPT + \"</standing_rules>\"}\n        )\n\n    def run(self, goal, max_steps=400):\n        self.messages.append({\"role\": \"user\", \"content\": goal})\n        for step in range(max_steps):\n            if step and step % REASSERT_EVERY == 0:\n                self._reassert_standing_rules()\n            reply = self.client.messages.create(messages=self.messages)\n            self.messages.append({\"role\": \"assistant\", \"content\": reply.text})\n            if reply.done:\n                return reply\n            self.messages.append({\"role\": \"user\", \"content\": reply.tool_result})\n        return None\n"
+      }
+    }
+  }
+}

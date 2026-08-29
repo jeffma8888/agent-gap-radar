@@ -1,0 +1,112 @@
+{
+  "id": "GAP-029",
+  "title": "A memory write has no validity window, so retrieval returns a fact that stopped being true",
+  "layer": "context-memory",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "My agent stored something that was true when it learned it, the world changed, and months later retrieval hands the model the old fact with exactly the same confidence as a fresh one.",
+  "symptom": "The agent acts on a preference, address, owner, price or configuration the user corrected long ago; the memory row is present and well-formed, the embedding match is good, and nothing in the record says it has been superseded.",
+  "why_now": "The dominant memory implementation is an append-only embedding store keyed on similarity, and similarity has no opinion about time. Writes carry a creation timestamp at best, which orders records but does not retire them, so a corrected fact and its correction both stay retrievable and the retriever picks whichever is closer in vector space. Temporal validity has to be modelled at write time, and almost nothing does it by default.",
+  "existing": [
+    "A created_at or updated_at timestamp orders records but never closes one, so both the stale fact and its replacement remain live candidates for retrieval.",
+    "Recency-weighted or time-decayed ranking makes an old fact less likely to win rather than impossible to win, so it still surfaces when nothing newer is semantically close.",
+    "Temporal knowledge-graph memory layers do model a validity window explicitly, which is evidence the primitive is needed and evidence that a plain vector store does not have it.",
+    "Periodic LLM-driven memory consolidation or rewriting can drop contradictions, but it is a lossy batch job with no record of what it retired and no way to answer a question as of a past date."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "peer-reviewed",
+      "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory",
+      "locator": "https://arxiv.org/abs/2410.10813",
+      "date": "2024-10-14",
+      "quote": "with commercial chat assistants and long-context LLMs showing a 30% accuracy drop on memorizing information across sustained interactions",
+      "note": "ICLR 2025 paper whose five measured abilities include temporal reasoning and knowledge updates, i.e. exactly the case where a stored fact has been replaced, and it reports a large measured drop on shipped commercial assistants rather than on a toy system."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "Graphiti README: Build Temporal Context Graphs for AI Agents",
+      "locator": "https://raw.githubusercontent.com/getzep/graphiti/main/README.md",
+      "date": "2026-08-23",
+      "quote": "Unlike traditional knowledge graphs, each fact in a context graph has a validity window",
+      "note": "The maintainers of an agent memory layer describe the validity window as the thing their design adds relative to the conventional store, which is a direct statement that the conventional store lacks it. Date is the day this file was fetched; the README is a living document on the main branch."
+    }
+  ],
+  "build_hypothesis": "A thin write-side wrapper over an existing vector or document store that requires a predicate key alongside each fact, closes the window on any prior fact sharing that key, and makes the read path take an as-of timestamp that defaults to now, so a stale fact becomes unretrievable rather than merely less likely.",
+  "tags": [
+    "memory",
+    "staleness",
+    "retrieval",
+    "temporal-validity"
+  ],
+  "check": {
+    "id": "CHK-028",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "add_texts|add_documents|upsert\\(|save_memory|write_memory|store_fact|remember\\(|memory\\.add\\(|collection\\.add\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "similarity_search|get_relevant_documents|search_memory|retrieve_memor|recall\\(|retriever|\\.query\\("
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "add_texts|add_documents|upsert\\(|save_memory|write_memory|store_fact|remember\\(|memory\\.add\\(|collection\\.add\\("
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "similarity_search|get_relevant_documents|search_memory|retrieve_memor|recall\\(|retriever|\\.query\\("
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py"
+            ],
+            "pattern": "invalid_at|valid_at|valid_from|valid_until|valid_to|validity_window|expires_at|expiry|supersede|superseded|invalidate|\\bttl\\b|ttl_seconds|as_of|not_valid_after|effective_(?:from|until)|point_in_time|stale|tombstone"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "invalid_at|valid_at|valid_from|valid_until|valid_to|validity_window|expires_at|expiry|supersede|superseded|invalidate|\\bttl\\b|ttl_seconds|as_of|not_valid_after|effective_(?:from|until)|point_in_time|stale|tombstone"
+    },
+    "manual_question": "Take one fact your agent stored six months ago that has since changed. What in the write path closed that record, and what in the read path stops it from being retrieved today?",
+    "rationale": "A codebase that writes into a memory or vector store and reads back out of it, with no symbol anywhere naming validity, expiry, supersession or an as-of query, has no mechanism that could retire a fact that stopped being true. Two known ways it can be wrong: a project may express supersession in vocabulary this pattern does not know, which is why the mitigation side must match positively rather than be inferred from absence, and a project may define the fields and never filter on them at read time, which is the MANUAL case where both sides match and a human has to look at the query path.",
+    "fixtures": {
+      "bad": {
+        "app/memory.py": "\"\"\"Long-term memory for the assistant: write facts, retrieve them later.\"\"\"\nimport datetime\n\nfrom langchain_community.vectorstores import Chroma\nfrom langchain_openai import OpenAIEmbeddings\n\nstore = Chroma(collection_name=\"user_memory\", embedding_function=OpenAIEmbeddings())\n\n\ndef remember(user_id, fact):\n    \"\"\"Persist one fact about the user.\"\"\"\n    store.add_texts(\n        texts=[fact],\n        metadatas=[{\"user_id\": user_id, \"created_at\": datetime.datetime.utcnow().isoformat()}],\n    )\n\n\ndef recall(user_id, question, k=6):\n    \"\"\"Pull the k nearest facts and hand them to the model.\"\"\"\n    hits = store.similarity_search(question, k=k, filter={\"user_id\": user_id})\n    return \"\\n\".join(h.page_content for h in hits)\n\n\ndef build_context(user_id, question):\n    return f\"Known about the user:\\n{recall(user_id, question)}\\n\\nQuestion: {question}\"\n"
+      },
+      "good": {
+        "app/memory.py": "\"\"\"Long-term memory with a validity window, so a superseded fact stops being retrieved.\"\"\"\nimport datetime\n\nfrom langchain_community.vectorstores import Chroma\nfrom langchain_openai import OpenAIEmbeddings\n\nstore = Chroma(collection_name=\"user_memory\", embedding_function=OpenAIEmbeddings())\n\n\ndef _now():\n    return datetime.datetime.utcnow().isoformat()\n\n\ndef supersede(user_id, predicate, at):\n    \"\"\"Close the validity window of any prior fact this one contradicts.\"\"\"\n    for prior in store.get(where={\"user_id\": user_id, \"predicate\": predicate})[\"ids\"]:\n        store.update_document(prior, metadata={\"invalid_at\": at})\n\n\ndef remember(user_id, predicate, fact):\n    \"\"\"Persist one fact with an explicit validity window.\"\"\"\n    at = _now()\n    supersede(user_id, predicate, at)\n    store.add_texts(\n        texts=[fact],\n        metadatas=[{\n            \"user_id\": user_id,\n            \"predicate\": predicate,\n            \"valid_at\": at,\n            \"invalid_at\": None,\n        }],\n    )\n\n\ndef recall(user_id, question, as_of=None, k=6):\n    \"\"\"Retrieve only facts whose validity window contains as_of.\"\"\"\n    at = as_of or _now()\n    hits = store.similarity_search(question, k=k * 4, filter={\"user_id\": user_id})\n    live = [\n        h for h in hits\n        if h.metadata[\"valid_at\"] <= at\n        and (h.metadata.get(\"invalid_at\") is None or h.metadata[\"invalid_at\"] > at)\n    ]\n    return \"\\n\".join(h.page_content for h in live[:k])\n\n\ndef build_context(user_id, question):\n    return f\"Known about the user:\\n{recall(user_id, question)}\\n\\nQuestion: {question}\"\n"
+      }
+    }
+  }
+}

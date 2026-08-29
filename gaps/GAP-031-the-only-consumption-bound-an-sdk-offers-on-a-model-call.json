@@ -1,0 +1,108 @@
+{
+  "id": "GAP-031",
+  "title": "The only consumption bound an SDK offers on a model call limits output, so the input side, where an agent runaway actually spends, has no ceiling",
+  "layer": "cost-governance",
+  "gap_type": "missing-primitive",
+  "status": "open",
+  "problem": "I had a token limit on every single call and still burned four hundred million tokens, because the limit I set bounds what the model writes and almost everything I paid for was what I sent.",
+  "symptom": "Every call is inside its configured limit and the invoice is dominated by input. Usage reporting shows an input-to-output ratio in the tens or hundreds to one, no individual call looks anomalous, and the quantity that is actually growing - a transcript re-sent in full on every step, a fixed preamble of system prompt, memory, tool registry and skill manifests reloaded on every session, a tool result pasted back verbatim - is bounded nowhere, because the one knob the SDK exposes points at the other side of the call.",
+  "why_now": "The parameter every SDK exposes for consumption, max_tokens, is documented as a bound on generation, and that was adequate while a chat turn was roughly symmetric in input and output. Agent workloads inverted the mix: an agent re-sends its whole growing transcript on every step and reloads a large fixed startup context on every session, so input dominates spend by one to two orders of magnitude. Providers have since shipped a token-counting endpoint, but it is a separate opt-in call that returns a number and refuses nothing, so an input ceiling must be hand-written at every call site, while the parameter that reads like a budget is not one. The result is a system that looks fully bounded in code review and is unbounded in the only dimension that pays the bill.",
+  "existing": [
+    "Provider token-counting endpoints and local tokenisers measure a prompt before it is sent, but they return a number and enforce nothing, so the ceiling still has to be written by hand at every call site and is trivially forgotten on the one path that loops.",
+    "The model context window does refuse an oversized request, but it is the model's limit rather than the operator's budget, so it permits a single call costing orders of magnitude more than the intended per-step spend, and a loop that stays just under it pays that on every iteration.",
+    "Prompt caching reduces the unit price of re-sent input instead of bounding the quantity of it, so a loop that re-sends a cached preamble thousands of times still pays thousands of times.",
+    "Framework history trimming and summarisation do bound a transcript, but they are tuned to fit the model window for quality reasons rather than to hold a spend allowance, and they say nothing about the fixed per-session startup context that dominated this incident."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Messages",
+      "locator": "https://docs.anthropic.com/en/api/messages.md",
+      "date": "2026-08-18",
+      "quote": "The maximum number of tokens to generate before stopping.",
+      "note": "The provider's own definition of the only token-denominated parameter on the request: it bounds generation. The same page enumerates every other body parameter, and none of them bounds the size or cost of the input side. Date is the date I fetched the page; it carries no publication date."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "400 Million Tokens Burned Overnight - A Multi-Agent AI Postmortem",
+      "locator": "https://raw.githubusercontent.com/nerudek/hermes-token-loop-postmortem/main/README.md",
+      "date": "2026-05-24",
+      "quote": "most burn came from context loading, not model output. A tiny ping triggered tens of thousands of input tokens",
+      "note": "First-hand postmortem measuring the asymmetry directly: roughly 400 million input tokens against roughly 3 million output tokens over 5,080 sessions in 15 hours. The author's own conclusion is that the spend came from the input side, which is the side no per-call parameter bounds. Date is the incident date stated in the page (Sunday, May 24, 2026); no exact publication date is given beyond May 2026."
+    }
+  ],
+  "build_hypothesis": "A pre-dispatch admission wrapper around the client: it counts the assembled request before sending, compares it against a per-call and per-run input ceiling denominated in tokens or money, and refuses rather than warns. Two properties make it worth building rather than documenting - the count is available locally so it costs no extra call, and the refusal is the only thing that turns a measurement into a control. A static check that every call site goes through the wrapper is then a cheap CI gate.",
+  "tags": [
+    "cost",
+    "tokens",
+    "input-side",
+    "ceiling",
+    "runaway"
+  ],
+  "check": {
+    "id": "CHK-030",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py"
+      ],
+      "pattern": "messages\\.create|chat\\.completions\\.create|responses\\.create|invoke_model|generate_content"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "max_tokens\\s*[=:]|max_completion_tokens\\s*[=:]|maxTokens\\s*[=:]|[\\\"']max_tokens[\\\"']\\s*:"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json"
+          ],
+          "pattern": "(?i)count_tokens|counttokens|tiktoken|token_?count|num_tokens|max_input_tokens|max_prompt_tokens|max_context_tokens|input_tokens?_(?:budget|cap|limit|max)|prompt_tokens?_(?:budget|cap|limit|max)|context_(?:budget|cap|limit)|estimate_(?:input|tokens|cost)|input_tokens|prompt_tokens|usage\\.input|usage\\.prompt"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.go",
+        "**/*.rs"
+      ],
+      "pattern": "(?i)count_tokens|counttokens|tiktoken|max_input_tokens|max_prompt_tokens|max_context_tokens|input_tokens?_(?:budget|cap|limit|max)|prompt_tokens?_(?:budget|cap|limit|max)|estimate_(?:input_)?(?:tokens|cost)"
+    },
+    "manual_question": "This project sets an output token ceiling on its model calls. What bounds the INPUT side - the assembled prompt, the re-sent transcript, and the fixed per-session preamble - and is that bound a refusal before the call is dispatched rather than a number written to a log after it returns?",
+    "rationale": "Fires when a repo sets an output-side token ceiling and nothing anywhere in it is aware of input tokens at all. The two halves are deliberately asymmetric. The absence rule is broad and includes purely post-hoc awareness such as reading usage.input_tokens, so a project that merely observes its input spend escapes a PRESENT verdict and lands on MANUAL rather than being called broken; the mitigation rule is narrow and demands a pre-dispatch measurement or an explicitly input-denominated ceiling, so observability alone is never credited as a control. Known failure directions: an input ceiling enforced in a gateway, proxy or platform outside the scanned tree reads as PRESENT when the control genuinely exists; and matching a pre-dispatch counter does not prove it gates the call rather than logging beside it, which is why a double match escalates to MANUAL instead of passing.",
+    "fixtures": {
+      "bad": {
+        "app/agent.py": "import anthropic\n\nclient = anthropic.Anthropic()\nhistory = []\n\n\ndef step(task):\n    history.append({'role': 'user', 'content': task})\n    reply = client.messages.create(\n        model='claude-sonnet-4-5',\n        max_tokens=1024,\n        system=load_preamble(),\n        messages=history,\n    )\n    history.append({'role': 'assistant', 'content': reply.content})\n    return reply\n",
+        "config.yaml": "model: claude-sonnet-4-5\nmax_tokens: 1024\n"
+      },
+      "good": {
+        "app/prompt_budget.py": "import anthropic\n\nMAX_INPUT_TOKENS = 20000\n\nclient = anthropic.Anthropic()\n\n\nclass PromptTooExpensive(RuntimeError):\n    pass\n\n\ndef assert_within(system, messages, model):\n    \"\"\"Refuse before dispatch. A count that does not refuse is not a ceiling.\"\"\"\n    counted = client.messages.count_tokens(\n        model=model, system=system, messages=messages\n    )\n    if counted.input_tokens > MAX_INPUT_TOKENS:\n        raise PromptTooExpensive(counted.input_tokens)\n    return counted.input_tokens\n",
+        "app/agent.py": "import anthropic\n\nfrom app.prompt_budget import assert_within\n\nclient = anthropic.Anthropic()\nhistory = []\n\n\ndef step(task):\n    history.append({'role': 'user', 'content': task})\n    system = load_preamble()\n    assert_within(system, history, 'claude-sonnet-4-5')\n    reply = client.messages.create(\n        model='claude-sonnet-4-5',\n        max_tokens=1024,\n        system=system,\n        messages=history,\n    )\n    history.append({'role': 'assistant', 'content': reply.content})\n    return reply\n",
+        "config.yaml": "model: claude-sonnet-4-5\nmax_tokens: 1024\nmax_input_tokens: 20000\n"
+      }
+    }
+  }
+}

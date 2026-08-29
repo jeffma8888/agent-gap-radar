@@ -1,0 +1,155 @@
+{
+  "id": "GAP-035",
+  "title": "Truncation treats the message history as a flat list, but a tool call and its result are one indivisible unit",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My window trimmer counts messages and cuts from the front, so eventually it cuts between an assistant message that called a tool and the message carrying that tool's result, and from that moment the provider rejects every request I send for the rest of the session.",
+  "symptom": "A long session dies on a 400 that names a tool_use id, and it does not recover: the invalid history is already persisted, so the next prompt and the next manual compaction hit the identical error. The operator's only exit is to discard the conversation, which throws away the context the trimming existed to protect.",
+  "why_now": "The pairing requirement is a hard provider invariant, but it is enforced only at the wire, thousands of turns after the code that broke it ran. Nothing in the message-history type system expresses that two entries are one unit, so every framework and every hand-rolled loop re-implements a count-based cut and rediscovers the same defect independently. It surfaces only on long, tool-heavy runs, which is exactly where a windowing strategy is mandatory rather than optional.",
+  "existing": [
+    "Frameworks ship boundary heuristics (start_on='human', end_on, or advancing the cut while the head is a tool response) but these are opt-in arguments on the trimming call, not an invariant the history object enforces, so a second code path that slices by hand bypasses them.",
+    "Provider-side validation catches it, but only after the corrupt history has been persisted, which is why the reported failure mode is an unrecoverable loop rather than one failed request.",
+    "This is not the instruction-eviction record: there the trimmed list is structurally valid and the loss is semantic, so no error is ever raised. Here the list is structurally invalid and the request is refused. Different signature, different fix, opposite observability.",
+    "Post-trim validation of the outgoing body would catch both, and essentially nobody does it."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "incident-postmortem",
+      "title": "BasicTruncator creates orphaned tool_result messages when splitting tool_use/tool_result pairs at truncation boundary (github/copilot-cli issue 2589)",
+      "locator": "https://github.com/github/copilot-cli/issues/2589",
+      "date": "2026-04-08",
+      "quote": "the BasicTruncator removes messages from the front of the conversation history without accounting for tool_use/tool_result pairs that straddle the truncation boundary",
+      "note": "A shipped first-party CLI at version 1.0.21. The report gives measured numbers from the broken session: 176 tool_use calls and 176 tool_results, and after truncation removed 62 messages, 3 tool_results were left with no tool_use."
+    },
+    {
+      "source_class": "incident-postmortem",
+      "title": "BasicTruncator creates orphaned tool_result messages when splitting tool_use/tool_result pairs at truncation boundary (github/copilot-cli issue 2589)",
+      "locator": "https://github.com/github/copilot-cli/issues/2589",
+      "date": "2026-04-08",
+      "quote": "The session then gets into an unrecoverable loop - every subsequent prompt or manual /compact attempt hits the same error.",
+      "note": "This is what makes the gap severe rather than annoying: the broken state is persisted, so the failure is terminal for the session rather than a retryable error. The reporter also notes the root cause is model-agnostic and reproduces against OpenAI models."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "MessageWindowChatMemory truncation breaks tool_use/tool_result pairs (Anthropic 400) (spring-projects/spring-ai issue 5940)",
+      "locator": "https://github.com/spring-projects/spring-ai/issues/5940",
+      "date": "2026-05-05",
+      "quote": "When the cut falls between such a pair, the assistant message is dropped but the tool result survives",
+      "note": "The same defect in an independent, widely used framework's default memory implementation, which is evidence that this is a missing contract rather than one product's bug."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "MessageWindowChatMemory truncation breaks tool_use/tool_result pairs (Anthropic 400) (spring-projects/spring-ai issue 5940)",
+      "locator": "https://github.com/spring-projects/spring-ai/issues/5940",
+      "date": "2026-05-05",
+      "quote": "Anthropic returns the 400 every request until the corrupt state is cleared.",
+      "note": "Independent confirmation of the unrecoverable-state consequence, and the reporter's workaround is to reset the whole conversation, which destroys the context the window existed to preserve."
+    },
+    {
+      "source_class": "maintainer-primary",
+      "title": "langchain_core/messages/utils.py, trim_messages docstring on message-history validity (pinned at commit ffef4e7)",
+      "locator": "https://raw.githubusercontent.com/langchain-ai/langchain/ffef4e7d05baecf6d1ad0ad73f7c1eacee3002a5/libs/core/langchain_core/messages/utils.py",
+      "date": "2026-08-02",
+      "quote": "In addition, generally a `ToolMessage` can only appear after an `AIMessage` that involved a tool call.",
+      "note": "The invariant is documented as prose in a trimming function's docstring, which is exactly the point: it is advice to the caller rather than something the history structure enforces."
+    }
+  ],
+  "build_hypothesis": "A validity assertion on the outgoing body rather than a smarter cut: one function that walks the message list about to be sent, matches every tool result to a tool call earlier in the same list, and raises with the offending id when it cannot. Provider-agnostic, about thirty lines, and it converts an unrecoverable session into a loud failure at the moment the cut is made. The pair-aware cut is then a fix for the cause, but the assertion is what makes any future cause visible.",
+  "tags": [
+    "truncation",
+    "tool-calls",
+    "window",
+    "unrecoverable",
+    "invariant"
+  ],
+  "check": {
+    "id": "CHK-034",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java"
+          ],
+          "pattern": "(?i)(trim_messages\\s*\\(|trim_history|def\\s+\\w*(?:trim|truncat|compact)\\w*|(?:messages|history)\\s*=\\s*(?:self\\.)?(?:messages|history)\\s*\\[\\s*[-\\d])"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java"
+          ],
+          "pattern": "(tool_use\\b|tool_result\\b|tool_use_id|tool_call_id|ToolResponseMessage|ToolMessage|tool_calls)"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java"
+          ],
+          "pattern": "(?i)(trim_messages\\s*\\(|trim_history|def\\s+\\w*(?:trim|truncat|compact)\\w*|(?:messages|history)\\s*=\\s*(?:self\\.)?(?:messages|history)\\s*\\[\\s*[-\\d])"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.java"
+          ],
+          "pattern": "(tool_use\\b|tool_result\\b|tool_use_id|tool_call_id|ToolResponseMessage|ToolMessage|tool_calls)"
+        },
+        {
+          "kind": "not",
+          "rule": {
+            "kind": "content_matches",
+            "globs": [
+              "**/*.py",
+              "**/*.ts",
+              "**/*.js",
+              "**/*.java"
+            ],
+            "pattern": "(?i)(orphan\\w*|pair_aware|pair-aware|keep_pairs|preserve_pairs|pairs_intact|tool_use_id\\s+not\\s+in|tool_use_id\\s+in\\s|matching_tool_use|unmatched_tool\\w*|dangling_tool\\w*|validate_(?:messages|history|transcript)|assert_valid_(?:messages|history)|repair_(?:messages|history)|sanitize_(?:messages|history))"
+          }
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.java"
+      ],
+      "pattern": "(?i)(orphan\\w*|pair_aware|pair-aware|keep_pairs|preserve_pairs|pairs_intact|tool_use_id\\s+not\\s+in|tool_use_id\\s+in\\s|matching_tool_use|unmatched_tool\\w*|dangling_tool\\w*|validate_(?:messages|history|transcript)|assert_valid_(?:messages|history)|repair_(?:messages|history)|sanitize_(?:messages|history))"
+    },
+    "manual_question": "Your code shortens a history that contains tool calls. If the cut lands between an assistant message that called a tool and the message carrying that tool's result, what happens on the next request, and how would you find out?",
+    "rationale": "Fires when a repo both shortens a message history and speaks the tool-call wire vocabulary, while nothing anywhere names an orphaned result, an unmatched id, or a validation pass over the trimmed list. What it can get wrong: a repo may keep pairs intact structurally, for example by trimming whole turns rather than messages, in which case it is safe and reads as PRESENT; and naming the vocabulary in one trimming path while a second path slices by hand reads as ABSENT, which is why the mitigation branch escalates to MANUAL when the bad signature is also present.",
+    "fixtures": {
+      "bad": {
+        "app/window.py": "\"\"\"Keeps a tool-calling conversation under the provider limit.\"\"\"\n\nMAX_MESSAGES = 100\n\n\ndef record_tool_result(messages, tool_use_id, output):\n    messages.append({\n        \"role\": \"user\",\n        \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": tool_use_id, \"content\": output}],\n    })\n    return messages\n\n\ndef trim_to_window(messages):\n    # Drop from the head until we are under the limit.\n    return messages[-MAX_MESSAGES:]\n\n\ndef build_request(messages, model):\n    return {\"model\": model, \"max_tokens\": 1024, \"messages\": trim_to_window(messages)}\n"
+      },
+      "good": {
+        "app/window.py": "\"\"\"Same window, but the cut may not land between a tool call and its result.\"\"\"\n\nMAX_MESSAGES = 100\n\n\ndef record_tool_result(messages, tool_use_id, output):\n    messages.append({\n        \"role\": \"user\",\n        \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": tool_use_id, \"content\": output}],\n    })\n    return messages\n\n\ndef _issued_ids(kept):\n    ids = set()\n    for message in kept:\n        for block in message.get(\"content\", []):\n            if isinstance(block, dict) and block.get(\"type\") == \"tool_use\":\n                ids.add(block[\"id\"])\n    return ids\n\n\ndef _drop_orphan_results(kept):\n    # Advance the cut while the first kept message answers a call we dropped.\n    while kept:\n        issued = _issued_ids(kept)\n        heads = [b for b in kept[0].get(\"content\", [])\n                 if isinstance(b, dict) and b.get(\"type\") == \"tool_result\"]\n        if any(b[\"tool_use_id\"] not in issued for b in heads):\n            kept = kept[1:]\n            continue\n        return kept\n    return kept\n\n\ndef trim_to_window(messages):\n    return _drop_orphan_results(messages[-MAX_MESSAGES:])\n\n\ndef build_request(messages, model):\n    return {\"model\": model, \"max_tokens\": 1024, \"messages\": trim_to_window(messages)}\n"
+      }
+    }
+  }
+}

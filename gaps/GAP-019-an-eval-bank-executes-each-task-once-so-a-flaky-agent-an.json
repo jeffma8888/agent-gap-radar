@@ -1,0 +1,188 @@
+{
+  "id": "GAP-019",
+  "title": "An eval bank executes each task once, so a flaky agent and a dependable one earn the same score and the gap only appears in production",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My bank runs every task one time and reports a mean, so I cannot tell an agent that solves a task every time from one that solves it one attempt in three, which is exactly the difference my users experience.",
+  "symptom": "A stable headline pass rate alongside support tickets saying the same request worked yesterday and failed today; re-running the suite unchanged moves the number by several points and nobody can say whether a release regressed or the dice landed differently.",
+  "why_now": "The metric that separates capability from dependability exists and is not adopted. tau-bench introduced pass^k for exactly this in 2024 and measured the size of the wedge on frontier models, under 50 percent single-attempt success collapsing to under 25 percent at pass^8 in retail, and a January 2026 benchmark paper still opens by stating that existing tool-using agent benchmarks primarily report single-run success rates and miss the reliability properties production needs. Meanwhile the peer-reviewed NeurIPS 2025 horizon work attributes the observed capability gains primarily to reliability, so the field is measuring one aggregate that is dominated by the variable it does not report.",
+  "existing": [
+    "pass@k: reports whether ANY of k attempts succeeded, which is the right metric when a human filters candidate outputs and the wrong one for an unattended agent, where it flatters exactly the flakiness that hurts. It is frequently reported in place of pass^k and the superscript is easy to misread.",
+    "Temperature zero: reduces sampling variance but does not remove it (tool latency, retrieval ordering, upstream backend routing), and it also evaluates a configuration nobody deploys.",
+    "Overall suite variance from CI history: shows the number moves, but is aggregated across tasks, so it cannot say WHICH task is unreliable and therefore cannot be acted on."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "ReliabilityBench: Evaluating LLM Agent Reliability Under Production-Like Stress Conditions",
+      "locator": "https://arxiv.org/abs/2601.06112",
+      "date": "2026-01-03",
+      "quote": "Existing benchmarks for tool-using LLM agents primarily report single-run success rates and miss reliability properties required in production.",
+      "note": "Classified survey-aggregate rather than peer-reviewed on purpose: the abstract page lists no venue, only page and figure counts. The cited sentence is a January 2026 survey claim about the state of existing benchmarks, which is the freshest direct statement that this primitive is still missing rather than already adopted."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains",
+      "locator": "https://arxiv.org/abs/2406.12045",
+      "date": "2024-06-17",
+      "quote": "We also propose a new metric (pass^k) to evaluate the reliability of agent behavior over multiple trials. Our experiments show that even state-of-the-art function calling agents (like gpt-4o) succeed on <50% of the tasks, and are quite inconsistent (pass^8 <25% in retail).",
+      "note": "No venue on the abstract page, so not claimed as peer-reviewed. This is the quantitative size of the wedge and the origin of the missing primitive: the same agents, the same tasks, single-attempt versus eight identical attempts, roughly halving the score."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "Measuring AI Ability to Complete Long Software Tasks",
+      "locator": "https://arxiv.org/abs/2503.14499",
+      "date": "2025-03-18",
+      "quote": "The increase in AI models' time horizons seems to be primarily driven by greater reliability and ability to adapt to mistakes, combined with better logical reasoning and tool use capabilities.",
+      "note": "Journal reference NeurIPS 2025 on the abstract page, so the venue is verified. It makes reliability the primary driver of the capability trend, which is the argument that a suite reporting one single-attempt mean is aggregating away the dominant variable."
+    },
+    {
+      "source_class": "survey-aggregate",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "Finally, there is a lack of standardization in evaluation practices, leading to a pervasive lack of reproducibility.",
+      "note": "No venue on the abstract page. Supports the same conclusion from the practice side: without a declared trial count per task, two reported numbers for the same agent are not comparable, and neither is comparable with a rerun of itself."
+    }
+  ],
+  "build_hypothesis": "Make the trial count a required field of a run record and make the harness refuse to emit a scalar. The smallest useful version wraps an existing suite: execute each task k times with the input byte-identical, then emit three numbers per task instead of one bit, the fraction of trials that passed, whether all k passed, and the trial count itself, so a reader can compute pass^k and see which specific tasks are unreliable. Even k equal to three, run nightly rather than per commit, separates a flaky task from a failing one, which is the distinction a single run structurally cannot make.",
+  "tags": [
+    "evals",
+    "benchmark-gap",
+    "reliability",
+    "pass-hat-k",
+    "variance",
+    "flake"
+  ],
+  "check": {
+    "id": "CHK-018",
+    "applies_when": {
+      "kind": "file_exists",
+      "globs": [
+        "evals/**/*.py",
+        "eval/**/*.py",
+        "**/evals/**/*.py",
+        "**/eval/**/*.py",
+        "**/*eval*.py",
+        "**/*grader*.py",
+        "**/*scorer*.py",
+        "**/*benchmark*.py",
+        "evals/**/*.json",
+        "evals/**/*.jsonl",
+        "evals/**/*.yaml",
+        "evals/**/*.yml",
+        "eval/**/*.json",
+        "eval/**/*.jsonl",
+        "**/tasks/**/*.json",
+        "**/tasks/**/*.jsonl"
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "file_exists",
+          "globs": [
+            "evals/**/*.py",
+            "eval/**/*.py",
+            "**/evals/**/*.py",
+            "**/eval/**/*.py",
+            "**/*eval*.py",
+            "**/*grader*.py",
+            "**/*scorer*.py",
+            "**/*benchmark*.py",
+            "evals/**/*.json",
+            "evals/**/*.jsonl",
+            "evals/**/*.yaml",
+            "evals/**/*.yml",
+            "eval/**/*.json",
+            "eval/**/*.jsonl",
+            "**/tasks/**/*.json",
+            "**/tasks/**/*.jsonl"
+          ]
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:pass_?rate|success_?rate|pass@1|passed\\s*/\\s*(?:len|total|n\\b)|accuracy)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:pass\\^|pass_hat|n_?trials|num_?trials|trial[_-]?count|per[_-]?task[_-]?(?:runs|trials|attempts)|repeat(?:ed)?[_-]?(?:runs|attempts|trials)|n_?repeats|num_?repeats|k_?runs|runs_?per_?task|attempts_?per_?task|trials_?per_?task)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:pass\\^|pass_hat|n_?trials|num_?trials|trial[_-]?count|per[_-]?task[_-]?(?:runs|trials|attempts)|repeat(?:ed)?[_-]?(?:runs|attempts|trials)|n_?repeats|num_?repeats|k_?runs|runs_?per_?task|attempts_?per_?task|trials_?per_?task)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.json",
+            "**/*.jsonl",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.csv",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i:pass\\^|pass_hat|all[_-]?k[_-]?(?:pass|succeed|success)|consistency|flake|per[_-]?task[_-]?(?:variance|stddev|std_?dev|spread)|confidence[_-]?interval|std_?err)"
+        }
+      ]
+    },
+    "manual_question": "For your eval suite: how many times is each task executed per reported score, and if the answer is one, what is your evidence that a task which passes is not a task that passes one attempt in three? Note this is about variance under a byte-identical input, which is a different question from robustness to a rephrased input.",
+    "rationale": "The signature is the conjunction that makes the number misleading rather than merely incomplete: a bank of tasks exists, a pass or success rate is computed from it, and nowhere in the shipped code or data is there any vocabulary for executing the same task more than once. The rate requirement is what stops this firing on a repo that merely holds task data with no scorer. Known failure modes, both lexical: a suite that repeats tasks using a naming scheme outside the vocabulary reads as PRESENT when it is not, and a repo that reports overall suite variance without repeating individual tasks can read as mitigated, which is why the manual question asks for the per-task trial count directly rather than for the word.",
+    "fixtures": {
+      "bad": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Refund the last order for user_7\", \"expect\": \"refund_created\"}\n{\"id\": \"t2\", \"prompt\": \"Change the shipping address on order 91\", \"expect\": \"address_updated\"}\n",
+        "evals/score.py": "\"\"\"Score the eval bank. One shot per task, one headline number.\"\"\"\nimport json\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\ndef score(agent):\n    tasks = load()\n    passed = 0\n    for task in tasks:\n        # Each task is executed exactly once. A task that succeeds one time\n        # in three is indistinguishable here from one that always succeeds.\n        if agent(task[\"prompt\"]) == task[\"expect\"]:\n            passed += 1\n    return {\"pass_rate\": passed / len(tasks)}\n"
+      },
+      "good": {
+        "evals/tasks.jsonl": "{\"id\": \"t1\", \"prompt\": \"Refund the last order for user_7\", \"expect\": \"refund_created\"}\n{\"id\": \"t2\", \"prompt\": \"Change the shipping address on order 91\", \"expect\": \"address_updated\"}\n",
+        "evals/score.py": "\"\"\"Score the eval bank under repeated execution of the identical input.\"\"\"\nimport json\nimport statistics\n\nK = 8  # trials_per_task: the same prompt, re-executed unchanged\n\ndef load(path=\"evals/tasks.jsonl\"):\n    return [json.loads(line) for line in open(path)]\n\ndef score(agent):\n    tasks = load()\n    per_task = {}\n    for task in tasks:\n        hits = [agent(task[\"prompt\"]) == task[\"expect\"] for _ in range(K)]\n        per_task[task[\"id\"]] = hits\n    # pass_hat_k: the task counts as passed only if every one of the K\n    # identical executions passed. This is the deployment-relevant number.\n    pass_hat_k = sum(all(h) for h in per_task.values()) / len(tasks)\n    any_pass = sum(any(h) for h in per_task.values()) / len(tasks)\n    per_task_stddev = {\n        tid: statistics.pstdev([float(h) for h in hits])\n        for tid, hits in per_task.items()\n    }\n    return {\n        \"pass_hat_k\": pass_hat_k,\n        \"pass_at_1_upper_bound\": any_pass,\n        \"k\": K,\n        \"per_task_stddev\": per_task_stddev,\n    }\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "id": "GAP-022",
+  "title": "An eval harness scores one attempt per task, so the number says a success exists, not that the task completes reliably",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent scores well on the benchmark and fails in front of users, because the score records that one attempt succeeded and nothing in my harness ever asked whether the same task succeeds every time.",
+  "symptom": "The aggregate pass rate is stable and green while individual tasks flip between runs; users report intermittent failures no dashboard shows; a real regression is indistinguishable from run-to-run variance, so every investigation starts by re-running to see if it happens again.",
+  "why_now": "2026 agent benchmarks moved into executable environments, but the reporting convention stayed single-attempt: a harness runs each task once because repeats cost k times the tokens and wall clock, and pass@k as commonly reported is BEST-of-k, which rewards luck rather than measuring it. The all-of-k statistic appears in a handful of 2026 papers and in no mainstream harness configuration, so the number practitioners compare models on is structurally silent about reliability.",
+  "existing": [
+    "pass@k as usually implemented is best-of-k: it credits a task as solved if any sample solved it, which moves the number in the opposite direction from reliability.",
+    "temperature=0 or a fixed seed does not make an agent deterministic, because tool latency, tool errors, retrieved content and environment state vary between attempts, so single-attempt scoring is not repeatable even in principle.",
+    "Error bars over the task axis (bootstrapping the task sample) narrow uncertainty about the MEAN across tasks; they say nothing about whether a given task completes twice in a row.",
+    "Flaky-test infrastructure in ordinary CI has exactly the missing primitive (repeat until stable, quarantine the intermittent case), but no agent eval harness ships it as a first-class report."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows",
+      "locator": "https://arxiv.org/abs/2608.19741",
+      "date": "2026-08-20",
+      "quote": "the strongest achieves 65.36% pass@1, but only 25.25% pass^20",
+      "note": "Direct measurement of the size of the gap on one benchmark: the same model and the same tasks score 65 percent when scored on one attempt and 25 percent when required to succeed on all twenty. The primitive that produces the second number is per-task repeated attempts, which is the thing missing from ordinary harnesses. arXiv preprint from an industry team, not peer reviewed; classed as a practitioner report on purpose."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows",
+      "locator": "https://arxiv.org/abs/2608.19741",
+      "date": "2026-08-20",
+      "quote": "reveals a large gap between occasionally finding a successful trajectory and reliably completing stateful business tasks",
+      "note": "The authors name the benchmark-to-real-task gap as the distinction between finding a trajectory once and completing the task every time, which is precisely a measurement convention rather than a model capability."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "From benchmarks to deployment: a comprehensive review of agentic AI evaluation",
+      "locator": "https://link.springer.com/article/10.1007/s10462-026-11571-0",
+      "date": "2026-04-24",
+      "quote": "a majority of benchmarks focus on the task completion rates and overlook such crucial dimensions as being able to scale to real-world complexity",
+      "note": "Peer-reviewed review in Artificial Intelligence Review covering 15 major agent benchmarks, published 24 April 2026. It attributes the disconnect to evaluation methodology rather than model capability, and names reproducibility across implementations as one of the overlooked dimensions."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Agents' Last Exam",
+      "locator": "https://arxiv.org/abs/2606.05405",
+      "date": "2026-06-03",
+      "quote": "We argue that this gap is largely an evaluation problem: widely used benchmarks lack sustained performance measurement on real and economically valuable workflows",
+      "note": "An independent 2026 statement that the benchmark-to-reality gap is an EVALUATION defect, and that what is missing is SUSTAINED measurement rather than a single scored attempt. arXiv preprint, not peer reviewed."
+    }
+  ],
+  "build_hypothesis": "A harness flag, not a new benchmark: run each task k times, keep a per-task attempt ledger, and report pass@1, pass^k and a per-task flip rate side by side. It needs no new labels and no new grader, only a loop and a ledger, and the ledger is what makes a later regression localisable to a task rather than to a percentage. The cheapest useful k is small (3 to 5) because a task that fails once in three is already not shippable.",
+  "tags": [
+    "reliability",
+    "benchmark",
+    "pass-hat-k",
+    "eval-harness",
+    "variance"
+  ],
+  "check": {
+    "id": "CHK-021",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(pass@1|pass_at_1|success_rate|solve_rate|task_success|n_passed|num_passed|accuracy\\s*=)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(pass@1|pass_at_1|success_rate|solve_rate|task_success|n_passed|num_passed)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "for\\s+\\w*task\\w*\\s+in\\s+|for\\s+\\w+\\s+in\\s+\\w*tasks\\w*"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.md",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.toml",
+            "**/*.json",
+            "**/*.cfg",
+            "**/*.ini"
+          ],
+          "pattern": "(?i)(pass\\^|pass_hat|pass_pow|all_of_k|k_of_k|n_trials|num_trials|trials_per_task|attempts_per_task|repeats_per_task|samples_per_task|reliability_rate|per_task_reliability|flake_rate|per_task_variance)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.md",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.toml",
+        "**/*.json",
+        "**/*.cfg",
+        "**/*.ini"
+      ],
+      "pattern": "(?i)(pass\\^|pass_hat|pass_pow|all_of_k|k_of_k|n_trials|num_trials|trials_per_task|attempts_per_task|repeats_per_task|samples_per_task|reliability_rate|per_task_reliability|flake_rate|per_task_variance)"
+    },
+    "manual_question": "Your harness reports a pass rate over a task set. How many times is each task attempted, and what does the report say about a task that passes on one attempt and fails on the next?",
+    "rationale": "A repo that iterates a task list and divides passes by tasks is running a benchmark harness; the absence of any repeated-attempt or per-task reliability vocabulary anywhere in it is good evidence that each task is scored once, so the reported number cannot distinguish a capability from a lucky trajectory. What it can get wrong: a harness may repeat attempts through a runner flag or an external orchestrator that is not in this repo, and the vocabulary list is lexical, so a project that implements repeats under an idiosyncratic name reads as exhibiting the gap. That is why the mitigation pattern is deliberately broad and why the finding is a signature, not a verdict.",
+    "fixtures": {
+      "bad": {
+        "evals/run_bench.py": "\"\"\"Benchmark harness. One attempt per task, aggregate pass rate.\"\"\"\nimport json\n\nfrom agent.runner import run_agent\nfrom evals.grade import grade\n\n\ndef load_tasks(path: str = \"evals/tasks.jsonl\") -> list[dict]:\n    with open(path) as fh:\n        return [json.loads(line) for line in fh]\n\n\ndef main() -> None:\n    tasks = load_tasks()\n    n_passed = 0\n    for task in tasks:\n        transcript = run_agent(task[\"prompt\"], tools=task[\"tools\"])\n        if grade(task, transcript):\n            n_passed += 1\n    success_rate = n_passed / len(tasks)\n    print(f\"pass@1 = {success_rate:.3f} over {len(tasks)} tasks\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "evals/grade.py": "\"\"\"Grade one attempt.\"\"\"\n\n\ndef grade(task: dict, transcript) -> bool:\n    return task[\"expected\"] in transcript.final_text\n",
+        "evals/tasks.jsonl": "{\"id\": \"retail-001\", \"prompt\": \"cancel order 4471 and refund the card\", \"tools\": [\"orders\", \"payments\"], \"expected\": \"refunded\"}\n"
+      },
+      "good": {
+        "evals/run_bench.py": "\"\"\"Benchmark harness. Every task is attempted k times and reported two ways.\n\npass@1 answers \"can it ever do this\". pass^k answers \"can it do this every time\",\nwhich is the number that predicts a production experience. Reporting only the\nfirst credits a lucky trajectory as a capability.\n\"\"\"\nimport json\n\nfrom agent.runner import run_agent\nfrom evals.grade import grade\n\nATTEMPTS_PER_TASK = 20\n\n\ndef load_tasks(path: str = \"evals/tasks.jsonl\") -> list[dict]:\n    with open(path) as fh:\n        return [json.loads(line) for line in fh]\n\n\ndef main() -> None:\n    tasks = load_tasks()\n    ledger: dict[str, list[bool]] = {}\n    for task in tasks:\n        outcomes = []\n        for _ in range(ATTEMPTS_PER_TASK):\n            transcript = run_agent(task[\"prompt\"], tools=task[\"tools\"])\n            outcomes.append(bool(grade(task, transcript)))\n        ledger[task[\"id\"]] = outcomes\n\n    pass_at_1 = sum(any(o) for o in ledger.values()) / len(ledger)\n    pass_hat_k = sum(all(o) for o in ledger.values()) / len(ledger)\n    flake_rate = sum(any(o) and not all(o) for o in ledger.values()) / len(ledger)\n    print(f\"pass@1 = {pass_at_1:.3f}  pass^{ATTEMPTS_PER_TASK} = {pass_hat_k:.3f}\")\n    print(f\"per_task_reliability recorded for {len(ledger)} tasks, flake_rate {flake_rate:.3f}\")\n    with open(\"evals/attempt_ledger.json\", \"w\") as fh:\n        json.dump(ledger, fh)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "evals/grade.py": "\"\"\"Grade one attempt.\"\"\"\n\n\ndef grade(task: dict, transcript) -> bool:\n    return task[\"expected\"] in transcript.final_text\n",
+        "evals/tasks.jsonl": "{\"id\": \"retail-001\", \"prompt\": \"cancel order 4471 and refund the card\", \"tools\": [\"orders\", \"payments\"], \"expected\": \"refunded\"}\n"
+      }
+    }
+  }
+}

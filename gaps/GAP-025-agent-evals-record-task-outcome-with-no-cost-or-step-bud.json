@@ -1,0 +1,128 @@
+{
+  "id": "GAP-025",
+  "title": "Agent evals record task outcome with no cost or step budget, so a benchmark score has no denominator and cannot be projected onto a real task",
+  "layer": "eval-verification",
+  "gap_type": "measurement-gap",
+  "status": "open",
+  "problem": "My agent's benchmark score went up and I cannot tell whether it was bought with three tool calls or three hundred, so I have no way to predict what the same task costs me in production.",
+  "symptom": "The eval report is a single pass rate per task. Two configurations that score identically differ by an order of magnitude in tokens, tool calls and wall clock, and nothing in the recorded result shows it, so a change that doubles spend at constant accuracy passes review as a no-op.",
+  "why_now": "Accuracy-only leaderboards remain the default in 2026 because the outcome is the thing the harness already has to compute in order to grade, while cost is a second measurement nobody's grading loop needs. Retry, resampling and multi-agent debate all buy accuracy with unbounded spend, so an accuracy-only record cannot distinguish a better agent from a more expensive one, and the number therefore does not transfer to any real deployment that has a budget.",
+  "existing": [
+    "Provider SDKs return a usage object per call, but it is discarded by the eval loop rather than joined to the task record, so the cost of a task is unrecoverable after the run.",
+    "Some leaderboards publish an aggregate dollar figure per submission, which cannot answer the per-task question an operator actually has (which tasks are expensive, and did this change make them worse).",
+    "Wall-clock timeouts bound the worst case but do not measure the typical case, so they cap runaway cost without making cost comparable between two passing runs."
+  ],
+  "severity": 4,
+  "frequency": 5,
+  "tractability": 4,
+  "evidence": [
+    {
+      "source_class": "practitioner-report",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "First, there is a narrow focus on accuracy without attention to other metrics.",
+      "note": "States the gap directly as a property of current agent evaluation practice. arXiv preprint (Kapoor, Stroebl et al.); the abstract page I fetched shows no journal reference, so it is graded practitioner-report rather than peer-reviewed."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "AI Agents That Matter",
+      "locator": "https://arxiv.org/abs/2407.01502",
+      "date": "2024-07-01",
+      "quote": "Our focus on cost in addition to accuracy motivates the new goal of jointly optimizing the two metrics.",
+      "note": "Names the missing primitive: cost recorded alongside accuracy, as a joint objective rather than a footnote."
+    },
+    {
+      "source_class": "first-party-field",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-12",
+      "quote": "After completing the study, developers estimate that allowing AI reduced completion time by 20%.",
+      "note": "METR's own randomised controlled trial on real tasks in mature repositories. The measured direction was the opposite of both the forecast and the post-hoc estimate, which is the concrete demonstration that an unmeasured resource axis (here developer time) inverts the conclusion a capability score would support."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-07-03",
+      "quote": "However, we show that many agentic benchmarks have issues in task setup or reward design.",
+      "note": "Corroborates that the recorded outcome of an agentic benchmark is not a trustworthy scalar on its own. arXiv preprint; abstract page shows no journal reference, so graded practitioner-report."
+    }
+  ],
+  "build_hypothesis": "A per-task result record with a mandatory resource block (input tokens, output tokens, tool calls, steps, wall clock, and a priced cost), emitted by the harness rather than the agent, plus one assertion in CI that fails when cost per task regresses beyond a threshold at flat accuracy. The smallest useful version is a context manager that wraps the provider client, accumulates the usage objects the SDK already returns, and refuses to write a result row whose resource block is empty.",
+  "tags": [
+    "evals",
+    "cost",
+    "benchmark",
+    "measurement",
+    "tokens"
+  ],
+  "check": {
+    "id": "CHK-024",
+    "applies_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)(openai|anthropic|litellm|langchain|langgraph|crewai|bedrock|chat\\.completions|messages\\.create|agent_run|run_agent|run_task)"
+        },
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)[\\\"']?(passed|success|correct|score|pass_rate|success_rate|resolved|accuracy)[\\\"']?\\s*[:=]"
+        }
+      ]
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?i)[\\\"']?(passed|success|correct|score|pass_rate|success_rate|resolved|accuracy)[\\\"']?\\s*[:=]"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.jsonl"
+          ],
+          "pattern": "(?i)(total_tokens|prompt_tokens|completion_tokens|input_tokens|output_tokens|token_count|cost_usd|usd_cost|cost_per_task|token_budget|step_budget|max_steps|record_usage|log_usage|track_cost|price_per_token)"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(total_tokens|prompt_tokens|completion_tokens|input_tokens|output_tokens|token_count|cost_usd|usd_cost|cost_per_task|token_budget|step_budget|max_steps|record_usage|log_usage|track_cost|price_per_token)"
+    },
+    "manual_question": "For one task in your eval set, can you answer from the STORED result alone how many input and output tokens, tool calls and seconds that task consumed, and what it cost? If that requires re-running the task, the score has no denominator and a cost regression at flat accuracy is invisible to you.",
+    "rationale": "A repository that calls a model provider and grades a per-task outcome field, while no file anywhere records token usage, a step budget or a priced cost, is keeping the accuracy axis and discarding the resource axis the provider already handed it. What it can get wrong: a harness may record usage under a project-specific name this pattern does not know (it then reports MANUAL, not a clean bill), and a repo may deliberately push cost accounting into an external observability backend, which is a legitimate design this signature cannot see. It never claims ABSENT from the mere absence of the bad pattern.",
+    "fixtures": {
+      "bad": {
+        "src/harness.py": "import openai\n\n\ndef grade(task, client):\n    reply = client.chat.completions.create(model=task.model, messages=task.messages)\n    return {\"task_id\": task.id, \"passed\": task.oracle(reply), \"score\": 1.0}\n\n\ndef run_suite(tasks, client):\n    rows = [grade(t, client) for t in tasks]\n    pass_rate = sum(r[\"passed\"] for r in rows) / len(rows)\n    return {\"pass_rate\": pass_rate, \"rows\": rows}\n",
+        "README.md": "Eval harness. Reports pass rate per suite.\n"
+      },
+      "good": {
+        "src/harness.py": "import openai\n\n\ndef grade(task, client):\n    reply = client.chat.completions.create(model=task.model, messages=task.messages)\n    usage = reply.usage\n    return {\n        \"task_id\": task.id,\n        \"passed\": task.oracle(reply),\n        \"score\": 1.0,\n        \"prompt_tokens\": usage.prompt_tokens,\n        \"completion_tokens\": usage.completion_tokens,\n        \"cost_usd\": price_per_token(task.model) * usage.total_tokens,\n    }\n\n\ndef run_suite(tasks, client):\n    rows = [grade(t, client) for t in tasks]\n    pass_rate = sum(r[\"passed\"] for r in rows) / len(rows)\n    spend = sum(r[\"cost_usd\"] for r in rows)\n    return {\"pass_rate\": pass_rate, \"cost_usd\": spend, \"rows\": rows}\n",
+        "README.md": "Eval harness. Reports pass rate and cost_usd per suite.\n"
+      }
+    }
+  }
+}

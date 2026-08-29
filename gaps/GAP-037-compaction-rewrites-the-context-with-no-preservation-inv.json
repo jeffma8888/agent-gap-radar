@@ -1,0 +1,106 @@
+{
+  "id": "GAP-037",
+  "title": "Compaction rewrites the context with no preservation invariant, so load-bearing instructions are summarised away silently",
+  "layer": "context-memory",
+  "gap_type": "missing-contract",
+  "status": "open",
+  "problem": "My agent crossed the context limit, a summariser rewrote its window, and the constraint I had pinned in the system prompt was simply not in the new window - nothing checked, nothing errored.",
+  "symptom": "After a long run the agent starts violating a rule it obeyed for hours; the rule is still present in the steering file, and the only place it is missing is the post-compaction window nobody diffed.",
+  "why_now": "Compaction shipped as a product feature in 2025 and is now the first lever every long-horizon harness reaches for, but it is specified as a PROMPT to tune rather than as a contract to enforce. There is no declared set of must-survive spans and no assertion after the rewrite, so a lossy summary is indistinguishable from a faithful one.",
+  "existing": [
+    "Tuning the compaction prompt for recall: the vendor's own recommendation, but it is a probabilistic instruction to a summariser, not an invariant, and it is tuned on traces that do not contain your rule.",
+    "Tool-result clearing: safe because it deletes a class known to be redundant, which is exactly why it does not generalise to instructions.",
+    "Larger context windows: postpones the compaction rather than making it verifiable, and recall still degrades with length.",
+    "Structured note-taking to a file outside the window: durable storage, but re-injection is still unverified, so the note can exist and never reach the model."
+  ],
+  "severity": 4,
+  "frequency": 4,
+  "tractability": 5,
+  "evidence": [
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective harnesses for long-running agents",
+      "locator": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "date": "2025-11-26",
+      "quote": "This happens even with compaction, which doesn't always pass perfectly clear instructions to the next agent.",
+      "note": "The clearest available statement of the gap, from the vendor that shipped the feature: compaction does not reliably carry instructions across a context boundary. The same page calls consistent progress across multiple context windows an open problem, and its remedy is a progress FILE plus git commits, which is durable storage rather than a preservation invariant on the compacted window itself."
+    },
+    {
+      "source_class": "vendor-primary",
+      "title": "Effective context engineering for AI agents",
+      "locator": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "date": "2025-09-29",
+      "quote": "The art of compaction lies in the selection of what to keep versus what to discard, as overly aggressive compaction can result in the loss of subtle but critical context whose importance only becomes apparent later.",
+      "note": "Names the loss and locates the discipline in tuning the summariser's PROMPT ('carefully tuning your prompt on complex agent traces', maximise recall then improve precision). That is guidance to a probabilistic component, not an assertion after the rewrite, which is exactly the missing contract. The same page defines compaction as summarising the window and reinitiating a new one."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "LLMs Get Lost In Multi-Turn Conversation",
+      "locator": "https://arxiv.org/abs/2505.06120",
+      "date": "2025-05-09",
+      "quote": "all the top open- and closed-weight LLMs we test exhibit significantly lower performance in multi-turn conversations than single-turn, with an average drop of 39% across six generation tasks",
+      "note": "Classified practitioner-report, NOT peer-reviewed: DBLP lists this only as CoRR abs/2505.06120, an informal publication with no refereed venue, so the peer-reviewed weight would overstate it. Cited for the magnitude of the degradation compaction is deployed against, measured over 200,000+ simulated conversations, and for the finding that it is dominated by unreliability rather than lost aptitude."
+    }
+  ],
+  "build_hypothesis": "A compaction receipt: the caller declares must-survive spans (system rules, the output contract, open constraints), the harness asserts each one is present in the post-compaction window verbatim or by embedding match, and a miss fails the step loudly instead of continuing with a thinner window.",
+  "tags": [
+    "compaction",
+    "context-window",
+    "long-horizon",
+    "silent-failure"
+  ],
+  "check": {
+    "id": "CHK-036",
+    "applies_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)(compact|summariz|summaris)\\w*\\s*\\(\\s*[\\w\\.]*(messages|history|conversation|transcript)"
+    },
+    "present_when": {
+      "kind": "all_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)(compact|summariz|summaris)\\w*\\s*\\(\\s*[\\w\\.]*(messages|history|conversation|transcript)"
+        },
+        {
+          "kind": "content_absent",
+          "globs": [
+            "**/*.py",
+            "**/*.ts",
+            "**/*.js"
+          ],
+          "pattern": "(?i)must_(keep|preserve)|preserve\\w*_(instruction|invariant|pinned|rule)|pinned_(prefix|instructions|context|rules)|assert\\w*_(preserv|surviv|retain)|verify_compaction|compaction_(invariant|contract|receipt|check)|survives_compaction"
+        }
+      ]
+    },
+    "mitigated_when": {
+      "kind": "content_matches",
+      "globs": [
+        "**/*.py",
+        "**/*.ts",
+        "**/*.js"
+      ],
+      "pattern": "(?i)must_(keep|preserve)|preserve\\w*_(instruction|invariant|pinned|rule)|pinned_(prefix|instructions|context|rules)|assert\\w*_(preserv|surviv|retain)|verify_compaction|compaction_(invariant|contract|receipt|check)|survives_compaction"
+    },
+    "manual_question": "Your harness compacts or summarises its own context. Which spans are declared must-survive, and what asserts they are still present AFTER the rewrite?",
+    "rationale": "A target that summarises its message history and nowhere names a preservation invariant has no mechanism that could detect the loss. What it can get wrong: a project may enforce the invariant under vocabulary this pattern does not know, which yields MANUAL rather than a false ABSENT, and a repo that merely mentions the vocabulary in a comment reads as mitigated.",
+    "fixtures": {
+      "bad": {
+        "agent/context.py": "MAX_WINDOW_TOKENS = 180000\n\nSYSTEM_RULES = \"never force-push, always run the suite before committing\"\n\n\ndef compact(messages, llm):\n    \"\"\"Summarise the conversation and reinitialise the window with the summary.\"\"\"\n    summary = llm.summarize(messages[:-5])\n    return [{\"role\": \"user\", \"content\": summary}] + messages[-5:]\n\n\ndef step(messages, llm):\n    if count_tokens(messages) > MAX_WINDOW_TOKENS:\n        messages = compact(messages, llm)\n    return llm.respond(messages)\n"
+      },
+      "good": {
+        "agent/context.py": "MAX_WINDOW_TOKENS = 180000\n\nSYSTEM_RULES = \"never force-push, always run the suite before committing\"\n\nPINNED = [SYSTEM_RULES]\n\n\nclass CompactionInvariantError(RuntimeError):\n    \"\"\"A pinned rule did not survive compaction. Refuse to continue.\"\"\"\n\n\ndef must_preserve(window):\n    \"\"\"Compaction invariant, enforced at runtime on every compaction.\"\"\"\n    blob = \"\\n\".join(m[\"content\"] for m in window)\n    for rule in PINNED:\n        if rule not in blob:\n            raise CompactionInvariantError(rule)\n\n\ndef compact(messages, llm):\n    summary = llm.summarize(messages[:-5])\n    kept = [{\"role\": \"system\", \"content\": r} for r in PINNED]\n    window = kept + [{\"role\": \"user\", \"content\": summary}] + messages[-5:]\n    must_preserve(window)\n    return window\n\n\ndef step(messages, llm):\n    if count_tokens(messages) > MAX_WINDOW_TOKENS:\n        messages = compact(messages, llm)\n    return llm.respond(messages)\n"
+      }
+    }
+  }
+}

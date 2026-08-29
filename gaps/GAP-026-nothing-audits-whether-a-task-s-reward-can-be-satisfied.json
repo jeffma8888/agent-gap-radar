@@ -1,0 +1,78 @@
+{
+  "id": "GAP-026",
+  "title": "Nothing audits whether a task's reward can be satisfied without the task being achieved",
+  "layer": "eval-verification",
+  "gap_type": "unverifiable",
+  "status": "open",
+  "problem": "I trust my suite's pass rate, but I have never checked whether a task can score as success while the goal state was never reached - so I do not know which direction my benchmark is wrong in.",
+  "symptom": "A score that does not survive contact with users: the suite says 60% and the deployed agent behaves like 30%, or a genuinely capable agent scores below a compliant one. Re-auditing a handful of 'passed' transcripts turns up passes that achieved nothing.",
+  "why_now": "Agentic rewards are written by hand, one per task, against an environment that the task author also wrote. A published 2025 audit of widely-used agentic benchmarks found reward defects large enough to move reported performance by up to 100% in relative terms, which means the defect class is normal rather than exceptional - and no standard artifact records that a reward was ever validated against the annotated end state.",
+  "existing": [
+    "Human spot-checking of transcripts finds instances but produces no durable record that a task's reward was validated, so the audit is redone or skipped every release.",
+    "An LLM judge raises agreement with human judgement but is itself an unvalidated grader, so it moves the trust problem rather than closing it.",
+    "Comparing final database state against an annotated goal state is the strong form, but it exists per-benchmark rather than as a contract a harness enforces."
+  ],
+  "severity": 5,
+  "frequency": 4,
+  "tractability": 3,
+  "evidence": [
+    {
+      "source_class": "survey-aggregate",
+      "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+      "locator": "https://arxiv.org/abs/2507.02825",
+      "date": "2025-08-07",
+      "quote": "For example, SWE-bench Verified uses insufficient test cases, while TAU-bench counts empty responses as successful.",
+      "note": "Names the failure concretely in two of the most-cited agentic benchmarks: a reward that a no-op satisfies. The same abstract sizes the effect - 'Such issues can lead to under- or overestimation of agents' performance by up to 100% in relative terms' - and reports that applying their checklist to CVE-Bench 'reduces the performance overestimation by 33%'. Classified survey-aggregate because the paper synthesises a survey of practices and previously reported issues; the arXiv page I fetched (v5, 7 Aug 2025) shows no journal reference, so I am not claiming peer review."
+    },
+    {
+      "source_class": "peer-reviewed",
+      "title": "An Illusion of Progress? Assessing the Current State of Web Agents",
+      "locator": "https://arxiv.org/abs/2504.01382",
+      "date": "2025-10-08",
+      "quote": "Our results depict a very different picture of the competency of current agents, suggesting over-optimism in previously reported results. This gap can be attributed to shortcomings in existing benchmarks.",
+      "note": "Peer-reviewed (the arXiv page carries the journal reference COLM 2025). Attributes the benchmark-to-real-task gap to the benchmarks themselves rather than to the agents, which is the claim this record's manual question is designed to force a team to test on its own suite. Date is the v4 submission date on the page I fetched."
+    },
+    {
+      "source_class": "practitioner-report",
+      "title": "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity",
+      "locator": "https://arxiv.org/abs/2507.09089",
+      "date": "2025-07-25",
+      "quote": "Surprisingly, we find that allowing AI actually increases completion time by 19%--AI tooling slowed developers down.",
+      "note": "The real-task end of the same gap, measured as an RCT on 246 tasks in mature repositories: the direction of the effect is opposite to what both the developers and expert forecasters predicted. Included because it establishes that the gap is not merely a scoring artifact - real-task outcomes can invert relative to expectations formed from benchmark-era capability claims. Classified practitioner-report: the arXiv page I fetched shows no journal reference."
+    }
+  ],
+  "build_hypothesis": "A per-task reward validation record the harness can require: for each task, a stored no-op trajectory and a stored known-wrong trajectory, both asserted to FAIL, plus one known-good trajectory asserted to pass. A task with no such record is reported as unvalidated rather than counted in the score.",
+  "tags": [
+    "evals",
+    "outcome-validity",
+    "benchmark-gap",
+    "reward-design"
+  ],
+  "check": {
+    "id": "CHK-025",
+    "applies_when": {
+      "kind": "any_of",
+      "rules": [
+        {
+          "kind": "content_matches",
+          "globs": [
+            "**/*.py"
+          ],
+          "pattern": "(?im)^\\s*def\\s+(grade|reward|score_task|verify_task|evaluate_task|is_success|check_success)\\b"
+        },
+        {
+          "kind": "file_exists",
+          "globs": [
+            "**/evals/**",
+            "**/eval/**",
+            "**/benchmarks/**",
+            "**/tasks/*.yaml",
+            "**/tasks/*.json"
+          ]
+        }
+      ]
+    },
+    "manual_question": "Take three tasks from your suite at random. For each, can an empty or no-op agent response score as success? Does the reward compare the FINAL ENVIRONMENT STATE against an annotated goal state, or only the agent's own reported answer? Are the tests behind a pass sufficient to fail a plausible wrong solution? If you cannot answer for a task you did not write yourself, your pass rate has an unknown sign of error, not just an unknown magnitude.",
+    "rationale": "Deliberately has NO present_when. Whether a reward can be satisfied without the goal being achieved is a property of the reward's semantics against its environment, and no lexical signature separates a sound grader from an exploitable one - a brittle regex here would manufacture verdicts on the one question in the register where a false ABSENT is most expensive. applies_when fires when the target owns graders or a task suite at all, so the finding is raised as MANUAL for exactly the projects that have something to audit."
+  }
+}
