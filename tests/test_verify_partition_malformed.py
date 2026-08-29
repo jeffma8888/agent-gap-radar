@@ -136,3 +136,50 @@ def test_a_record_with_no_evidence_at_all_is_quarantined(tmp_path):
     assert (q / "empty.json").exists(), (
         "a record citing nothing has no verified evidence and must not promote")
     assert not (inbox / "empty.json").exists()
+
+
+# --------------------------------------------------------------------------
+# Staging verified work. Without this, bounding a pass and then promoting the
+# inbox promotes the UNPROCESSED tail, whose quotes were never checked.
+# --------------------------------------------------------------------------
+
+def test_verified_records_stay_in_the_inbox_when_no_destination_is_given(tmp_path):
+    """Backward compatible: omitting `verified` must not change the old behaviour."""
+    inbox, q, d = _dirs(tmp_path)
+    _good(inbox, "good1")
+
+    assert vq.partition(inbox, q, d) == 0
+    assert (inbox / "good1.json").exists()
+
+
+def test_verified_records_are_staged_when_a_destination_is_given(tmp_path):
+    inbox, q, d = _dirs(tmp_path)
+    verified = tmp_path / "verified"
+    _good(inbox, "good1")
+    _good(inbox, "good2")
+
+    assert vq.partition(inbox, q, d, verified=verified) == 0
+    assert {p.stem for p in verified.glob("*.json")} == {"good1", "good2"}
+    assert list(inbox.glob("*.json")) == [], "nothing checked should remain behind"
+
+
+def test_bounding_a_pass_leaves_no_unverified_work_promotable(tmp_path):
+    """The reason `verified` exists.
+
+    With a bounded pass and no staging, the inbox afterwards holds BOTH the records
+    that passed and the tail that was never looked at -- indistinguishable to a
+    driver that promotes the inbox. Staging separates them, so the set handed to
+    `promote` contains only records whose quotes were actually checked.
+    """
+    inbox, q, d = _dirs(tmp_path)
+    verified = tmp_path / "verified"
+    for i in range(5):
+        _good(inbox, f"good{i}")
+
+    assert vq.partition(inbox, q, d, max_records=2, verified=verified) == 0
+
+    staged = {p.stem for p in verified.glob("*.json")}
+    unprocessed = {p.stem for p in inbox.glob("*.json")}
+    assert len(staged) == 2, staged
+    assert len(unprocessed) == 3, unprocessed
+    assert not (staged & unprocessed), "a record must be in exactly one state"

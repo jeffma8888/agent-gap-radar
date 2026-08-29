@@ -210,12 +210,21 @@ def partition(
     max_records: int = 0,
     workers: int = 8,
     fetch_fn: _FetchFn | None = None,
+    verified: pathlib.Path | None = None,
 ) -> int:
     """Verify per record and move each record according to its OWN result.
 
     Returns 0 even when records are quarantined: partitioning is this tool doing
     its job, and a non-zero exit is exactly what let a caller build the
     all-or-nothing veto that this mode exists to remove.
+
+    `verified` is optional and changes nothing when omitted -- records that pass stay
+    in the inbox, which is correct when a pass covers the WHOLE inbox, because then
+    "still in the inbox" and "verified" are the same set. Under `max_records` they are
+    NOT the same set: the unprocessed tail is also still there, and a driver that
+    promotes the inbox afterwards would promote records whose quotes were never
+    checked. Passing `verified` makes the distinction explicit, so bounding a pass and
+    promoting only checked work are safe to combine.
     """
     paths = sorted(inbox.glob("*.json"))
     if max_records:
@@ -285,6 +294,8 @@ def partition(
             print(f"DEFER       {path.name}  (a cited page could not be fetched)")
         else:
             kept += 1
+            if verified is not None:
+                move(path, verified, None)
             print(f"VERIFIED    {path.name}")
 
     for path, reason in malformed:
@@ -293,8 +304,10 @@ def partition(
         print(f"QUARANTINE  {path.name}  ({reason.splitlines()[0]})")
 
     remaining = len(list(inbox.glob("*.json")))
+    tail = ("unprocessed by this pass" if verified is not None
+            else "left in the inbox")
     print(f"\npartition: {kept} verified, {quarantined} quarantined, "
-          f"{deferred_n} deferred; {remaining} file(s) now in the inbox")
+          f"{deferred_n} deferred; {remaining} file(s) {tail}")
     return 0
 
 
@@ -367,6 +380,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="act per record: quarantine failures, defer unreachable")
     ap.add_argument("--quarantine", type=pathlib.Path)
     ap.add_argument("--deferred", type=pathlib.Path)
+    ap.add_argument("--verified", type=pathlib.Path,
+                    help="move records that pass here (required to combine "
+                         "--max-records with a promote step)")
     ap.add_argument("--max-records", type=int, default=0,
                     help="bound one pass (0 = all)")
     ap.add_argument("--workers", type=int, default=8)
@@ -386,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
             args.deferred or directory.parent / "deferred",
             max_records=args.max_records,
             workers=args.workers,
+            verified=args.verified,
         )
 
     records = []
