@@ -49,6 +49,46 @@ class ScanResult:
     target: pathlib.Path
     findings: list[Finding]
     uncheckable: list[Gap]
+    #: How the caller spelled the target, verbatim -- or `None` when a caller
+    #: constructed the result directly and named no spelling. Carried BESIDE the
+    #: resolved `target` and never instead of it: the file walk, `target_name`
+    #: and the document heading all keep reading the resolved path, so the
+    #: document still states WHAT was scanned. Defaulted because committed
+    #: callers pass the first three fields positionally.
+    requested_spelling: str | None = None
+
+    @property
+    def displayed_target(self) -> str:
+        """The target as both DOCUMENTS name it: the caller's spelling, when there was one.
+
+        The SINGLE accessor for that value. `scan_json`'s `target` and
+        `render_scan`'s `Target:` line are the same claim about one scan, and this
+        repo has paid four times (roadmap rows 26, 32, 46, 72) for an invariant
+        that had two implementations -- two copies of the fallback below would hold
+        only while they happened to agree.
+
+        WHY the spelling and not the resolved path: `docs/CONSUMER_CONTRACT.md`
+        points a CI gate at `scan --json` as an artifact to COMMIT and DIFF, and a
+        resolved root makes that artifact reproducible only on the machine that
+        produced it -- so the same committed invocation (`radar scan .`) reports a
+        change that did not happen, and exports an account name nobody asked the
+        tool to invent. The portable identity is already published beside it:
+        `target_name` stays the resolved base name, so this removes an invented
+        value rather than information.
+
+        The echo is VERBATIM -- no expansion, no resolution, no trailing-slash
+        normalisation -- because a normalised spelling is a value the caller never
+        typed, and relativising against the cwd can emit `../..` chains or fail
+        outright across volumes. The property bought is therefore byte-equality
+        per INVOCATION, not per target: two spellings of one directory still
+        differ here, and in nothing else.
+
+        Falls back to the resolved path when there is no spelling to echo, so a
+        directly-constructed result names the path it was given rather than
+        rendering a blank field.
+        """
+        return (str(self.target) if self.requested_spelling is None
+                else self.requested_spelling)
 
     def by_verdict(self, verdict: Verdict) -> list[Finding]:
         return [f for f in self.findings if f.verdict is verdict]
@@ -207,7 +247,7 @@ def scan_json(result: ScanResult,
     -- is precisely how a register that never loaded reads as a clean target.
     """
     payload = {
-        "target": str(result.target),
+        "target": result.displayed_target,
         "target_name": result.target.name,
         "confidence_floor": confidence_floor,
         "records_applied": result.records_applied,
@@ -223,6 +263,12 @@ def scan_json(result: ScanResult,
 
 
 def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
+    # Captured BEFORE resolution, because resolution destroys it: this is the one
+    # value in the result the tool did not compute, and echoing it is what makes a
+    # committed invocation's document reproducible off this machine. An empty
+    # argument spells no target at all, so it takes `displayed_target`'s
+    # resolved-path fallback instead of emitting a blank field.
+    requested = str(target) or None
     target = pathlib.Path(target).expanduser().resolve()
     if not target.is_dir():
         raise NotADirectoryError(str(target))
@@ -245,7 +291,9 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
             outcome = run_check(gap.check.model_dump(exclude_none=True), target)
             findings.append(Finding(gap=gap, outcome=outcome))
 
-    return ScanResult(target=target, findings=findings, uncheckable=uncheckable)
+    return ScanResult(target=target, findings=findings,
+                      uncheckable=uncheckable,
+                      requested_spelling=requested)
 
 
 def render_scan(result: ScanResult) -> str:
@@ -255,8 +303,11 @@ def render_scan(result: ScanResult) -> str:
     `render.table`, not copies of them: an invariant with two implementations
     holds only while the copies happen to agree.
     """
+    # The heading names the RESOLVED base name (what was scanned) while the
+    # Target line echoes the caller's spelling (what they asked for); both read
+    # one accessor each, so neither can drift into the other's job.
     lines = [f"# Gap scan: {result.target.name}", "",
-             f"Target: `{result.target}`", ""]
+             f"Target: `{result.displayed_target}`", ""]
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}
     meaning = {

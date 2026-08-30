@@ -302,9 +302,17 @@ side of the boundary. `records_applied` is how many register records the scan
 reached -- `findings` plus `uncheckable` -- so a gate can tell an all-zero
 `counts` over a real register from one over a register that never loaded, which
 are otherwise the same payload and the wrong reading is the reassuring one.
+`target` ECHOES the target the caller named, verbatim -- no expansion, no
+resolution, no trailing-slash normalisation -- so `radar scan .` publishes `.`
+and not the scanning machine's resolved root: the artifact a gate commits and
+diffs is reproducible off the machine that produced it, and carries no account
+name. `target_name` is the portable identity to key on -- the resolved
+directory's base name, unaffected by how the invocation spelled the path -- so
+the payload still says WHAT was scanned.
 Every key the tool emits must appear in this list: the drift this paragraph
 already suffered was omission, so the list is the contract and not a summary of
-it. Output is byte-stable across runs.
+it. Output is byte-stable across runs of one INVOCATION; two spellings of one
+directory agree key-for-key except in `target`.
 
 ## The prd payload -- the five top-level keys, published
 
