@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-84
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- the ranked view publishes each record's `status`, so a builder can see that the register's #3 gap says the industry has partly moved
+    - Candidate A2 -- `radar list --layer L`, the filter roadmap row 16 deferred on purpose
+    - Candidate A3 -- `radar report` publishes which sources several records rest on (roadmap row 56)
+    - Candidate B1 -- the register's core invariant has no planted-defect proof, and the harness that would give it one is run by nothing
+    - Candidate B2 -- the ingest door admits a detector shape the suite only refuses after it is committed (roadmap row 62)
+    - Candidate B3 -- teach the roadmap brake to read an archive, because the file the PM reads every iteration is 2.07x its own wall
+    winner: A2
+    ship: pending (not yet decided)
   iter-83
     lenses: narrative-and-docs, new-capability
     - Candidate A -- retire the contract's unpaid promise: a SHIPPED verb section that advertises outstanding work it no longer has
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B -- a shared-source view, so 13 records resting on ONE blog post stop reading as 13 independent findings (roadmap row 56)
     - Candidate C -- ask the COMMITTED register which of its own records duplicate each other (roadmap row 11)
     winner: unknown
-    ship: pending (not yet decided)
+    ship: PUSHED e617f64
   iter-82
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- a necessary-literal prefilter in front of every content rule
@@ -550,4 +560,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-55 scouted iterations
+56 scouted iterations

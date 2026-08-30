@@ -148,6 +148,45 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
     return json.dumps(payload, indent=2, sort_keys=False) + "\n"
 
 
+def _unknown_layer(layer: str) -> str:
+    """The refusal for a `--layer` value outside the closed vocabulary.
+
+    The accepted values are JOINED FROM `taxonomy.LAYERS`, so `cli.py` holds no
+    second copy of a vocabulary that is meant to be debated in one place, and the
+    message carries no COUNT of them -- a hand-maintained size of a machine-published
+    vocabulary decays silently and then misleads with authority, which is the reason
+    the contract's `radar taxonomy` cell already refuses to restate one.
+
+    Naming every accepted value rather than just refusing is what makes a typo fixable
+    without a second command, and it is affordable precisely because the vocabulary is
+    CLOSED: an open label set could not be printed, which is the argument for closing
+    it in the first place.
+    """
+    return (f"unknown layer '{layer}'; the layer vocabulary is closed: "
+            + ", ".join(LAYERS))
+
+
+def _select_layer(gaps: list[Gap], layer: str | None) -> list[Gap]:
+    """Narrow the record DOMAIN to one layer, or hand it back untouched.
+
+    Applied to the LOADED RECORDS, before `_list_rows`, and that ordering is the whole
+    design of this filter rather than an implementation detail. `rank()`/`below_floor()`
+    partitions whatever domain it is handed, so filtering upstream of it keeps ONE
+    below-floor predicate in the product: a filtered listing cannot arrive at a
+    different answer to "is this record below the floor" than the unfiltered one.
+    Filtering rendered rows -- or a JSON payload after the fact -- would put an
+    omission mechanism DOWNSTREAM of the single rule this register protects, which is
+    exactly how a below-floor record gets dropped by a filter that never mentions the
+    floor.
+
+    Total by construction, which is what makes the per-layer documents a PARTITION of
+    the register and not a sample of it: `models.Gap` validates `layer` against
+    `taxonomy.LAYERS` at load, so every loaded record falls under exactly one layer and
+    concatenating one document per layer reproduces the unfiltered line multiset.
+    """
+    return gaps if layer is None else [gap for gap in gaps if gap.layer == layer]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="radar",
@@ -169,6 +208,19 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--json", action="store_true",
                            help="emit a stable record list for a machine "
                                 "consumer")
+            # No `choices=LAYERS` deliberately. argparse would refuse a bad
+            # value with ITS vocabulary on stderr and exit 2 -- a code this
+            # module reserves for a refusal it explains in its own published
+            # `Error: ` line -- and the usage block it prints would carry the
+            # whole layer list into every `list` usage message. Validated in
+            # `_dispatch` instead, through `_fail`, so the one published error
+            # site answers for it. "layer" leads the help text because argparse
+            # wraps on whitespace and the word a reader greps for must survive
+            # a narrow terminal.
+            p.add_argument("--layer", default=None, metavar="L",
+                           help="layer to narrow the listing to; one value "
+                                "from the closed taxonomy that `radar "
+                                "taxonomy` publishes")
 
     p_show = sub.add_parser("show", help="Full brief for one gap (markdown).")
     p_show.add_argument("gap_id")
@@ -403,6 +455,16 @@ def _dispatch(argv: list[str] | None = None) -> int:
                          else render_diff(comparison))
         return EXIT_OK
 
+    # BEFORE `_resolve` and `load_all`, so an argument typo is diagnosable
+    # independently of the register's health: `--layer <bogus>` over a path holding no
+    # register must name the layer, not report a registry error, or the caller fixes
+    # the wrong thing. Read off `args` only under the verb that declares the option
+    # rather than through a `getattr` default -- a default would silently pass a
+    # renamed `dest` as "no layer given", turning this whole branch dead.
+    if args.command == "list" and args.layer is not None:
+        if args.layer not in LAYERS:
+            return _fail(_unknown_layer(args.layer))
+
     directory = _resolve(args.path)
 
     try:
@@ -429,7 +491,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return EXIT_OK
 
         if args.command == "list":
-            rows = _list_rows(gaps, args.floor)
+            rows = _list_rows(_select_layer(gaps, args.layer), args.floor)
             sys.stdout.write(_list_json(rows, args.floor) if args.json
                              else _list_text(rows))
             return EXIT_OK

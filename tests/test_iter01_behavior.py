@@ -424,13 +424,31 @@ def test_b10_unparseable_json_record_exits_2(argv_extra, tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# `--layer` is deferred, so it must not exist on the CLI (acceptance criterion).
+# `--layer` was DEFERRED to roadmap row 16, and iteration 84 shipped that row. The
+# pin here was iteration 01's own scope fence -- "this iteration did not sneak row
+# 16 in" -- so it is SPENT rather than weakened, and it is INVERTED instead of
+# deleted so the line keeps an assertion: a deleted fence is indistinguishable from
+# a forgotten one. The flag's own behaviors belong to
+# `tests/test_iter84_behavior.py`; what this file still owns is that a `list`
+# argument error keeps iteration 01's published SHAPE. That shape changed in one way
+# worth pinning: before iteration 84 argparse refused an unknown OPTION with its own
+# usage block and `SystemExit`, and now `cli._fail` refuses an unknown VALUE with one
+# `Error: ` line on stderr, empty stdout and exit 2 -- the refusal vocabulary
+# `docs/CONSUMER_CONTRACT.md` publishes. Same code, a published message instead of a
+# usage dump, so this asserts `main()`'s RETURN VALUE and no longer `SystemExit`.
 # ---------------------------------------------------------------------------
 
-def test_layer_flag_is_absent_from_the_cli(repo):
-    with pytest.raises(SystemExit) as exc:
-        main(["list", str(repo), "--layer", "orchestration"])
-    assert exc.value.code == 2
+def test_layer_flag_ships_and_refuses_an_unknown_value_through_the_error_site(
+        repo, capsys):
+    # The fixture's one record sits in `orchestration`, so a valid layer is a
+    # document and not an accident of an empty domain.
+    assert main(["list", str(repo), "--layer", "orchestration"]) == 0
+    first = capsys.readouterr()
+    assert first.out.strip() and first.err == ""
+    assert main(["list", str(repo), "--layer", "orchestraton"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("Error: unknown layer 'orchestraton';")
 
 
 # ---------------------------------------------------------------------------
@@ -441,11 +459,21 @@ def _lines(relpath):
     return (REPO_ROOT / relpath).read_text(encoding="utf-8").splitlines()
 
 
-def test_b12a_contract_signature_drops_layer_and_keeps_the_never_omitted_promise():
+def test_b12a_contract_signature_names_layer_and_keeps_the_never_omitted_promise():
+    """The `list` row names every flag that ships, and still carries behavior 1's rule.
+
+    The `--layer` assertion is INVERTED from iteration 01, not dropped, and the
+    direction it flipped is the point: iteration 01 required the row to promise no
+    flag the CLI lacked, and iteration 84 shipped the flag, so the same rule now
+    requires the row to NAME it. `tests/test_iter10_behavior.py` enforces that
+    correspondence generally, in both directions, derived from `build_parser()`; this
+    stays because the general oracle reads the invocation cell only and cannot see the
+    `never omitted` promise, which is the one sentence `radar list` exists to keep.
+    """
     rows = [ln for ln in _lines("docs/CONSUMER_CONTRACT.md")
             if ln.startswith("| `radar list")]
     assert len(rows) == 1, rows
-    assert "--layer" not in rows[0]
+    assert "--layer" in rows[0]
     assert "--json" in rows[0] and "--floor" in rows[0]
     assert "never omitted" in rows[0]
 

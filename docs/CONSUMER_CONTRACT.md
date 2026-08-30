@@ -12,7 +12,7 @@ The consumer-side design lives with the consumer:
 | Verb | Promise |
 |---|---|
 | `radar validate <repo>` | exit 0 when at least one record was examined AND every record parses and satisfies the schema; a domain holding zero records is exit 2, never a green pass |
-| `radar list [<repo>] [--json] [--floor N]` | every record, ranked first; below-floor records are DISPLAYED, flagged, never omitted |
+| `radar list [<repo>] [--json] [--floor N] [--layer L]` | every record, ranked first; below-floor records are DISPLAYED, flagged, never omitted. `--layer` narrows the record DOMAIN to one layer of the closed taxonomy before the ranking is computed, so a below-floor record in that layer is still displayed and still flagged, and one document per layer concatenates to exactly the unfiltered listing -- the filter partitions the register, it does not sample it. A value outside the vocabulary `radar taxonomy` publishes is exit 2 and an `Error: ` line naming every accepted value, never an empty document, because an empty answer to a typo is indistinguishable from a layer that genuinely holds no record -- which is itself exit 0 and an empty document |
 | `radar show <ID> [<repo>]` | the full brief for one gap, markdown |
 | `radar report <repo> [--floor N]` | the whole register as a human brief |
 | `radar prd <repo> --gap <ID> [--project NAME]` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
