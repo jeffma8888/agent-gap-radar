@@ -16,6 +16,13 @@ a known-bad string must make it fire and a known-good string must keep it silent
 touched by exactly one function, and that function returns a SKIP REASON instead of
 raising, because a check that could not run must say so rather than report clean.
 
+The ship-order pointer is checked the same way, and it drifted for the same reason. The
+`**Next up:**` paragraph is this repo's only statement of which row to build next, and
+nothing in the build reads it -- so it came to name three rows the table's own Status column
+reported `shipped`, one of them as the strongest remaining candidate. The requirement is
+DERIVED from that column rather than from a list of retired rows, because such a list is a
+second copy of the table and decays the moment a row flips.
+
 Offline by contract: the only subprocess is a local `git log` inside this checkout.
 
 Usage:
@@ -63,6 +70,28 @@ LEGEND_SENTENCE = (
 
 #: 0-based index of the Status cell in a roadmap table row: `| # | Item | Status | Notes |`.
 _STATUS_CELL = 2
+
+#: The label that opens the roadmap's ship-order pointer.
+SHIP_ORDER_LABEL: str = "**Next up:**"
+
+#: The only status a row named as a forward candidate may carry. It is one of
+#: `ALLOWED_STATUSES` by construction -- `shipped` is the other, and pointing the next build
+#: at shipped work is the whole defect this check exists to stop.
+SHIP_ORDER_STATUS: str = "open"
+
+#: Anchored at line start on purpose. The document legitimately QUOTES this label in prose
+#: -- a Done-ledger row explains that a missing pointer is itself a violation -- so a
+#: file-wide search would find that copy on a document whose real pointer had been deleted,
+#: which is fail-OPEN on the one case the non-vacuity rule exists to catch.
+_SHIP_ORDER_MARKER = re.compile(rf"^[ \t]*{re.escape(SHIP_ORDER_LABEL)}", re.MULTILINE)
+
+#: A GROUP of row ids after `row`/`rows`: `row 51`, `rows 64 and 70`, `rows 55/71`,
+#: `rows 61, 62 and 63`. Extracting the group rather than a single integer is load-bearing:
+#: a one-integer sweep over the drifted paragraph found five ids and missed two of the
+#: `shipped` ones, so the narrower reading reports a mis-steering document clean.
+_ROW_GROUP = re.compile(r"\brows?\s+(\d+(?:\s*(?:,|/|and|or)\s*\d+)*)", re.IGNORECASE)
+
+_INTEGER = re.compile(r"\d+")
 
 _GIT_LOG_TIMEOUT_S = 30
 
@@ -204,6 +233,86 @@ def legend_declares_two_values(text: str) -> bool:
     return normalise_whitespace(LEGEND_SENTENCE) in normalise_whitespace(text)
 
 
+def ship_order_paragraph(text: str) -> str | None:
+    """The ship-order paragraph verbatim, or `None` when the document carries no pointer.
+
+    `None` and `""` are kept distinct for the same reason `GitShips` separates them: a
+    missing pointer is a finding, and an empty string would let a caller read it as a
+    paragraph that merely named nothing.
+    """
+    match = _SHIP_ORDER_MARKER.search(text)
+    if match is None:
+        return None
+    paragraph: list[str] = []
+    for line in text[match.start():].splitlines():
+        if paragraph and not line.strip():
+            break
+        paragraph.append(line)
+    return "\n".join(paragraph)
+
+
+def ship_order_rows(text: str) -> list[str]:
+    """Row ids the ship-order paragraph names, in first-mention order, de-duplicated.
+
+    Ids stay as the document spells them so a message can quote one verbatim, and a row
+    named twice is one pointer rather than two violations.
+    """
+    paragraph = ship_order_paragraph(text)
+    if paragraph is None:
+        return []
+    named: list[str] = []
+    for group in _ROW_GROUP.finditer(paragraph):
+        for row_id in _INTEGER.findall(group.group(1)):
+            if row_id not in named:
+                named.append(row_id)
+    return named
+
+
+def row_statuses(text: str) -> dict[str, str]:
+    """`{row id: status}` for every table row that carries a Status cell."""
+    return {
+        row_id: normalise_whitespace(cells[_STATUS_CELL])
+        for row_id, cells in table_rows(text)
+        if len(cells) > _STATUS_CELL
+    }
+
+
+def ship_order_violations(text: str) -> list[str]:
+    """Reasons the roadmap's ship-order pointer would mis-steer the next build.
+
+    Messages rather than a tuple type: this check has three unrelated failure shapes
+    (absent, vacuous, wrong status) and inventing a field that is null for two of them
+    would say less than the sentence does.
+
+    Non-vacuous by construction. A missing pointer and a pointer naming zero rows are each
+    their own finding, because a rule that passes over an empty parse is the failure
+    `vacuity_violations` was added to prevent -- and unlike the parses there, this one is
+    switched off by deleting a single line.
+    """
+    if ship_order_paragraph(text) is None:
+        return [f"no line opens with `{SHIP_ORDER_LABEL}`: the ship-order check is vacuous"]
+    named = ship_order_rows(text)
+    if not named:
+        return [
+            f"the `{SHIP_ORDER_LABEL}` paragraph names no roadmap row: "
+            "the ship-order check is vacuous"
+        ]
+    statuses = row_statuses(text)
+    violations: list[str] = []
+    for row_id in named:
+        status = statuses.get(row_id)
+        if status is None:
+            violations.append(
+                f"ship order names row {row_id}, which the roadmap table does not carry"
+            )
+        elif status != SHIP_ORDER_STATUS:
+            violations.append(
+                f"ship order names row {row_id}, whose status is '{status}' and not "
+                f"'{SHIP_ORDER_STATUS}'"
+            )
+    return violations
+
+
 def vacuity_violations(text: str) -> list[str]:
     """Reasons this document cannot be checked at all.
 
@@ -262,6 +371,7 @@ def main(argv: list[str]) -> int:
     findings += [violation.message for violation in ledger_sequence_violations(text)]
     if not legend_declares_two_values(text):
         findings.append("status legend does not state the two-value vocabulary verbatim")
+    findings += ship_order_violations(text)
 
     ships = shipped_iterations_from_git(roadmap.resolve().parent)
     if ships.iterations is None:
@@ -270,6 +380,7 @@ def main(argv: list[str]) -> int:
         print(f"  git reports shipped: {list(ships.iterations)}")
         findings += unrecorded_ship_messages(unrecorded_ships(text, ships.iterations))
 
+    print(f"  ship order names row(s): {ship_order_rows(text)}")
     rows, ledger = len(table_rows(text)), len(ledger_iterations(text))
     print(f"  {rows} table row(s), {ledger} ledger row(s)")
     for finding in findings:

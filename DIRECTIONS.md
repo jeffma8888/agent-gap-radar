@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-82
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- a necessary-literal prefilter in front of every content rule
+    - Candidate A2 -- memoise a content rule's evaluation for the lifetime of one scan
+    - Candidate A3 -- publish per-rule scan cost so the next expensive record is visible on the pass that lands it
+    - Candidate B1 -- the roadmap's `Next up` pointer names a shipped row as the strongest remaining candidate
+    - Candidate B2 -- roadmap row 20 is `open` for a defect that was fixed outside the loop, and nothing stops the count coming back
+    - Candidate B3 -- the front door never names the two machine surfaces built for the declared consumer
+    winner: B1
+    ship: pending (not yet decided)
   iter-81
     lenses: simplification-and-deletion, performance-and-throughput (iteration 81)
     - Candidate A1 -- re-land the one-slug-rule collapse iteration 80 lost at the clean-clone gate
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- placeholder (rule-result memo, ~3.5% measured) -- see refinement
     - Candidate B3 -- placeholder (literal prefilter) -- see refinement
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 5a51837
   iter-80
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- the four register doors have no doc round-trip: assert every documented `tools/*.py` command against that tool's own parser (roadmap row 50)
@@ -530,4 +540,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-53 scouted iterations
+54 scouted iterations
