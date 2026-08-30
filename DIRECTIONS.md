@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-85
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- the offline guarantee is honoured by a seam `main()` does not use, so patching `verify_quotes.fetch` is silently ineffective on the one path the tool actually runs
+    - Candidate A2 -- `radar scan` can answer a second scan from the first scan's file list, in the module whose own docstring argues against exactly that (roadmap row 43)
+    - Candidate A3 -- the repo has no `conftest.py`, so both of its cross-cutting test preconditions are hand-copied per module
+    - Candidate B1 -- `radar diff --json` is the only machine payload with no published key set, while the contract instructs a consumer to gate on exactly that diff
+    - Candidate B2 -- the below-floor prescription reaches only the human table, so a gate can scrape a marker but cannot read a field (roadmap row 21)
+    - Candidate B3 -- the scan surface a CI gate consumes is machine-specific, so the same scan of the same target differs between CI and a laptop (roadmap row 34)
+    winner: A1
+    ship: pending (not yet decided)
   iter-84
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the ranked view publishes each record's `status`, so a builder can see that the register's #3 gap says the industry has partly moved
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the ingest door admits a detector shape the suite only refuses after it is committed (roadmap row 62)
     - Candidate B3 -- teach the roadmap brake to read an archive, because the file the PM reads every iteration is 2.07x its own wall
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 5ea1dcb
   iter-83
     lenses: narrative-and-docs, new-capability
     - Candidate A -- retire the contract's unpaid promise: a SHIPPED verb section that advertises outstanding work it no longer has
@@ -560,4 +570,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-56 scouted iterations
+57 scouted iterations

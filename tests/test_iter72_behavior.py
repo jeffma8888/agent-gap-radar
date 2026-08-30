@@ -300,12 +300,19 @@ def test_b8_the_one_argument_call_form_is_still_accepted() -> None:
     assert rc == 1
 
 
-def test_b8_the_seam_default_is_the_modules_own_fetch() -> None:
-    default = inspect.signature(verify_quotes.verify).parameters["fetch"].default
-    assert default is verify_quotes.fetch
-    assert inspect.signature(verify_quotes.verify).parameters["fetch"].kind is (
-        inspect.Parameter.POSITIONAL_OR_KEYWORD
-    )
+def test_b8_the_seam_default_is_none_not_the_modules_own_fetch() -> None:
+    """INVERTED by iteration 85, deliberately rewritten rather than deleted.
+
+    This fence used to require `default is verify_quotes.fetch`, which stated the defect
+    as a property: a default is evaluated once at import, so it froze the real socket into
+    the signature and `setattr(verify_quotes, "fetch", ...)` could never reach the seamless
+    `verify(records)` call `main` makes. The retired contract is asserted ABSENT here, so a
+    revert to it reds this test instead of merely un-asserting it.
+    """
+    params = inspect.signature(verify_quotes.verify).parameters
+    assert params["fetch"].default is None
+    assert params["fetch"].default is not verify_quotes.fetch
+    assert params["fetch"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
 
 
 # --------------------------------------------------------------------------------------

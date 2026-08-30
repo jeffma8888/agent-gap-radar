@@ -411,17 +411,37 @@ def partition(
     return 0
 
 
-def verify(records: list[tuple[str, dict]], fetch: _FetchFn = fetch) -> int:
+def _fetch_now(url: str) -> str | None:
+    """Reach the module-level `fetch` at CALL time, on behalf of `verify`.
+
+    `verify`'s seam parameter is itself named `fetch`, so it SHADOWS the module
+    function and `fetch_all`'s spelling (`fn = fetch_fn or fetch`) cannot be written
+    inside it -- the second `fetch` would resolve to the parameter. This indirection
+    reads the module global on every call instead, which is what makes a substituted
+    `verify_quotes.fetch` reach the seamless `verify(records)` call that `main` makes.
+    """
+    return fetch(url)
+
+
+def verify(records: list[tuple[str, dict]], fetch: _FetchFn | None = None) -> int:
     """Print a verdict per quote and return 0 only if every one of them is accounted for.
 
-    `fetch` is a SEAM, defaulting to the module function so the CLI is unchanged. Without
-    it, the single networked line quarantined the ENTIRE verdict path -- the four labels,
-    the PARTIAL window, the non-URL refusal, the exit code -- from a suite that is offline
-    by contract, which left the central honesty claim of the register with no test at all.
+    `fetch` is a SEAM. Without it, the single networked line quarantined the ENTIRE
+    verdict path -- the four labels, the PARTIAL window, the non-URL refusal, the exit
+    code -- from a suite that is offline by contract, which left the central honesty
+    claim of the register with no test at all.
+
+    It defaults to `None`, NOT to the module function: a default is evaluated ONCE at
+    import, so `fetch: _FetchFn = fetch` froze the real socket into the signature and
+    substituting `verify_quotes.fetch` -- what the rest of the suite does -- could never
+    reach the one seamless call `main` makes, so an offline promise held only by fixture
+    choice. `None` means "resolve the module-level `fetch` at call time"; an explicit
+    argument, positional or keyword, always wins over the module attribute.
 
     Pages are memoised per URL, so a locator cited by two records is fetched ONCE. That was
     always true of the network and is now observable through the seam.
     """
+    fetch_page = _fetch_now if fetch is None else fetch
     pages: dict[str, str | None] = {}
     verbatim = partial = missing = unreachable = 0
     problems: list[str] = []
@@ -434,7 +454,7 @@ def verify(records: list[tuple[str, dict]], fetch: _FetchFn = fetch) -> int:
                 problems.append(f"{name}: locator is not a URL: {url!r}")
                 continue
             if url not in pages:
-                pages[url] = fetch(url)
+                pages[url] = fetch_page(url)
             page = pages[url]
             if page is None:
                 unreachable += 1
