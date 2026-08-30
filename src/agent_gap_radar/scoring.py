@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING
 
 from .taxonomy import SOURCE_CLASSES, SOURCE_WEIGHTS
@@ -315,4 +316,90 @@ def below_floor(gaps: list[Gap], confidence_floor: int = CONFIDENCE_FLOOR_DEFAUL
     """
     _, rows = _partition(gaps, confidence_floor)
     rows.sort(key=lambda r: r[0].id)
+    return rows
+
+
+# --- evidence age: a DISPLAY value, never a score ---------------------------
+#
+# Derived here beside `distinct_sources` -- the other derived-from-evidence fact this
+# module publishes for a renderer -- so the age arithmetic has exactly one
+# implementation. Nothing in `priority`, `confidence`, `rank` or `below_floor` reads
+# anything below, and that is the product rule rather than an accident: an age term
+# folded into `confidence` is precisely the blend this module's own docstring refuses,
+# and it would let a record fall out of the ranking because nobody has re-read its
+# sources lately.
+
+#: A record is listed in the evidence-age view when its newest citation predates the
+#: register's anchor date by STRICTLY MORE than this many days. Named, because the
+#: number is a product decision with measured alternatives rather than a felt value:
+#: over the live register a 6-month threshold selects 40% of the records, which is a
+#: wall and not a call to action, and an 18-month threshold selects one.
+EVIDENCE_AGE_THRESHOLD_DAYS = 365
+
+
+def newest_citation_date(gap: Gap) -> str:
+    """The record's most recent citation date, as the stored `YYYY-MM-DD` string.
+
+    Max over the ISO strings rather than over parsed dates, and that is a fact about
+    the schema rather than a shortcut: `Evidence` validates the `YYYY-MM-DD` shape on
+    load, and for a zero-padded ISO date lexical order IS chronological order. So this
+    needs no parse and therefore cannot fail on one. `Gap.evidence` is `min_length=1`,
+    so a loaded record always has something to take a max of.
+    """
+    return max(citation.date for citation in gap.evidence)
+
+
+def register_anchor_date(gaps: list[Gap]) -> str | None:
+    """The newest citation date anywhere in the register -- this product's "now".
+
+    WHY THE DATA AND NOT A CLOCK. `radar report` output is committable and pinned as
+    bytes by tests, so reading the wall clock would make the same register render
+    differently tomorrow and turn every byte assertion into a time bomb. Anchoring on
+    the register's own newest citation was measured to select the identical set of
+    records as the real current date, so the deterministic choice costs no fidelity.
+
+    `None` for an empty register, which is a different answer from a date rather than a
+    missing one: with zero records there is no citation to anchor on, and publishing an
+    age against an invented anchor is the one thing this view must not do.
+    """
+    dates = [newest_citation_date(gap) for gap in gaps]
+    return max(dates) if dates else None
+
+
+def evidence_age_days(newest: str, anchor: str) -> int:
+    """Whole days from `newest` to `anchor`, both `YYYY-MM-DD` strings.
+
+    `date.fromisoformat` is arithmetic over a STORED value, not a clock read -- it
+    cannot observe the current time -- which is what keeps this feature's no-clock
+    census at zero hits while still giving real day counts across month and year
+    boundaries that string subtraction could not.
+    """
+    return (date.fromisoformat(anchor) - date.fromisoformat(newest)).days
+
+
+def aged_records(
+    gaps: list[Gap], threshold_days: int = EVIDENCE_AGE_THRESHOLD_DAYS
+) -> list[tuple[Gap, str, int]]:
+    """`(gap, newest citation date, age in days)` for records past the threshold.
+
+    Ordered oldest-first with ties broken on id, so the order is total and the rendered
+    bytes are stable -- the same reason `rank()` breaks its ties on id.
+
+    STRICTLY more than `threshold_days` is the published boundary: a record at exactly
+    the threshold is NOT listed. Stating it here makes the edge decidable from one
+    comparison instead of from a reader's guess about inclusivity.
+
+    Returns `[]` for an empty register, matching `register_anchor_date`'s `None`: no
+    anchor means no age is knowable, which is not the same claim as "nothing is old".
+    """
+    anchor = register_anchor_date(gaps)
+    if anchor is None:
+        return []
+    rows: list[tuple[Gap, str, int]] = []
+    for gap in gaps:
+        newest = newest_citation_date(gap)
+        age = evidence_age_days(newest, anchor)
+        if age > threshold_days:
+            rows.append((gap, newest, age))
+    rows.sort(key=lambda row: (-row[2], row[0].id))
     return rows

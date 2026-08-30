@@ -310,8 +310,33 @@ def test_b4_each_record_is_the_one_scored_not_an_arbitrary_repeat(monkeypatch):
 # behavior 5 -- `radar report` never loses a record, at any floor
 # ---------------------------------------------------------------------------
 
+def _section(out: str, heading: str) -> str:
+    """The text of one level-2 section, heading line included, next `## ` excluded."""
+    assert heading in out, f"missing section {heading!r}"
+    rest = out.split(heading, 1)[1]
+    end = rest.find("\n## ")
+    return heading + (rest if end == -1 else rest[: end + 1])
+
+
 @pytest.mark.parametrize("floor", (0, 2, 6))
 def test_b5_report_carries_every_register_id_exactly_once(floor, capsys):
+    """Every register id appears exactly once ACROSS THE TWO PARTITION SECTIONS, and at
+    least once somewhere in the document.
+
+    WHY THE SPAN IS THE PARTITION AND NOT THE WHOLE DOCUMENT. This behavior's invariant is
+    the never-drop partition rule `VISION.md` protects by name -- a record is either ranked
+    or shown below the floor, never neither and never both. `!= 1` over
+    `## Ranked gaps` + `## Below confidence floor` states exactly that, and still catches
+    both failures it exists for: a dropped record (0) and a record on both sides (2).
+
+    A whole-document count was a sound PROXY for the same thing only while those were the
+    document's only id-bearing tables. It is not a published contract -- no README, doc or
+    `VISION.md` sentence promises it -- and as a document-wide rule it forbids any FURTHER
+    section from naming a record at all, which is a coverage claim this behavior never
+    made. `## Evidence age` is the first such section. So the span narrows to the partition
+    and the document keeps a `>= 1` loss check, which is the half that a narrowed span
+    would otherwise give up.
+    """
     ids = [g.id for g in REGISTER]
     assert len(ids) >= MEASURED_SIZE, f"register unexpectedly small: {len(ids)}"
     assert main(["report", str(REPO_ROOT), "--floor", str(floor)]) == 0
@@ -319,11 +344,19 @@ def test_b5_report_carries_every_register_id_exactly_once(floor, capsys):
     assert captured.err == "", captured.err
     document = captured.out
     assert document.endswith("\n") and not document.endswith("\n\n"), repr(document[-4:])
-    counts = {gid: len(re.findall(r"\b" + re.escape(gid) + r"\b", document)) for gid in ids}
-    wrong = {gid: n for gid, n in counts.items() if n != 1}
-    assert not wrong, f"floor {floor}: ids not appearing exactly once: {wrong}"
     assert RANKED_HEADING in document and BELOW_HEADING in document, (
         f"floor {floor}: a section heading is missing")
+    partition = _section(document, RANKED_HEADING) + _section(document, BELOW_HEADING)
+    counts = {gid: len(re.findall(r"\b" + re.escape(gid) + r"\b", partition)) for gid in ids}
+    wrong = {gid: n for gid, n in counts.items() if n != 1}
+    assert not wrong, (
+        f"floor {floor}: ids not appearing exactly once across "
+        f"{RANKED_HEADING} + {BELOW_HEADING}: {wrong}")
+    missing = [gid for gid in ids
+               if not re.search(r"\b" + re.escape(gid) + r"\b", document)]
+    assert not missing, (
+        f"floor {floor}: ids absent from the whole document, so the record was lost "
+        f"rather than moved: {missing}")
 
 
 # ---------------------------------------------------------------------------

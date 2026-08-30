@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-83
+    lenses: narrative-and-docs, new-capability
+    - Candidate A -- retire the contract's unpaid promise: a SHIPPED verb section that advertises outstanding work it no longer has
+    - Candidate B -- publish the promote gate's COMPLETE refusal set, derived from the code
+    - Candidate C -- a measurement receipt in the docs must carry the register size it was measured over
+    - Candidate A -- `radar report` publishes evidence AGE, so a record can be old without anyone noticing (roadmap row 10)
+    - Candidate B -- a shared-source view, so 13 records resting on ONE blog post stop reading as 13 independent findings (roadmap row 56)
+    - Candidate C -- ask the COMMITTED register which of its own records duplicate each other (roadmap row 11)
+    winner: unknown
+    ship: pending (not yet decided)
   iter-82
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- a necessary-literal prefilter in front of every content rule
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 20 is `open` for a defect that was fixed outside the loop, and nothing stops the count coming back
     - Candidate B3 -- the front door never names the two machine surfaces built for the declared consumer
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 1da0c54
   iter-81
     lenses: simplification-and-deletion, performance-and-throughput (iteration 81)
     - Candidate A1 -- re-land the one-slug-rule collapse iteration 80 lost at the clean-clone gate
@@ -540,4 +550,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-54 scouted iterations
+55 scouted iterations

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from .models import Check, Gap, detectability
-from .scoring import (below_floor, confidence, distinct_sources, priority,
-                      promotion_options, rank, strongest_source)
+from .scoring import (aged_records, below_floor, confidence, distinct_sources,
+                      priority, promotion_options, rank, register_anchor_date,
+                      strongest_source)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
@@ -58,6 +59,70 @@ def _needs_cell(gap: Gap, confidence_floor: int) -> str:
     return f"weight >= {SOURCE_WEIGHTS[options[0]]}: " + ", ".join(options)
 
 
+#: Behavior 3's purpose line, verbatim, and the sentence that decides how a reader
+#: is meant to act on this table. It says CHECK rather than delete or refresh because
+#: the cheap way to clear an age threshold is to staple a recent link onto a sound
+#: record, which improves the number and degrades the evidence ladder the whole
+#: register is built on.
+EVIDENCE_AGE_PURPOSE = (
+    "An old citation is not a closed gap: evidence for a durable property does not "
+    "weaken with age. This says where to go and CHECK, not what to delete and not "
+    "what to pad with a fresher link.")
+
+#: The anchor sentence. It publishes the anchor DATE and the reason it is not a clock
+#: read, in the rendered document rather than only in a docstring: a reader comparing
+#: two committed reports has to be able to tell an age that moved because evidence
+#: changed from one that moved because time passed.
+_EVIDENCE_AGE_ANCHOR = (
+    "Ages are measured against {anchor}, the newest citation date in this register, "
+    "so the same register always renders the same bytes; no clock is read.")
+
+EVIDENCE_AGE_HEADING = "## Evidence age"
+
+
+def _evidence_age_section(gaps: list[Gap]) -> list[str]:
+    """The `## Evidence age` block: where this register's own evidence has gone quiet.
+
+    WHY IT EXISTS. `Evidence.date` is required and ISO-validated on every citation and
+    was read by nothing that aggregates or compares -- the live register carries 402
+    citation dates and published none of them as a number. The consequence is the exact
+    failure this section surfaces: the register can tell a builder, at the top of its
+    own ranking, to work on a gap whose newest citation is more than a year old and
+    whose own `status` field already says the industry has partly moved.
+
+    A DISPLAY AND NOTHING MORE. No record is dropped, hidden or de-ranked by its age,
+    and no age term reaches `priority`, `confidence`, `rank` or `below_floor`. The
+    heading and both numeric column labels state facts -- `Newest citation`, `Age
+    (days)` -- rather than a verdict, deliberately: a judgement word invites the wrong
+    repair, and the never-drop rule this register protects applies to age exactly as it
+    applies to a weak source class.
+
+    THE EMPTY REGISTER renders the heading and `None found.` with NO anchor line. With
+    zero records there is no citation to anchor on, so an anchor line there would have
+    to invent a date -- and "no age is knowable" is a different statement from "nothing
+    is old", which is why the two cases do not share their prose.
+    """
+    lines = [EVIDENCE_AGE_HEADING, ""]
+    anchor = register_anchor_date(gaps)
+    if anchor is None:
+        lines += ["None found.", ""]
+        return lines
+    lines += [_EVIDENCE_AGE_ANCHOR.format(anchor=anchor), "",
+              EVIDENCE_AGE_PURPOSE, ""]
+    rows = aged_records(gaps)
+    if rows:
+        lines += table(["ID", "Newest citation", "Age (days)", "Title"],
+                       [[gap.id, newest, str(age), gap.title]
+                        for gap, newest, age in rows])
+    else:
+        # Same convention as `## Ranked gaps` and `## Below confidence floor`: an
+        # empty result says so in words. A heading followed by nothing reads as a
+        # renderer that failed rather than a register that is well maintained.
+        lines.append("None found.")
+    lines.append("")
+    return lines
+
+
 def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     """The ranked landscape view."""
     ranked = rank(gaps, confidence_floor)
@@ -94,6 +159,8 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     lines += table(["Layer", "Records"],
                    [[layer, str(n)] for layer, n in counts.items()])
     lines.append("")
+
+    lines += _evidence_age_section(gaps)
 
     lines += ["## Below confidence floor", "",
               "Kept visible on purpose: a weakly-sourced gap is a research task, "

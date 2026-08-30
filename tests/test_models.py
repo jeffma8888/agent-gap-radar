@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from pydantic import ValidationError
 
@@ -91,6 +93,28 @@ def test_evidence_rejects_unknown_source_class():
 def test_evidence_requires_iso_date(bad_date):
     with pytest.raises(ValidationError):
         Evidence.model_validate(_ev(date=bad_date))
+
+
+@pytest.mark.parametrize("impossible", ["2026-02-30", "2026-04-31", "2026-13-01", "2026-00-10"])
+def test_evidence_rejects_a_shape_legal_but_impossible_calendar_date(impossible):
+    """The `YYYY-MM-DD` SHAPE is not the whole rule, because the stored value is
+    arithmetic input.
+
+    `2026-02-30` is a plausible research-pass typo that the shape check accepts, and every
+    consumer that parses a stored date raises on it -- so before this refusal existed a
+    register could be `OK` to `radar validate` and still crash `radar report`, which is
+    the primary human surface. Refused at the ingest door instead, where the curator who
+    can fix the record is the one who hears about it.
+
+    ARMED against the shape check it sits behind: each sample is asserted to MATCH the
+    `YYYY-MM-DD` pattern first, so a green result here is evidence about the calendar
+    parse and not about a shape refusal that would have fired anyway.
+    """
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", impossible), (
+        f"premise broken: {impossible!r} is not shape-legal, so this sample cannot show "
+        f"that the calendar parse is what refuses it")
+    with pytest.raises(ValidationError):
+        Evidence.model_validate(_ev(date=impossible))
 
 
 @pytest.mark.parametrize("blank", ["", "   ", "\n"])
