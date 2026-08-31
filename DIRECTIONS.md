@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-90
+    lenses: new-capability -- iteration 90, hardening/DX
+    - Candidate A1 -- `tools/overlap.py`: check the register against ITSELF for behavioural duplicates
+    - Candidate B1 -- `radar scan --layer L`: scope a gate's record domain to the layers a team owns
+    - Candidate C1 -- `radar scan --baseline <file>`: the target-side half of the gate the contract prescribes
+    - Candidate B1 -- an in-suite brake over `tools/verify_mutations.py`, so a refactor cannot silently disarm the proof that the suite can fail
+    - Candidate B2 -- the quantified-wildcard ban moves from the suite to the ingest door (roadmap row 62)
+    - Candidate B3 -- `checks.tracked_files` loses its process-lifetime cache, so a second scan cannot answer from the first scan's tree (roadmap row 43)
+    winner: B1
+    ship: pending (not yet decided)
   iter-89
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the promote gate's capacity stand-down is documented nowhere, and it silently breaks a promise the research contract prints as unconditional
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- `radar list --json` carries the below-floor promotion prescription, so a gate can assert what only a human table prints
     - Candidate C1 -- publish the register's own SUBSUMPTION relation, which the ingest door measures and then throws away
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 6fbb6d1
   iter-88
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- Compile each register pattern once per scan instead of leaning on the stdlib's private 512-entry cache
@@ -607,4 +617,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-61 scouted iterations
+62 scouted iterations

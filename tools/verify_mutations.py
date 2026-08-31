@@ -17,6 +17,14 @@ next candidate is handed the same number. `silent_on_good_dropped` and
 `advisory_threshold_zeroed` were both MISSED on the first run of this harness, and
 the tests that now catch them exist because of it.
 
+The three pre-flight predicates below -- `anchor_defects`, `residue_defects` and
+`oracle_defects` -- are pure: they read text through an injected callable, write
+nothing and spawn nothing. So the suite can assert that this harness is ARMED (every
+anchor still resolves to exactly one site, no mutated form is sitting on disk, every
+named oracle file exists) without planting a single defect. That is a brake against
+the harness silently going offline. It is NOT a claim that the 20 defects are still
+CAUGHT -- only a full run says that, and a full run is 20 suite invocations.
+
 Usage:  uv run python tools/verify_mutations.py [--list]
 Exit 0 = every planted defect was caught. Exit 1 = the suite is blind to something.
 The original files are restored in a finally block and the restoration is verified
@@ -29,12 +37,15 @@ import argparse
 import hashlib
 import subprocess
 import sys
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 
-#: (name, file, old, new, test file that must go red)
-MUTATIONS: list[tuple[str, str, str, str, str]] = [
+#: One planted defect: (name, file, old, new, test file that must go red).
+Mutation = tuple[str, str, str, str, str]
+
+MUTATIONS: list[Mutation] = [
     (
         "twins_gate_disabled",
         "tools/promote.py",
@@ -191,6 +202,60 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
 ]
 
 
+def read_source(rel: str) -> str:
+    """Return the UTF-8 text of the repo-relative path `rel`.
+
+    A named seam rather than an inlined `read_text`, because `main` calls it BY BARE
+    NAME: this harness plants defects in tracked files, so its own fail-closed
+    pre-flight can only be proven by a test that substitutes the reader instead of
+    writing to the tree.
+    """
+    return (REPO / rel).read_text(encoding="utf-8")
+
+
+def anchor_defects(mutations: Iterable[Mutation], read: Callable[[str], str]) -> list[str]:
+    """Name every mutation whose `old` anchor does not resolve to exactly one site.
+
+    Two matches would silently mutate the wrong call site, so nothing may be written;
+    zero matches means a refactor retired the anchor and that entry has quietly
+    stopped proving anything -- the anchor set is hand-written against files this
+    loop refactors on purpose, so drift is the expected failure, not the exotic one.
+    """
+    out: list[str] = []
+    for name, rel, old, _new, _test in mutations:
+        found = read(rel).count(old)
+        if found != 1:
+            out.append(f"anchor for {name} occurs {found} times in {rel}")
+    return out
+
+
+def residue_defects(mutations: Iterable[Mutation], read: Callable[[str], str]) -> list[str]:
+    """Name every mutation whose defective `new` form is sitting on disk.
+
+    Restoration happens in a `finally` block, which SIGKILL does not run, so an
+    interrupted plant leaves a real defect in a tracked file, where the next stage's
+    `git add -A` can sweep it into a release commit.
+    """
+    out: list[str] = []
+    for name, rel, _old, new, _test in mutations:
+        if new in read(rel):
+            out.append(f"mutated form of {name} is present in {rel}")
+    return out
+
+
+def oracle_defects(mutations: Iterable[Mutation], exists: Callable[[str], bool]) -> list[str]:
+    """Name every mutation whose named oracle test file is gone.
+
+    A defect whose oracle was renamed or deleted can never be reported CAUGHT, so the
+    entry reads as a hole in the suite when it is really a hole in this list.
+    """
+    out: list[str] = []
+    for name, _rel, _old, _new, test in mutations:
+        if not exists(test):
+            out.append(f"oracle test file {test} for {name} is missing")
+    return out
+
+
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -211,15 +276,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: no defect named {args.only!r}", file=sys.stderr)
         return 2
 
-    originals = {rel: (REPO / rel).read_text(encoding="utf-8") for _, rel, _, _, _ in planned}
-    for rel, text in originals.items():
-        # An ambiguous anchor would silently mutate the wrong site, so every anchor
-        # must occur exactly once BEFORE anything is written.
-        for name, r, old, _, _ in planned:
-            if r == rel and text.count(old) != 1:
-                print(f"Error: anchor for {name} occurs {text.count(old)} times in {rel}",
-                      file=sys.stderr)
-                return 2
+    originals = {rel: read_source(rel) for _, rel, _, _, _ in planned}
+
+    def in_hand(rel: str) -> str:
+        """Serve the text already read, so the pre-flight judges what will be written."""
+        return originals[rel]
+
+    # An ambiguous anchor would silently mutate the wrong site, so every anchor must
+    # resolve to exactly one occurrence BEFORE anything is written -- and one drifted
+    # anchor vetoes the whole run, because a harness that half-runs proves nothing.
+    defects = anchor_defects(planned, in_hand)
+    if defects:
+        print(f"Error: {defects[0]}", file=sys.stderr)
+        return 2
 
     blind: list[str] = []
     try:
