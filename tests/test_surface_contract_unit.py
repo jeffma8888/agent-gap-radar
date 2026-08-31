@@ -21,7 +21,7 @@ import pytest
 
 from _surface_contract import (STABLE_SURFACE_HEADING, DocumentedInvocation,
                                SurfaceContractError, contract_text,
-                               documented_invocation, gfm_table,
+                               documented_invocation, documented_tokens, gfm_table,
                                invocation_verb, parser_surface,
                                surface_table_cells, surface_violations)
 
@@ -101,6 +101,29 @@ def test_zero_argument_flags_consume_nothing_that_follows_them():
         surface["scan"].takes_value)
     assert claimed.positionals == 1
     assert claimed.options == frozenset({"--gaps", "--json", "--prd"})
+
+
+def test_a_valued_option_reads_its_bracketing_from_the_token_that_opens_its_group():
+    """`[--floor N]` is ONE optional option, not optional `--floor` plus required `N`.
+
+    argparse closes the bracket on the VALUE, so a reader taking optionality per token
+    would call the flag optional and its value required -- and the value is not an
+    argument at all.
+    """
+    surface = parser_surface()
+    tokens = documented_tokens("`radar report [<repo>] [--floor N]`",
+                               surface["report"].takes_value)
+    assert [(token.name, token.is_option, token.optional) for token in tokens] == [
+        ("<repo>", False, True), ("--floor", True, True)]
+
+
+def test_the_same_cell_without_brackets_reads_as_required():
+    """The control that arms the test above: only the bracketing differs."""
+    surface = parser_surface()
+    tokens = documented_tokens("`radar report <repo> --floor N`",
+                               surface["report"].takes_value)
+    assert [(token.name, token.is_option, token.optional) for token in tokens] == [
+        ("<repo>", False, False), ("--floor", True, False)]
 
 
 def test_invocation_verb_rejects_a_cell_that_is_not_a_radar_invocation():
@@ -192,14 +215,14 @@ def test_the_shipped_document_agrees_with_the_parser():
 
 
 def test_an_omitted_flag_is_reported():
-    document = _replace_once(contract_text(), "`radar report <repo> [--floor N]`",
-                             "`radar report <repo>`")
+    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N]`",
+                             "`radar report [<repo>]`")
     assert surface_violations(document) == ["report: missing ['--floor'], unexpected []"]
 
 
 def test_an_invented_flag_is_reported():
-    document = _replace_once(contract_text(), "`radar report <repo> [--floor N]`",
-                             "`radar report <repo> [--floor N] [--strict]`")
+    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N]`",
+                             "`radar report [<repo>] [--floor N] [--strict]`")
     assert surface_violations(document) == [
         "report: missing [], unexpected ['--strict']"]
 

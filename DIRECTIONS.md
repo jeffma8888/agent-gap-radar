@@ -1,13 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-88
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- Compile each register pattern once per scan instead of leaning on the stdlib's private 512-entry cache
+    - Candidate A2 -- A boolean-only content rule stops reading files once its answer is decided
+    - Candidate A3 -- Cut the suite wall clock the engineer stage pays out of a zero-headroom budget
+    - Candidate B1 -- the stable-surface table publishes a REQUIREDNESS its own brake never reads, and three rows disagree with `build_parser()`
+    - Candidate B2 -- the JSON key-order guarantee for four machine surfaces exists only in a private docstring, and the one place a key ORDER is published is backed by a set-only brake
+    - Candidate B3 -- the `radar scan` section's heading claims debt its own body marks FIXED, and its headline result is a 10-record-era figure printed beside a paragraph explaining why restated figures decay
+    winner: B1
+    ship: pending (not yet decided)
   iter-87
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one JSON document tail, not four: the same 60-character terminator is written out four times, and the census that guards its text twin cannot see it
     - Candidate A2 -- one offline tripwire, not five divergent ones: the quality bar's most load-bearing rule is hand-copied per module and has already drifted
     - Candidate A3 -- retire `tools/check_locators.py`: its domain is now provably a subset of the quote checker's, and the repo pays an offline-seam tax twice for one question
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED e1285df
   iter-86
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` publishes each record's newest citation date, so the evidence-age axis reaches the one surface the declared consumer reads
@@ -587,4 +597,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-59 scouted iterations
+60 scouted iterations

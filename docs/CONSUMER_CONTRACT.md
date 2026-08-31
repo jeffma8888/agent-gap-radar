@@ -11,14 +11,22 @@ The consumer-side design lives with the consumer:
 
 | Verb | Promise |
 |---|---|
-| `radar validate <repo>` | exit 0 when at least one record was examined AND every record parses and satisfies the schema; a domain holding zero records is exit 2, never a green pass |
+| `radar validate [<repo>]` | exit 0 when at least one record was examined AND every record parses and satisfies the schema; a domain holding zero records is exit 2, never a green pass |
 | `radar list [<repo>] [--json] [--floor N] [--layer L]` | every record, ranked first; below-floor records are DISPLAYED, flagged, never omitted. `--layer` narrows the record DOMAIN to one layer of the closed taxonomy before the ranking is computed, so a below-floor record in that layer is still displayed and still flagged, and one document per layer concatenates to exactly the unfiltered listing -- the filter partitions the register, it does not sample it. A value outside the vocabulary `radar taxonomy` publishes is exit 2 and an `Error: ` line naming every accepted value, never an empty document, because an empty answer to a typo is indistinguishable from a layer that genuinely holds no record -- which is itself exit 0 and an empty document |
 | `radar show <ID> [<repo>]` | the full brief for one gap, markdown |
-| `radar report <repo> [--floor N]` | the whole register as a human brief |
-| `radar prd <repo> --gap <ID> [--project NAME]` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
+| `radar report [<repo>] [--floor N]` | the whole register as a human brief |
+| `radar prd [<repo>] [--gap <ID>] [--project NAME]` | a build-loop `prd.json` whose FIRST story reproduces the gap as a failing test |
 | `radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]` | applies every register check to a concrete repo: PRESENT / ABSENT / NOT_APPLICABLE / MANUAL / UNKNOWN per gap, with file:line locators; `--prd` emits a prd.json for the worst PRESENT finding whose confidence clears the register floor, names each skipped below-floor finding on stderr, and exits 2 if none clears; `--exit-code` leaves the document byte-identical whenever it verdicts and moves the ANSWER into the exit status instead -- 1 when this target has at least one PRESENT finding that clears the floor, 0 when it has none, 2 when the scan applied zero records and so verdicted nothing. The two flags are mutually exclusive: both are floor-gated verdict surfaces, and they answer the same question with opposite codes |
 | `radar diff <old> <new> [--json]` | what changed between two register states: records added, records removed, and per-record changes across a CLOSED set of nine fields (`status`, `layer`, `gap_type`, `severity`, `frequency`, `tractability`, `priority`, `confidence`, citation count). Free prose is never compared, so a rewording is not a change; both domain sizes are stated, so an emptied, moved or one-level-too-high side cannot read as "everything was added"; both paths are REQUIRED, so neither side can silently default to the caller's working directory; `priority` and `confidence` are reported as two separate lines and never blended. `--json` emits that same comparison as a stable object instead of the report, so the non-regression half of the gate rule below is ASSERTABLE rather than scraped: `counts.old` and `counts.new`, `added` and `removed` as `gap_id`/`title` entries in the order the report lists them, and per changed record only the fields that DIFFER, in that same closed order, carrying both sides exactly as they were compared. `priority` and `confidence` stay two distinct `field` entries there too, and no object at any depth carries a blended `score` key |
 | `radar taxonomy` | the closed vocabularies -- layers, gap types, the evidence ladder with its weights, and record statuses. Sizes are deliberately not restated in this cell: a hand-maintained count of a machine-published vocabulary decays silently and then misleads with authority |
+
+In every invocation above, `[x]` means the CLI accepts the run WITHOUT `x` and
+`<x>` means it refuses without it. The brackets are that argument's ARITY as
+`build_parser()` reports it -- `action.required` for an option, `nargs` for a
+positional -- and never advice: a cell that wants to discourage omitting an
+optional argument says so in its Promise instead, because the bracketing is
+asserted against the parser and a nudge spelled as arity reads to a machine
+consumer as a demand the tool does not make.
 
 Guarantees a consumer may build on: offline always (no network at runtime or in
 tests); deterministic, byte-stable output; stdout carries only the document,

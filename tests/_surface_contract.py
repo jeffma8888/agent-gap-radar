@@ -37,6 +37,28 @@ CLOSED when no subparsers action is found: an empty surface would turn every com
 below into two empty sets agreeing with each other, which is the green that means
 nothing.
 
+WHY REQUIREDNESS IS A SECOND, SEPARATE COMPARISON
+`surface_violations()` compares flag NAMES, option ARITY and POSITIONAL COUNTS, and it
+reads a cell through `_tokens()`, which strips `[]` before comparing -- so the table's
+own `<x>` required / `[x]` optional notation is invisible to it. That blindness shipped
+four token-level drifts at once: `validate` and `report` documented an optional `<repo>`
+as required, and `prd` documented an optional `<repo>` AND an optional `--gap` as
+required, so a consumer reading the contract alone believed it had to resolve a gap id
+before it could emit a `prd.json` -- while `README.md` published the working default.
+`requiredness_violations()` therefore reads the brackets instead of discarding them, and
+it takes its surface as an ARGUMENT rather than calling `parser_surface()` itself: no
+shipped option is required, so the option half of the rule is only provable against a
+SYNTHETIC surface, and a rule that cannot be proved in one direction is a rule nobody
+can trust in the other.
+
+WHY POSITIONAL REQUIREDNESS IS MATCHED BY INDEX
+A cell spells its positionals in the consumer's vocabulary (`<ID>`, `<repo>`), not in
+argparse's (`gap_id`, `path`), so there is no name to join on -- the nth documented
+positional is compared against the nth positional the parser registers. That only holds
+while the two counts agree, so a disagreement is reported as "not decidable" instead of
+being zipped over silently: `zip()` would drop the tail and report agreement about
+arguments it never looked at.
+
 WHY THE TABLE READER TAKES A HEADING
 The same document now publishes a second kind of surface: the on-disk record shape,
 under its own `###` headings. Those tables are read by COLUMN NAME rather than by
@@ -94,6 +116,15 @@ class VerbSurface:
     #: because the documented tokenizer cannot otherwise tell `[--floor N]` (two
     #: tokens, one option) from `[--json] [--prd]` (two tokens, two options).
     takes_value: Mapping[str, bool]
+    #: Every argument name this verb REQUIRES: an option's option strings when
+    #: `action.required`, a positional's `dest` when its `nargs` is neither `"?"` nor
+    #: `"*"`. One set for both kinds because a documented cell brackets them the same
+    #: way, so the rule that reads the brackets should not care which it is looking at.
+    required: frozenset[str] = frozenset()
+    #: Positional `dest`s in the order the parser registers them, so the nth documented
+    #: positional can be named as well as judged. Defaulted for synthetic surfaces; a
+    #: length disagreeing with `positionals` is reported, never zipped over.
+    positional_dests: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -135,6 +166,23 @@ class DocumentedInvocation:
     positionals: int
 
 
+@dataclass(frozen=True)
+class DocumentedToken:
+    """One argument a table cell spells, with the bracketing kept.
+
+    `DocumentedInvocation` deliberately throws bracketing away -- it answers "which
+    flags, how many positionals" -- so requiredness needs a representation that keeps
+    it. Both are built from ONE tokenizer rather than two: a second opinion about which
+    token is an option value is the duplicated invariant this module exists to avoid.
+    """
+
+    #: The token with backticks and brackets removed: `--floor`, `<repo>`.
+    name: str
+    is_option: bool
+    #: The cell wraps this argument in `[...]`, i.e. claims the CLI runs without it.
+    optional: bool
+
+
 def contract_text() -> str:
     """The tracked contract document, decoded.
 
@@ -163,23 +211,36 @@ def parser_surface(
 
 
 def _verb_surface(subparser: argparse.ArgumentParser) -> VerbSurface:
-    """One subparser's option strings, positional count and value-taking map."""
+    """One subparser's option strings, positional count, value map and requiredness."""
     options: set[str] = set()
     takes_value: dict[str, bool] = {}
+    required: set[str] = set()
+    positional_dests: list[str] = []
     positionals = 0
     for action in subparser._actions:
         if not action.option_strings:
             positionals += 1
+            positional_dests.append(action.dest)
+            # `"?"` and `"*"` are the two spellings argparse uses for a positional the
+            # parse succeeds without. `None` (exactly one), an int and `"+"` all mean
+            # the run is refused when the token is absent.
+            if action.nargs not in ("?", "*"):
+                required.add(action.dest)
             continue
         if set(action.option_strings) & _IMPLICIT_OPTIONS:
             continue
         options.update(action.option_strings)
+        if action.required:
+            # Every spelling of a required option is required, so `-g` and `--gap`
+            # answer the same way whichever one a cell happens to document.
+            required.update(action.option_strings)
         # `nargs == 0` is how argparse spells a flag that consumes nothing
         # (`store_true`); anything else -- including the default `None` -- consumes at
         # least one token.
         for option_string in action.option_strings:
             takes_value[option_string] = action.nargs != 0
-    return VerbSurface(frozenset(options), positionals, takes_value)
+    return VerbSurface(frozenset(options), positionals, takes_value,
+                       frozenset(required), tuple(positional_dests))
 
 
 def _cells(row: str) -> list[str]:
@@ -288,35 +349,56 @@ def _tokens(cell: str) -> list[str]:
     return [token.strip("`") for token in cell.strip().strip("`").split()]
 
 
-def documented_invocation(
+def documented_tokens(
     cell: str, takes_value: Mapping[str, bool]
-) -> DocumentedInvocation:
-    """Parse one first cell into the surface it claims.
+) -> tuple[DocumentedToken, ...]:
+    """Every argument one first cell spells, in order, bracketing preserved.
 
     `takes_value` comes FROM THE PARSER, never from the shape of the documented token:
     that is what makes `[--floor N]` one option and `[--json] [--prd]` two, without
-    this module holding a second opinion about which flags carry values. An unknown
-    verb is tokenized with an empty map -- its option/arity numbers are then not
-    meaningful, and the caller reports it as a verb-set difference instead.
+    this module holding a second opinion about which flags carry values.
+
+    Optionality is read from the token that OPENS a group, because a valued option
+    closes its bracket on its value (`[--floor N]` is `[--floor` then `N]`). Reading it
+    per-token instead would call `--floor` required and `N` optional.
     """
     tokens = _tokens(cell)
-    verb = invocation_verb(cell)
-    options: set[str] = set()
-    positionals = 0
+    out: list[DocumentedToken] = []
     expecting_value = False
     for raw in tokens[2:]:
         token = raw.strip("[]")
         if not token:
             continue
+        # Tested before `expecting_value` on purpose, matching the order this
+        # tokenizer has always used: a token spelled like a flag is read as a flag even
+        # where a value was expected, so `[--gaps --json]` reports two options rather
+        # than swallowing the second.
         if token.startswith("-"):
-            options.add(token)
+            out.append(DocumentedToken(token, True, raw.startswith("[")))
             expecting_value = takes_value.get(token, False)
             continue
         if expecting_value:
             expecting_value = False  # the value of the option just seen
             continue
-        positionals += 1
-    return DocumentedInvocation(verb, frozenset(options), positionals)
+        out.append(DocumentedToken(token, False, raw.startswith("[")))
+    return tuple(out)
+
+
+def documented_invocation(
+    cell: str, takes_value: Mapping[str, bool]
+) -> DocumentedInvocation:
+    """Parse one first cell into the surface it claims.
+
+    Bracketing is discarded here on purpose: this answers "which flags, how many
+    positionals", and `requiredness_violations()` answers what the brackets claim. An
+    unknown verb is tokenized with an empty map -- its option/arity numbers are then
+    not meaningful, and the caller reports it as a verb-set difference instead.
+    """
+    tokens = documented_tokens(cell, takes_value)
+    return DocumentedInvocation(
+        invocation_verb(cell),
+        frozenset(token.name for token in tokens if token.is_option),
+        sum(1 for token in tokens if not token.is_option))
 
 
 def surface_violations(
@@ -362,6 +444,93 @@ def surface_violations(
 
     violations.extend(_verb_set_violations(documented, surface))
     return violations
+
+
+def requiredness_violations(
+    surface: Mapping[str, VerbSurface], document: str
+) -> list[str]:
+    """Every argument whose bracketing disagrees with the parser about requiredness.
+
+    A pure function of its two arguments: the surface is passed IN rather than read from
+    `build_parser()`, because no shipped option is required and so the option half of
+    this rule is only demonstrable against a synthetic surface. An unreadable document
+    is returned as a violation rather than raised, mirroring `surface_violations()`, so
+    one call site can assert "no disagreements" over a document whose SHAPE may itself
+    be the planted defect.
+
+    Verbs the surface does not know are skipped: that is a verb-set difference, which
+    `surface_violations()` already reports, and reporting it twice would make one defect
+    read as two.
+    """
+    try:
+        cells = surface_table_cells(document)
+    except SurfaceContractError as exc:
+        return [str(exc)]
+
+    violations: list[str] = []
+    for cell in cells:
+        try:
+            verb = invocation_verb(cell)
+        except SurfaceContractError as exc:
+            violations.append(str(exc))
+            continue
+        expected = surface.get(verb)
+        if expected is None:
+            continue
+        violations.extend(_cell_requiredness_violations(
+            verb, documented_tokens(cell, expected.takes_value), expected))
+    return violations
+
+
+def _cell_requiredness_violations(
+    verb: str, tokens: Sequence[DocumentedToken], expected: VerbSurface
+) -> list[str]:
+    """One cell's disagreements: positionals by index, options by name."""
+    if len(expected.positional_dests) != expected.positionals:
+        return [f"{verb}: surface reports {expected.positionals} positional(s) but "
+                f"names {len(expected.positional_dests)}, so requiredness is not "
+                f"decidable"]
+
+    documented = [token for token in tokens if not token.is_option]
+    if len(documented) != expected.positionals:
+        # Reported, never zipped over: `zip()` drops the tail and would claim agreement
+        # about positionals it never compared. The COUNT difference itself is
+        # `surface_violations()`'s to report, so this only says why the brackets went
+        # unjudged.
+        return [f"{verb}: documents {len(documented)} positional(s) against the "
+                f"parser's {expected.positionals}, so their requiredness is not "
+                f"decidable by position"]
+
+    violations: list[str] = []
+    for index, token in enumerate(documented):
+        dest = expected.positional_dests[index]
+        violations.extend(
+            _requiredness_violation(verb, token, dest, dest in expected.required))
+    for token in tokens:
+        if not token.is_option or token.name not in expected.options:
+            continue  # an invented flag; `surface_violations()` reports it
+        violations.extend(_requiredness_violation(
+            verb, token, token.name, token.name in expected.required))
+    return violations
+
+
+def _requiredness_violation(
+    verb: str, token: DocumentedToken, parser_name: str, required: bool
+) -> list[str]:
+    """The one message for a bracketing that disagrees, or nothing.
+
+    Returns a list so a caller can `extend()` without branching on `None`, and names
+    BOTH spellings when they differ: the documented token is what an editor has to
+    change, the `dest` is what makes the verdict checkable against the parser.
+    """
+    if token.optional == (not required):
+        return []  # documented optional exactly when the parser is optional
+    where = (repr(token.name) if token.name == parser_name
+             else f"{token.name!r} (parser {parser_name!r})")
+    documented_as = "optional" if token.optional else "required"
+    parser_says = "required" if required else "optional"
+    return [f"{verb}: documents {where} as {documented_as}, "
+            f"parser makes it {parser_says}"]
 
 
 def _verb_set_violations(
