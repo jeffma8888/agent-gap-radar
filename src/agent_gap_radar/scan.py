@@ -8,14 +8,13 @@ answer where static analysis honestly cannot decide.
 
 from __future__ import annotations
 
-import json
 import pathlib
 from dataclasses import dataclass
 
 from .checks import (CheckOutcome, UNKNOWN_MEANING, Verdict, file_cache_scope,
                      read_cache_scope, run_check)
 from .models import Gap
-from .render import document, table
+from .render import document, json_document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 
 #: What an all-zero verdict census means when the register itself was empty.
@@ -259,7 +258,7 @@ def scan_json(result: ScanResult,
                             key=lambda f: (f.verdict.value, -f.priority, f.gap.id))
         ],
     }
-    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
+    return json_document(payload)
 
 
 def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:

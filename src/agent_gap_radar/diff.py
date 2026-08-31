@@ -35,11 +35,10 @@ duplicate-id gate -- this module deliberately does not carry a second one.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
 from .models import Gap
-from .render import document
+from .render import document, json_document
 from .scoring import confidence, priority
 
 #: The compared fields, in the ONE order the report emits them. A single tuple
@@ -273,7 +272,8 @@ def diff_json(diff: RegisterDiff) -> str:
             for record in diff.changed
         ],
     }
-    # `indent=2` and `sort_keys=False` match `scan_json` and `_list_json`: one
-    # newline at the end like every renderer here, and INSERTION order preserved so
-    # the key sequence above is the published one rather than an alphabetisation.
-    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
+    # One published tail for every `--json` surface: `render.json_document` owns the
+    # indent, the INSERTION key order and the single trailing newline, so the key
+    # sequence above is the published one and this verb cannot drift from
+    # `scan --json` or `list --json` by carrying its own copy of the expression.
+    return json_document(payload)

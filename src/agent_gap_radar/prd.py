@@ -8,9 +8,8 @@ handoff from "we found the gap" to "a loop is building against it" is one comman
 
 from __future__ import annotations
 
-import json
-
 from .models import Gap, detectability
+from .render import json_document
 from .scoring import confidence, priority
 
 #: Where a register keeps its records, relative to the register root. The emitted
@@ -192,4 +191,4 @@ def prd_for(gap: Gap, project: str = "agent-gap-radar") -> dict:
 
 
 def render_prd(gap: Gap, project: str = "agent-gap-radar") -> str:
-    return json.dumps(prd_for(gap, project), indent=2, sort_keys=False) + "\n"
+    return json_document(prd_for(gap, project))

@@ -10,7 +10,6 @@ its own and a silent stderr rather than this module's error vocabulary.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import pathlib
 import sys
@@ -20,7 +19,7 @@ from .diff import diff_json, diff_registers, render_diff
 from .models import Gap
 from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
-from .render import document, gap_brief, radar_report
+from .render import document, gap_brief, json_document, radar_report
 from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
 from .taxonomy import (GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS,
@@ -145,7 +144,7 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
             for gap, pri, conf, is_below in rows
         ],
     }
-    return json.dumps(payload, indent=2, sort_keys=False) + "\n"
+    return json_document(payload)
 
 
 def _unknown_layer(layer: str) -> str:

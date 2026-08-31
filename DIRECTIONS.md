@@ -1,6 +1,13 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-87
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- one JSON document tail, not four: the same 60-character terminator is written out four times, and the census that guards its text twin cannot see it
+    - Candidate A2 -- one offline tripwire, not five divergent ones: the quality bar's most load-bearing rule is hand-copied per module and has already drifted
+    - Candidate A3 -- retire `tools/check_locators.py`: its domain is now provably a subset of the quote checker's, and the repo pays an offline-seam tax twice for one question
+    winner: A1
+    ship: pending (not yet decided)
   iter-86
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` publishes each record's newest citation date, so the evidence-age axis reaches the one surface the declared consumer reads
@@ -10,7 +17,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the roadmap index/archive split, smallest honest slice: 57 shipped rows' notes move out byte-for-byte, and `PRODUCT.md` halves
     - Candidate B3 -- delete the third cache lifetime: `_TRACKED_CACHE` is process-lifetime beside two scan-scoped caches, and the suite pays for it 8 times
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED a5c6f1b
   iter-85
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the offline guarantee is honoured by a seam `main()` does not use, so patching `verify_quotes.fetch` is silently ineffective on the one path the tool actually runs
@@ -580,4 +587,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-58 scouted iterations
+59 scouted iterations

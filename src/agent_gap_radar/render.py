@@ -1,6 +1,14 @@
-"""Markdown renderers. Output is deterministic and ends in exactly one newline."""
+"""The published document renderers -- Markdown AND JSON. Output is deterministic
+and ends in exactly one newline.
+
+Both document kinds live here for one reason: the one-newline tail is a published
+guarantee, so a second home for it would be a second implementation of it. See
+`document` for the Markdown tail and `json_document` for the JSON tail.
+"""
 
 from __future__ import annotations
+
+import json
 
 from .models import Check, Gap, detectability
 from .scoring import (aged_records, below_floor, confidence, distinct_sources,
@@ -26,6 +34,31 @@ def document(lines: list[str]) -> str:
     while lines and lines[-1] == "":
         lines.pop()
     return "\n".join(lines) + "\n"
+
+
+def json_document(obj: object) -> str:
+    """Serialise to a JSON document ending in exactly one newline.
+
+    PUBLIC, and the JSON sibling of `document` for exactly the reason that docstring
+    argues against this repo: one invariant, one implementation. This expression had
+    FOUR copies -- one per machine surface: the three `--json` verbs, plus the prd
+    document that `radar prd` and `radar scan --prd` both emit -- and it ratcheted by one every time a new
+    machine surface shipped, because the census that proves the MARKDOWN tail has a
+    single implementation keys on the pop-the-blank-line prelude, which no
+    `json.dumps` line can carry. So the guarantee was proven on one surface and
+    unmeasured on the four that `docs/CONSUMER_CONTRACT.md` points a CI gate at.
+
+    KEYS ARE NEVER SORTED. `sort_keys=False` is spelled out even though it is
+    `json.dumps`'s own default, because it is the guarantee rather than an accident:
+    every payload here publishes its keys in INSERTION order, so the sequence a
+    caller writes is the sequence a consumer reads. Alphabetising them would silently
+    reorder a published surface, and a consumer diffing two committed artifacts would
+    see a field move for no reason in the register.
+
+    `indent=2` matches the register's own on-disk records, so an emitted payload stays
+    line-oriented and diffs against a committed artifact one field at a time.
+    """
+    return json.dumps(obj, indent=2, sort_keys=False) + "\n"
 
 
 def table(headers: list[str], rows: list[list[str]]) -> list[str]:
