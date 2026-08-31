@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-89
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- the promote gate's capacity stand-down is documented nowhere, and it silently breaks a promise the research contract prints as unconditional
+    - Candidate B1 -- roadmap rows 49, 20 and 39 assert things that are false today, so the loop chooses its work from stale measurements
+    - Candidate C1 -- the consumer contract's scan section promises outstanding debt it has already discharged, and mixes a dated field report into a normative document
+    - Candidate A1 -- `radar report` publishes source CONCENTRATION, so 120 records stop reading as 120 independent findings
+    - Candidate B1 -- `radar list --json` carries the below-floor promotion prescription, so a gate can assert what only a human table prints
+    - Candidate C1 -- publish the register's own SUBSUMPTION relation, which the ingest door measures and then throws away
+    winner: A1
+    ship: pending (not yet decided)
   iter-88
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- Compile each register pattern once per scan instead of leaning on the stdlib's private 512-entry cache
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the JSON key-order guarantee for four machine surfaces exists only in a private docstring, and the one place a key ORDER is published is backed by a set-only brake
     - Candidate B3 -- the `radar scan` section's heading claims debt its own body marks FIXED, and its headline result is a 10-record-era figure printed beside a paragraph explaining why restated figures decay
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 4d245b1
   iter-87
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one JSON document tail, not four: the same 60-character terminator is written out four times, and the census that guards its text twin cannot see it
@@ -597,4 +607,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-60 scouted iterations
+61 scouted iterations

@@ -319,6 +319,98 @@ def below_floor(gaps: list[Gap], confidence_floor: int = CONFIDENCE_FLOOR_DEFAUL
     return rows
 
 
+# --- source concentration: a DISPLAY value, never a score --------------------
+#
+# The independence rule this module already enforces INSIDE a record -- `confidence()`
+# grants its corroboration point only for two citations differing in BOTH class and
+# `_source_key` -- is enforced and published nowhere ACROSS records. So a reader of a
+# 120-row ranking has no way to see that one source carries thirteen of those rows, and
+# reads the ranking as that many independent findings.
+#
+# Everything below keys through `_source_key` / `distinct_sources` rather than deciding
+# again what "the same source" means: a published concentration figure that disagreed
+# with the point the scorer grants would be the register's core invariant failing while
+# still looking derived. Nothing here reaches `priority`, `confidence`, `rank` or
+# `below_floor`, for the reason `distinct_sources` already states by name -- a source
+# count read as a target is the Goodhart shape this register forbids.
+
+
+def distinct_register_sources(gaps: list[Gap]) -> int:
+    """How many DISTINCT DOCUMENTS the whole register rests on.
+
+    The denominator of the concentration census: `distinct_sources` answers this per
+    record, and a sum of those would double-count every source two records share --
+    which is the exact quantity this view exists to expose. So the union is taken over
+    `_source_key` directly, the same normalisation, one level up.
+
+    Total, matching `aged_records`: an empty register returns 0 rather than raising, so
+    a renderer may print the number without first asking whether any record exists.
+    """
+    return len({_source_key(citation) for gap in gaps for citation in gap.evidence})
+
+
+def shared_sources(gaps: list[Gap]) -> list[tuple[str, list[str]]]:
+    """`(source key, ids of the records citing it)` for sources carrying MORE than one.
+
+    Ordered by record count DESCENDING with ties broken on the source key ASCENDING, so
+    the order is total and the rendered bytes are stable -- the same reason `rank()`
+    breaks its ties on id. Ids inside a row are ascending for the same reason.
+
+    A record citing one document three times contributes ONCE to that document's count:
+    the question is how many RECORDS rest on the source, so ids accumulate in a set and
+    a repeated add is idempotent. Without that, three excerpts of one postmortem inside
+    a single record would render as a three-record source and overstate the very
+    concentration this view is meant to measure honestly.
+
+    Returns `[]` for an empty register, and for a register where nothing is shared --
+    those are the same answer to this question, and the RENDERER distinguishes "no
+    source is knowable" from "nothing is shared", because only it knows whether any
+    record exists.
+    """
+    by_source: dict[str, set[str]] = {}
+    for gap in gaps:
+        for citation in gap.evidence:
+            by_source.setdefault(_source_key(citation), set()).add(gap.id)
+    rows = [(key, sorted(ids)) for key, ids in by_source.items() if len(ids) > 1]
+    rows.sort(key=lambda row: (-len(row[1]), row[0]))
+    return rows
+
+
+def records_on_shared_source(gaps: list[Gap]) -> list[str]:
+    """Ids of records resting on at least one source some OTHER record also cites.
+
+    DERIVED from `shared_sources` rather than re-deciding what "shared" means, so the
+    census line and the table printed under it cannot disagree: a source that qualifies
+    for the table is exactly a source that puts its records in this list. Written as a
+    second predicate over the same data, the two could drift apart silently, which is
+    the duplicated-invariant shape this repo has already paid to fix twice.
+
+    Ascending ids, and `[]` for an empty register.
+    """
+    return sorted({gap_id for _, ids in shared_sources(gaps) for gap_id in ids})
+
+
+def sole_source_records(gaps: list[Gap]) -> list[Gap]:
+    """Records whose citations rest on exactly ONE distinct document, id ascending.
+
+    The actionable half of concentration, and the reason it is worth printing beside the
+    shared-source table: for such a record a single retraction or one page rewrite voids
+    the ENTIRE evidentiary basis, however many citations the record carries. It CALLS
+    `distinct_sources`, so "one document" means here exactly what it means to the
+    corroboration point that record was or was not granted.
+
+    Exactly one, not "at most one": a record carrying no evidence scores 0 distinct
+    sources and is NOT listed, because no source cannot be retracted. The loader
+    requires at least one citation, so that input is unreachable through `registry`;
+    stating the boundary keeps the edge decidable from one comparison.
+
+    Total, and a DISPLAY: a single-source record is a research task, never a reason to
+    drop or de-rank it.
+    """
+    return sorted((gap for gap in gaps if distinct_sources(gap) == 1),
+                  key=lambda gap: gap.id)
+
+
 # --- evidence age: a DISPLAY value, never a score ---------------------------
 #
 # Derived here beside `distinct_sources` -- the other derived-from-evidence fact this

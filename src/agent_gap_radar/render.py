@@ -11,9 +11,10 @@ from __future__ import annotations
 import json
 
 from .models import Check, Gap, detectability
-from .scoring import (aged_records, below_floor, confidence, distinct_sources,
-                      priority, promotion_options, rank, register_anchor_date,
-                      strongest_source)
+from .scoring import (aged_records, below_floor, confidence, distinct_register_sources,
+                      distinct_sources, priority, promotion_options, rank,
+                      records_on_shared_source, register_anchor_date, shared_sources,
+                      sole_source_records, strongest_source)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
@@ -156,6 +157,92 @@ def _evidence_age_section(gaps: list[Gap]) -> list[str]:
     return lines
 
 
+#: Behavior 2's census line. ONE template, so the two halves of the sentence cannot
+#: drift apart, and PLURAL-FREE by construction: every noun is written for the count it
+#: will never agree with, so no value of A, B, C or D changes the grammar. `_plural`
+#: exists one screen down for the per-record line that DOES inflect; this line is
+#: deliberately not built from it, because a census read by a diff should not change
+#: shape when a count crosses 1.
+_SOURCE_CENSUS = (
+    "Sources cited by more than one record: {shared} of {sources} | records resting on "
+    "a shared source: {resting} of {records}")
+
+#: Behavior 5's line, verbatim up to the ids. The parenthetical is the whole reason the
+#: line is worth printing: it names the CONSEQUENCE (one retraction voids the record's
+#: entire basis) rather than labelling the record weak, because a single-source record
+#: is a research task and this register never de-ranks one.
+_SOLE_SOURCE_PREFIX = (
+    "Records resting on exactly one distinct source (a single retraction voids the whole "
+    "evidentiary basis of each): ")
+
+#: The purpose line, and the sentence that decides how a reader is meant to act on the
+#: table. It says a shared source is NOT a fault on purpose: with few primary sources in
+#: a young field, the cheap way to "improve" a concentration number is to stop citing the
+#: best available document, which degrades the evidence ladder the whole register rests
+#: on. So the line states a fact, names the one actionable case, and explicitly refuses
+#: to be read as a number to drive down -- the same refusal `## By layer`'s purpose line
+#: makes about its zeros.
+SOURCE_CONCENTRATION_PURPOSE = (
+    "A shared source is not a fault -- a young field has few primary sources -- and "
+    "nothing here derives a penalty: no count in this section reaches priority, "
+    "confidence, the ranking or the floor, and none of them is a number to drive down. "
+    "The actionable case is a record resting on ONE source, whose entire evidentiary "
+    "basis a single retraction voids.")
+
+SOURCE_CONCENTRATION_HEADING = "## Source concentration"
+
+
+def _source_concentration_section(gaps: list[Gap]) -> list[str]:
+    """The `## Source concentration` block: how independent this register actually is.
+
+    WHY IT EXISTS. `confidence()` grants its corroboration point only for two citations
+    differing in both class and SOURCE -- one document cited twice is not independent
+    evidence -- and `radar show` publishes that denominator per record. Across records
+    the same rule is neither enforced nor published, so a reader of a 120-row ranking
+    cannot tell whether it rests on 120 documents or on a handful: measured on the
+    register as this shipped, 61 of 167 distinct sources carry more than one record and
+    the largest single source carries 13. The invitation to read N records as N
+    independent findings is what this section removes, using evidence already stored.
+
+    A DISPLAY AND NOTHING MORE. No record is dropped, hidden or de-ranked by how it is
+    sourced, and no term here reaches `priority`, `confidence`, `rank` or `below_floor`.
+    Every qualifying source is listed with NO cap: truncating the table would be the
+    silent-drop shape `VISION.md` names as the one rule this register protects, and the
+    long tail is exactly where a reader finds the source they had not noticed twice.
+
+    THE EMPTY REGISTER renders the heading and `None found.` with nothing else -- no
+    census, no purpose line, no sole-source line -- mirroring `_evidence_age_section`'s
+    anchor-less case for the same reason: with no citations "no source is knowable" is a
+    different claim from "nothing is shared", so the two cases do not share their prose.
+    """
+    lines = [SOURCE_CONCENTRATION_HEADING, ""]
+    if not gaps:
+        lines += ["None found.", ""]
+        return lines
+    # Computed ONCE and read three times below. `records_on_shared_source` derives its
+    # answer from this same function rather than from a second predicate, so the census
+    # count and the table under it agree by construction rather than by review.
+    shared = shared_sources(gaps)
+    lines += [_SOURCE_CENSUS.format(shared=len(shared),
+                                    sources=distinct_register_sources(gaps),
+                                    resting=len(records_on_shared_source(gaps)),
+                                    records=len(gaps)), "",
+              SOURCE_CONCENTRATION_PURPOSE, ""]
+    if shared:
+        lines += table(["Source", "Records", "IDs"],
+                       [[key, str(len(ids)), ", ".join(ids)] for key, ids in shared])
+    else:
+        # Same convention as every other section here: an empty result says so in words,
+        # because a heading followed by nothing reads as a renderer that failed rather
+        # than as a register whose sources happen not to overlap.
+        lines.append("None found.")
+    lines.append("")
+    sole = sole_source_records(gaps)
+    lines += [_SOLE_SOURCE_PREFIX + (", ".join(gap.id for gap in sole)
+                                     if sole else "none."), ""]
+    return lines
+
+
 def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     """The ranked landscape view."""
     ranked = rank(gaps, confidence_floor)
@@ -194,6 +281,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     lines.append("")
 
     lines += _evidence_age_section(gaps)
+    lines += _source_concentration_section(gaps)
 
     lines += ["## Below confidence floor", "",
               "Kept visible on purpose: a weakly-sourced gap is a research task, "
