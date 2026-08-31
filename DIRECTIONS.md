@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-91
+    lenses: hardening/DX -- iteration 91, integration-and-adoption -- iteration 91
+    - Candidate A1 -- the mutation harness counts ANY non-zero exit as CAUGHT, with no control run
+    - Candidate A2 -- extend the planted-defect set into `src/`, starting with `scoring.py`
+    - Candidate A3 -- one repo-wide, fail-closed public-repo brake over the tracked set
+    - Candidate B1 -- the machine payloads a gate consumes cannot answer the published gate rule's "is open" clause
+    - Candidate B2 -- roadmap row 21: `list --json` publishes the below-floor prescription as a field
+    - Candidate B3 -- the README never names the machine-consumer contract, and omits 4 of 9 flags
+    winner: A3
+    ship: pending (not yet decided)
   iter-90
     lenses: new-capability -- iteration 90, hardening/DX
     - Candidate A1 -- `tools/overlap.py`: check the register against ITSELF for behavioural duplicates
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the quantified-wildcard ban moves from the suite to the ingest door (roadmap row 62)
     - Candidate B3 -- `checks.tracked_files` loses its process-lifetime cache, so a second scan cannot answer from the first scan's tree (roadmap row 43)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 15afe2f
   iter-89
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the promote gate's capacity stand-down is documented nowhere, and it silently breaks a promise the research contract prints as unconditional
@@ -617,4 +627,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-62 scouted iterations
+63 scouted iterations
