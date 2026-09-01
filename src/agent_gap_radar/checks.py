@@ -695,9 +695,33 @@ def evaluate(rule: dict, target: pathlib.Path,
             if text is None:
                 continue
             for m in regex.finditer(text):
-                line_no = text[:m.start()].count("\n") + 1
+                # Counted over a BOUNDED RANGE, never over a copied prefix.
+                # Slicing the text up to the hit allocates a fresh string as long
+                # as that prefix, once per hit reported, to answer a question
+                # `str.count` answers in place. Same number, no allocation.
+                #
+                # The slice form is deliberately not spelled anywhere in this file,
+                # comments included: an acceptance check for its absence is a
+                # substring test, and this tool scans ITSELF, so naming the banned
+                # shape here would red that check from inside a comment.
+                line_no = text.count("\n", 0, m.start()) + 1
                 loc = f"{path.relative_to(target)}:{line_no}"
                 (test_hits if is_test_path(target, path) else code_hits).append(loc)
+                break
+            if kind == "content_absent" and (code_hits or test_hits):
+                # A `content_absent` answer is DECIDED here and cannot change: its
+                # branch below reads this loop only through
+                # `bool(code_hits or test_hits)`, which is monotone once anything has
+                # been appended, and it throws `locations` away. Every further read
+                # and regex pass therefore computes a result that is provably
+                # discarded.
+                #
+                # Guarded on the KIND because `content_matches` publishes its
+                # locations: stopping early there would truncate a location list and
+                # silently break the code-before-test ranking. `truncated` is derived
+                # from `domain_size` BEFORE this loop, so an exit here still reports
+                # the same `MAX_SCAN_FILES` incompleteness an unbroken loop reported
+                # -- a cut domain is never laundered into a clean-looking answer.
                 break
         found = bool(code_hits or test_hits)
         if kind == "content_matches":

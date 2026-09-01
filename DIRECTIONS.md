@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-94
+    lenses: performance-and-throughput, narrative-and-docs (iteration 94)
+    - Candidate A1 -- the dormant literal prefilter reaches its call site (row 51, bite 2)
+    - Candidate A2 -- `content_absent` stops scanning once its boolean is decided (row 47, bite 1)
+    - Candidate A3 -- count newlines in place instead of copying a prefix slice (row 63)
+    - Candidate B1 -- A row whose defect is provably gone cannot stay `open`: two measured today, and no brake can see it
+    - Candidate B2 -- One derived statement of the ingest door's refusal set, instead of three that disagree
+    - Candidate B3 -- The roadmap stops restating its own size, because both figures it publishes are stale and one of its two prescriptions is refuted
+    winner: A2
+    ship: pending (not yet decided)
   iter-93
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- `cli.py` spells the confidence-floor default three times; delete two of them
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar prd --gap X` loads and validates the whole register twice
     - Candidate B3 -- the suite loads the live register 2,239 times, 109.7s of CPU
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED fbf86b2
   iter-92
     lenses: integration-and-adoption (iteration 92), simplification-and-deletion (iteration 92)
     - A1 -- `status` reaches the two payloads a build loop consumes, so the published gate rule's "is open" clause becomes answerable
@@ -647,4 +657,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-65 scouted iterations
+66 scouted iterations
