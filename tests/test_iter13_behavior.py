@@ -47,9 +47,13 @@ MARKER_SENTENCE = "**`scan --json` SHIPPED.**"
 #: Spec behavior 1 / 2: the ORDER is part of the contract, not just the key set.
 TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
             "counts", "uncheckable", "findings"]
+#: Re-baselined 12 -> 13 in iteration 92: `status` was APPENDED as the new last key.
+#: The pin's intent is "no key renamed, removed or reordered" -- every pre-existing key
+#: keeps its absolute index here, so this literal still refuses the changes it exists to
+#: refuse while documenting growth by appending.
 FINDING_KEYS = ["gap_id", "title", "layer", "gap_type", "verdict", "priority",
                 "confidence", "below_floor", "reason", "question", "locations",
-                "build_hypothesis"]
+                "build_hypothesis", "status"]
 
 #: Below the floor with real evidence: one `secondary-summary` citation scores 1.
 WEAK = _record("GAP-500", 5, 3, 5, classes=("secondary-summary",), check_id="CHK-500")

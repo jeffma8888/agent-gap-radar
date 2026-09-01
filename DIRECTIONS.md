@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-92
+    lenses: integration-and-adoption (iteration 92), simplification-and-deletion (iteration 92)
+    - A1 -- `status` reaches the two payloads a build loop consumes, so the published gate rule's "is open" clause becomes answerable
+    - A2 -- `radar list --json` publishes WHICH layer filter produced the payload
+    - A3 -- a scan-to-scan comparison, so the NON-REGRESSION half of the published gate rule has a surface at all
+    - Candidate B1 -- split `PRODUCT.md` into a terse index plus a tracked `PRODUCT_ARCHIVE.md`
+    - Candidate B2 -- one locator predicate instead of four that disagree
+    - Candidate B3 -- one offline tripwire instead of five hand-rolled ones, and the weakest copy stops being a copy
+    winner: A1
+    ship: pending (not yet decided)
   iter-91
     lenses: hardening/DX -- iteration 91, integration-and-adoption -- iteration 91
     - Candidate A1 -- the mutation harness counts ANY non-zero exit as CAUGHT, with no control run
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 21: `list --json` publishes the below-floor prescription as a field
     - Candidate B3 -- the README never names the machine-consumer contract, and omits 4 of 9 flags
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED d9d95b6
   iter-90
     lenses: new-capability -- iteration 90, hardening/DX
     - Candidate A1 -- `tools/overlap.py`: check the register against ITSELF for behavioural duplicates
@@ -627,4 +637,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-63 scouted iterations
+64 scouted iterations

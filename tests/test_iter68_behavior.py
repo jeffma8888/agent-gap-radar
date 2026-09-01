@@ -364,7 +364,9 @@ def test_b5_the_document_satisfies_the_consumer_shape_offline(capsys):
 #: same invocation ("Measured this iteration against the real reader, on live bytes (3693
 #: B)"). It is the one historical witness a black-box stage has, and it turns behavior 3
 #: into a single number: a rename of this one key and nothing else must shrink the document
-#: by exactly `len(retired) - len(new)` bytes.
+#: by exactly `len(retired) - len(new)` bytes. KEPT UNCHANGED by iteration 92, which grew the
+#: payload -- the witness is worth more intact than overwritten, so that iteration adds its
+#: growth as a measured term in the assertion instead of re-pinning a fresh magic number.
 PRE_ITERATION_BYTES = 3693
 
 
@@ -428,14 +430,33 @@ def test_b3_the_document_is_exactly_the_rename_shorter_than_the_recorded_pre_byt
     covers keys and values nobody thought to check. If a future iteration legitimately
     changes the payload's SIZE, this pin is the thing to update -- deliberately, and with
     the new size measured, not deleted.
+
+    RE-BASELINED BY ITERATION 92, which is that deliberate update: it APPENDED
+    `sourceGap.status`, so the document legitimately grew by one key/value pair. The growth
+    is DERIVED from the emitted value rather than pinned as a second literal, because a
+    record's status is register DATA -- GAP-003 stores `open` today, and if it ever becomes
+    `partially-addressed` this expectation must move with it instead of reding a pin that no
+    code change touched. Nothing the pin refuses is surrendered: a second new key, a changed
+    value, or a byte moved anywhere else still reds it, because only this one pair's own
+    length is allowed to vary and its presence is asserted first.
     """
     _, out, _ = _live_prd(capsys)
     delta = len(RETIRED_KEY) - len("stories")
     assert delta == 4, "premise: the rename removes exactly four bytes"
-    assert len(out) == PRE_ITERATION_BYTES - delta, (
-        f"emitted {len(out)} bytes; expected {PRE_ITERATION_BYTES - delta} "
-        f"(the pre-iteration {PRE_ITERATION_BYTES} recorded in the spec, less the rename). "
-        "Either another byte moved with the rename, or the register data changed.")
+    source_gap = _doc(out)["sourceGap"]
+    assert "status" in source_gap, (
+        "premise: iteration 92 APPENDED `sourceGap.status`. With the key gone the growth "
+        "term below is void, so the size claim would pass while the payload regressed.")
+    # One comma, one newline, the nested object's four-space indent, and the pair itself.
+    pair = ',\n    "status": ' + json.dumps(source_gap["status"])
+    assert out.count(pair) == 1, (
+        f"premise: the appended pair occurs exactly once in the emitted bytes, so its "
+        f"length measures this document's real growth; found {out.count(pair)}")
+    assert len(out) == PRE_ITERATION_BYTES - delta + len(pair), (
+        f"emitted {len(out)} bytes; expected {PRE_ITERATION_BYTES - delta + len(pair)} "
+        f"(the pre-iteration {PRE_ITERATION_BYTES} recorded in the spec, less the rename's "
+        f"{delta}, plus iteration 92's appended status pair at {len(pair)}). "
+        "Either another byte moved, or the register data changed.")
 
 
 # ---------------------------------------------------------------------------

@@ -185,6 +185,10 @@ def prd_for(gap: Gap, project: str = "agent-gap-radar") -> dict:
                 for e in gap.evidence
             ],
             "check": check_payload,
+            # APPENDED last: a build loop is handed this document every
+            # iteration, so a partially-addressed record must not arrive
+            # looking fresh. Read from the record; selection is unchanged.
+            "status": gap.status,
         },
         "stories": stories,
     }

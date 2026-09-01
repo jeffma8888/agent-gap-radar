@@ -214,6 +214,11 @@ def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
         # fix list: a regex match is not a proof of the defect's site.
         "locations": list(finding.outcome.locations),
         "build_hypothesis": finding.gap.build_hypothesis,
+        # APPENDED last on purpose: the declared consumer's traceability gate
+        # asserts a cited gap "is open", and until now that clause was
+        # unanswerable from this payload. Passed straight through from the
+        # record -- publishing is not selecting, so nothing here filters on it.
+        "status": finding.gap.status,
     }
 
 

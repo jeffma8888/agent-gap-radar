@@ -368,7 +368,9 @@ def test_b8_document_parses_ends_in_one_newline_and_is_byte_stable(tmp_path):
 def test_b8_pre_existing_source_gap_keys_keep_their_values_and_check_is_appended(tmp_path):
     rec = _record(check=_automated_check())
     sg = prd_for(_gap(tmp_path, rec))["sourceGap"]
-    assert list(sg) == PRE_EXISTING_SOURCE_GAP_KEYS + ["check"], list(sg)
+    # `status` appended in iteration 92; `check` in this one. The literal keeps recording
+    # what pre-dated iteration 23, so the tail documents append-only growth in order.
+    assert list(sg) == PRE_EXISTING_SOURCE_GAP_KEYS + ["check", "status"], list(sg)
     assert sg["id"] == rec["id"]
     assert sg["layer"] == rec["layer"]
     assert sg["gapType"] == rec["gap_type"]

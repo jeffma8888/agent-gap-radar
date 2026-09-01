@@ -301,7 +301,11 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
 `confidence_floor`, `records_applied`, `counts` keyed by verdict, `uncheckable`,
 `findings`, and per finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`,
 `priority`, `confidence`, `below_floor`, `reason`, `question`, `locations`,
-`build_hypothesis`. `priority` and `confidence` stay separate fields and no
+`build_hypothesis`, `status`. `status` is the record's own stored value, passed
+through unchanged, so the traceability clause "is open" is answerable from this
+payload instead of requiring a second read of the register; publishing it selects
+nothing, and a below-floor or non-`open` record is still DISPLAYED, never dropped.
+`priority` and `confidence` stay separate fields and no
 blended `score` key exists, so the invariant survives serialisation; a test
 asserts that. `confidence_floor` is the floor the scan APPLIED and `below_floor`
 is derived from the `confidence` printed beside it, so a gate asserts the
@@ -348,6 +352,15 @@ both directions, so a key added to the payload reds the suite until this documen
 it, and a key named here that the tool does not emit reds it too. That same comparison
 runs against both prd surfaces, which are asserted EQUAL to each other, so a later
 rename cannot fix one surface and leave the other behind.
+
+### The sourceGap object -- the eight inner keys, published
+
+`sourceGap` carries, in emitted order, `id`, `layer`, `gapType`, `priority`,
+`confidence`, `evidence`, `check`, `status`. `status` is read from the register
+record and published verbatim: the prd is the document that enters a build
+loop's prompt, so a `partially-addressed` record must not arrive there looking
+fresh. It is published, not acted on -- the prd verb selects the same record
+whatever the status says.
 
 ## `radar ingest` - the reverse direction (NOT PLANNED)
 
