@@ -789,3 +789,294 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
         "Neither the gap signature nor a mitigation was detected. Absence of a "
         "pattern is not evidence of safety - confirm by hand.",
         reason="no signature and no mitigation detected")
+
+
+# --- Required-literal extraction (DORMANT) -----------------------------------
+#
+# A content rule proves ABSENCE the expensive way: `evaluate` compiles the
+# pattern and runs it over every file in the rule's domain, so the budget is
+# `patterns x corpus bytes` and it is spent overwhelmingly proving a pattern is
+# NOT there. Rejecting a file without running the regex is the one lever on that
+# term, and it needs a literal every match must contain.
+#
+# Nothing below is called yet, on purpose. The failure an unsound literal causes
+# is the INVERTED one -- a skipped file turns a PRESENT into an ABSENT, a false
+# claim of safety, which this module's header and VISION.md both forbid -- so the
+# extractor and its proof ship before any call site moves.
+
+#: Regex metacharacters. An UNESCAPED one of these ENDS a literal run, because
+#: past it the characters a match must contain are no longer decidable one at a
+#: time: `a*` requires no `a`, `[ab]` requires neither, `(x|y)` requires neither.
+#: `}` and `]` outside their opener are literal to `re` and are still treated as
+#: enders here -- over-conservatism costs one wasted regex pass, and only
+#: under-conservatism costs a verdict. A backslash is absent because the escape
+#: branch in `_leading_literal_run` consumes it before this set is consulted.
+_RUN_ENDERS = frozenset(".^$*+?{}[]()|")
+
+#: Escapes whose second character IS a character every match must contain.
+#: Punctuation only, and that is the whole safety argument: `\b`, `\w`, `\d`,
+#: `\s`, `\A`, `\1` and every other alphanumeric escape denote a CLASS, an
+#: ASSERTION or a BACKREFERENCE, so reading one as a literal would invent a
+#: requirement the pattern does not have -- the fail-open direction.
+_LITERAL_ESCAPES = frozenset(".-_/()[]{}+*?|^$" + "\\")
+
+#: Quantifier openers that can make the atom BEFORE them optional: `a?`, `a*`
+#: and `a{0,3}` all match without a single `a`. `+` is deliberately absent
+#: because it requires at least one, so a run ending at `+` keeps its last
+#: character.
+_OPTIONAL_QUANTIFIER_OPENERS = frozenset("?*{")
+
+#: Characters Python's IGNORECASE table equates with a NON-ASCII character whose
+#: `str.lower()` is not itself: `(?i)s` matches U+017F LATIN SMALL LETTER LONG S,
+#: and `(?i)i` matches U+0130 and U+0131. Enumerated over U+0080..U+24FF against
+#: every ASCII letter, these are the only two. A literal carrying one is not
+#: provable under an in-effect `(?i)`, because the lowered text would not contain
+#: it -- which is the rejection direction, so it must be excluded rather than
+#: noted.
+_FOLD_UNSAFE = "is"
+
+#: Stack bound for nested alternation. `(((( ... ))))` 2,000 deep is a legal
+#: 4,000-character pattern, and a register is data that consumers write, so an
+#: unbounded walk would raise RecursionError -- while the contract below is that
+#: no input raises. Past the bound the answer is `None`, the no-claim direction.
+#: This is NOT what terminates the recursion; see `_prove_literals`.
+_MAX_ALTERNATION_DEPTH = 32
+
+#: One leading GLOBAL flag group. Only `i`, `m` and `s`: `(?x)` must never be
+#: stripped, because VERBOSE changes what a literal IS -- unescaped whitespace
+#: and `#` comments stop being characters -- so a run read under it would be
+#: wrong rather than merely weak.
+_INLINE_FLAGS_RE = re.compile(r"\(\?[ims]+\)")
+
+
+def _scan_unescaped(pattern: str) -> Iterator[tuple[int, str, int, bool]]:
+    """Yield `(index, char, depth, in_class)` for every UNESCAPED character.
+
+    ONE walk behind both the wrapper balance check and the alternation split, so
+    the two cannot drift on what a `|` inside `[...]` means. `depth` is the group
+    nesting OUTSIDE the yielded character, so the `)` closing a group opened at
+    top level is yielded with `depth == 0`.
+
+    A `]` in the FIRST body position is a literal member of the class rather than
+    its terminator, so `[]]` is the class containing `]`. Reading that `]` as the
+    terminator would end the class early and leave a stray `]` at top level,
+    which could mis-locate the group boundary the balance check trusts.
+    """
+    depth = 0
+    in_class = False
+    body_start = -1
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            # The escaped character can open or close nothing, so the pair is
+            # skipped whole. A TRAILING backslash steps past the end, which the
+            # loop condition absorbs: `a\` must not raise.
+            index += 2
+            continue
+        if in_class:
+            yield index, char, depth, True
+            if char == "]" and index > body_start:
+                in_class = False
+        elif char == "[":
+            in_class = True
+            body_start = index + 2 if pattern[index + 1:index + 2] == "^" else index + 1
+            yield index, char, depth, False
+        elif char == "(":
+            yield index, char, depth, False
+            depth += 1
+        elif char == ")":
+            # Floored at zero so an unbalanced `)` cannot drive the depth
+            # negative and make a later top-level `|` invisible to the split.
+            depth = max(0, depth - 1)
+            yield index, char, depth, False
+        else:
+            yield index, char, depth, False
+        index += 1
+
+
+def _strip_inline_flags(pattern: str) -> tuple[str, bool]:
+    """Remove ONE leading flag group, reporting whether `i` was among its letters.
+
+    The flag itself is not a run character, so leaving it in place would end
+    every run at the `(` and make every case-insensitive pattern unprovable. The
+    `i` has to travel with the stripped text rather than be forgotten: it is what
+    decides whether the run may carry an `i` or an `s`.
+    """
+    match = _INLINE_FLAGS_RE.match(pattern)
+    if match is None:
+        return pattern, False
+    return pattern[match.end():], "i" in match.group(0)
+
+
+def _strip_full_wrapper(pattern: str) -> str:
+    """Remove ONE group enclosing the WHOLE pattern, else return it unchanged.
+
+    Only a plain `(...)` or a non-capturing `(?:...)`, because those are the only
+    wrappers that leave the match SET unchanged. `(?=...)` and `(?!...)` are not
+    stripped -- the negative form would invert the requirement outright -- and
+    neither are `(?<=...)`, `(?P<n>...)` or `(?i:...)`, which simply keep the `(`
+    that ends a run at once.
+
+    The balance check is what makes this safe rather than merely convenient.
+    `(foo)|(bar)` LOOKS wrapped: it opens with `(` and its last character is `)`.
+    A naive strip yields `foo)|(bar`, whose second alternative has no literal at
+    all, so the whole pattern would be reported unprovable. Here the group opened
+    at index 0 closes at index 4 rather than at the end, so nothing is stripped
+    and the split sees both alternatives intact.
+    """
+    if pattern.startswith("(?:"):
+        opener = 3
+    elif pattern.startswith("(") and not pattern.startswith("(?"):
+        opener = 1
+    else:
+        return pattern
+    for index, char, depth, in_class in _scan_unescaped(pattern):
+        if char == ")" and depth == 0 and not in_class:
+            return pattern[opener:-1] if index == len(pattern) - 1 else pattern
+    return pattern  # the `(` never closes: an unbalanced pattern, strip nothing
+
+
+def _split_alternatives(pattern: str) -> list[str]:
+    """Split on depth-0 `|` only, so `a[|]b|c` is TWO alternatives, not three.
+
+    Top-level alternation is the lowest-precedence operator in a regex, so a
+    match of the whole is a match of one alternative -- which is what lets the
+    caller UNION the alternatives' literals instead of intersecting them.
+    """
+    bars = [index for index, char, depth, in_class in _scan_unescaped(pattern)
+            if char == "|" and depth == 0 and not in_class]
+    if not bars:
+        return [pattern]
+    parts: list[str] = []
+    start = 0
+    for bar in bars:
+        parts.append(pattern[start:bar])
+        start = bar + 1
+    parts.append(pattern[start:])
+    return parts
+
+
+def _leading_literal_run(alternative: str, fold: bool) -> str:
+    """The lowercased characters EVERY match of one alternative must contain.
+
+    Returns `""` when nothing is provable, which the caller reads as "no claim".
+    Three conditions end the run, each in the conservative direction: an
+    unescaped metacharacter, an escape outside the punctuation whitelist, and a
+    NON-ASCII character. The last one is a soundness requirement, not tidiness:
+    `str.lower()` is context-dependent outside ASCII -- a Greek capital sigma
+    lowercases to one codepoint at the end of a word and a different one inside
+    it -- so a non-ASCII literal lowered in isolation need not be a substring of
+    the lowered text.
+
+    The last run character is DROPPED when the next pattern character is `?`, `*`
+    or `{`, because a quantifier binds the single atom before it and all three
+    admit zero of it: `foobar?` matches `fooba`, and `ab{0,3}c` matches `ac`.
+    """
+    chars: list[str] = []
+    index = 0
+    while index < len(alternative):
+        char = alternative[index]
+        if char == "\\":
+            escaped = alternative[index + 1:index + 2]
+            if escaped not in _LITERAL_ESCAPES:
+                break  # a class, an assertion, a backreference, or a bare `\`
+            chars.append(escaped)
+            index += 2
+            continue
+        if char in _RUN_ENDERS or not char.isascii():
+            break
+        chars.append(char)
+        index += 1
+    if chars and alternative[index:index + 1] in _OPTIONAL_QUANTIFIER_OPENERS:
+        chars.pop()
+    run = "".join(chars).lower()
+    if not fold:
+        return run
+    # Under an in-effect `(?i)` the run may not carry `i` or `s`, so the LONGEST
+    # fold-safe segment of it stands in. Any contiguous piece of a mandatory run
+    # is itself mandatory, so this weakens the filter without weakening the
+    # proof. Ending the run at the first `i` or `s` instead would answer `o` for
+    # `(?i)os\.walk\(` and nothing at all for `(?i)sk_live_`.
+    return max(re.split(f"[{_FOLD_UNSAFE}]", run), key=len)
+
+
+def _prove_literals(pattern: str, depth: int, fold: bool) -> frozenset[str] | None:
+    """One level of the public extractor, carrying the fold state down the walk.
+
+    The recursion is what makes `(foo)|(bar)` provable. `_strip_full_wrapper`
+    refuses to strip a group that does not enclose the whole pattern, so those
+    alternatives arrive here still wrapped and each is normalised in its own
+    right. At most ONE wrapper is stripped per level, so `((a|b))` costs two
+    levels instead of being read as the single alternative `(a|b)`, whose run
+    would stop at the `(` and report nothing provable.
+
+    Every recursive call receives a STRICTLY shorter string -- a strip removes
+    characters, and a split removes at least the bar -- so the walk terminates on
+    its own. `_MAX_ALTERNATION_DEPTH` bounds the STACK rather than the walk,
+    because a legal 4,000-character pattern can nest 2,000 deep and the contract
+    is that no input raises.
+    """
+    if depth > _MAX_ALTERNATION_DEPTH:
+        return None
+    stripped, folded = _strip_inline_flags(pattern)
+    fold = fold or folded
+    stripped = _strip_full_wrapper(stripped)
+    alternatives = _split_alternatives(stripped)
+    if len(alternatives) == 1 and stripped == pattern:
+        run = _leading_literal_run(pattern, fold)
+        return frozenset({run}) if run else None
+    literals: set[str] = set()
+    for alternative in alternatives:
+        proved = _prove_literals(alternative, depth + 1, fold)
+        if proved is None:
+            # ONE alternative with no mandatory literal makes the WHOLE pattern
+            # unprovable. A text missing every other alternative's literal can
+            # still match through this one, so no member of the set would be
+            # decisive and skipping the file would be a false ABSENT.
+            return None
+        literals |= proved
+    return frozenset(literals) if literals else None
+
+
+def required_literals(pattern: str) -> frozenset[str] | None:
+    r"""Literals every match of `pattern` must contain, or None when unprovable.
+
+    The published guarantee, and the only thing a caller may rely on:
+
+        If it returns a set `L`, then `L` is non-empty and for every text `t`, if
+        `re.compile(pattern, re.MULTILINE).search(t)` is not `None`, then at
+        least one member of `L` is a substring of `t.lower()`.
+
+    So a text containing no member of `L` cannot match, and the regex over it can
+    be skipped. Nothing calls this yet: it is DORMANT by design, because the
+    failure an unsound literal causes is the INVERTED one -- a wrongly skipped
+    file turns a PRESENT into an ABSENT, a false claim of safety.
+
+    Only ONE direction is proved, and that asymmetry is the design. A missing
+    literal is decisive. A PRESENT literal proves nothing, and `None` proves
+    nothing: both mean "run the regex", so every unproved pattern costs a regex
+    pass and can never cost a verdict.
+
+    Lowercasing is sound in the REJECTION direction, which is the only direction
+    used. The caller tests membership against `text.lower()`, so folding can only
+    ADMIT a file the regex then rejects -- a wasted pass -- and can never reject a
+    file the regex would have matched. Two Unicode facts are what make that hold,
+    and each costs a rule in `_leading_literal_run`: `str.lower()` is
+    context-dependent outside ASCII, so a run stops at the first non-ASCII
+    character; and Python's IGNORECASE table equates `i` and `s` with U+0130,
+    U+0131 and U+017F, whose `str.lower()` stays outside ASCII, so under an
+    in-effect `(?i)` the literal may not carry either letter.
+
+    The escape whitelist is punctuation only -- `. - _ / ( ) [ ] { } + * ? | ^ $
+    \` -- so `\.` contributes `.` and `os\.walk\(` proves `os.walk(`. Every
+    alphanumeric escape (`\b`, `\w`, `\d`, `\s`, `\1`) ENDS the run, because it
+    denotes a class, an assertion or a backreference rather than a character that
+    must appear.
+
+    Returns `None` or a NON-EMPTY frozenset, never `frozenset()`: an empty set
+    would read as "no literal is required", which is what a caller checking
+    `if literals:` would treat as "skip nothing" while a caller checking
+    `if literals is not None:` would treat as "skip everything".
+    """
+    return _prove_literals(pattern, 0, False)

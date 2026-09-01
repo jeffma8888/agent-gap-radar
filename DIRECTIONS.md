@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-93
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- `cli.py` spells the confidence-floor default three times; delete two of them
+    - Candidate A2 -- `PRODUCT.md` is 143,768 chars against a 54,000-char hard budget; archive the spent prose
+    - Candidate A3 -- retire the `file_absent` rule kind (1 of 7; used ONCE in 120 records)
+    - Candidate B1 -- one live `radar scan` costs 16.8s and is 78% of the suite's slowest 25 tests; find where
+    - Candidate B2 -- `radar prd --gap X` loads and validates the whole register twice
+    - Candidate B3 -- the suite loads the live register 2,239 times, 109.7s of CPU
+    winner: A2
+    ship: pending (not yet decided)
   iter-92
     lenses: integration-and-adoption (iteration 92), simplification-and-deletion (iteration 92)
     - A1 -- `status` reaches the two payloads a build loop consumes, so the published gate rule's "is open" clause becomes answerable
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- one locator predicate instead of four that disagree
     - Candidate B3 -- one offline tripwire instead of five hand-rolled ones, and the weakest copy stops being a copy
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 05e6fa9
   iter-91
     lenses: hardening/DX -- iteration 91, integration-and-adoption -- iteration 91
     - Candidate A1 -- the mutation harness counts ANY non-zero exit as CAUGHT, with no control run
@@ -637,4 +647,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-64 scouted iterations
+65 scouted iterations
