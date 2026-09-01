@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-95
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- The front door names no sibling document, so the contract a CI gate consumes is unreachable from the README
+    - Candidate A2 -- README's "Current register" section breaks the no-restated-count rule it publishes three lines earlier
+    - Candidate A3 -- A doc-brake declares the roadmap row it discharges (row 91's specced mechanism)
+    - Candidate B1 -- `radar tags`: publish the cross-layer axis every record carries and no surface reads
+    - Candidate B2 -- Scan results become comparable, so the non-regression half of the published gate rule has a surface
+    - Candidate B3 -- The register can name a relation between two records, which it cannot today
+    winner: A1
+    ship: pending (not yet decided)
   iter-94
     lenses: performance-and-throughput, narrative-and-docs (iteration 94)
     - Candidate A1 -- the dormant literal prefilter reaches its call site (row 51, bite 2)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One derived statement of the ingest door's refusal set, instead of three that disagree
     - Candidate B3 -- The roadmap stops restating its own size, because both figures it publishes are stale and one of its two prescriptions is refuted
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 5856169
   iter-93
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- `cli.py` spells the confidence-floor default three times; delete two of them
@@ -657,4 +667,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-66 scouted iterations
+67 scouted iterations
