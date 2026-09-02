@@ -302,7 +302,7 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
 `findings`, and per finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`,
 `priority`, `confidence`, `below_floor`, `reason`, `question`, `locations`,
 `build_hypothesis`, `status`. `status` is the record's own stored value, passed
-through unchanged, so the traceability clause "is open" is answerable from this
+through unchanged, so the traceability clause's citable-status test is answerable
 payload instead of requiring a second read of the register; publishing it selects
 nothing, and a below-floor or non-`open` record is still DISPLAYED, never dropped.
 `priority` and `confidence` stay separate fields and no
@@ -400,8 +400,19 @@ verb sold to consumers as read-only and byte-stable.
 - **Never gate on "gaps closed" throughput, and never score a team on it.** A
   loop optimising against that metric will farm whatever the register makes
   cheapest to claim, and the register decays into a scoreboard. Gate on honesty
-  (a cited gap really exists, is open, and is above the floor) and on
-  non-regression (the diff did not reintroduce a known gap).
+  (a cited gap really exists, carries a citable status, and is above the floor)
+  and on non-regression (the diff did not reintroduce a known gap).
+- **Never gate a citation on `status` being `open` alone.** The citable set is
+  `taxonomy.citable_statuses()`, published by `radar taxonomy` under its
+  `## Citation gate` heading; today it is `open` and `partially-addressed`. It is
+  DERIVED from `taxonomy.STATUSES` by removing `taxonomy.TERMINAL_STATUSES`, the
+  statuses that assert the work is already finished, so a status the register grows
+  later stays citable until someone decides otherwise instead of dropping out of the
+  build pipeline unannounced. Gating on `open` alone refuses a TRUTHFUL citation of a
+  `partially-addressed` record, and one of the register's top three records by
+  priority is exactly that. Read the partition from the vocabulary, never from the
+  statuses that happen to be present in `gaps/` -- a rule has to hold for a status no
+  record carries yet.
 - **Never treat a missing gap citation as a defect.** "No register gap fits
   this work" is a legitimate, common answer; forcing a citation manufactures
   false ones.

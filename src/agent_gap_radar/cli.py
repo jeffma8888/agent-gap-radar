@@ -23,7 +23,18 @@ from .render import document, gap_brief, json_document, radar_report
 from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
 from .taxonomy import (GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS,
-                       STATUS_GLOSSES, STATUSES)
+                       STATUS_GLOSSES, STATUSES, citable_statuses,
+                       terminal_statuses)
+
+
+def _status_list(statuses: tuple[str, ...]) -> str:
+    """Render one side of the citation partition as backticked names.
+
+    `(none)` for an empty side rather than an empty string: patching `STATUSES` can
+    legitimately empty either side, and a bare `-- ` would leave trailing whitespace on a
+    published line, which the byte-stability bar treats as output the renderer owns.
+    """
+    return ", ".join(f"`{s}`" for s in statuses) if statuses else "(none)"
 
 
 def _resolve(path_arg: str) -> pathlib.Path:
@@ -373,6 +384,14 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # membership and the order of what is published about it.
         out += ["", "## Record statuses", ""]
         out += [f"- `{s}` -- {STATUS_GLOSSES[s]}" for s in STATUSES]
+        # The PARTITION, published because it is the only rule a citation gate can
+        # implement without inventing one. Both sides are derived from `STATUSES` by the
+        # taxonomy module, so this branch cannot publish a partition the library would
+        # disagree with, and neither side is read from `gaps/`: a vocabulary rule must
+        # hold for a status no record happens to carry yet.
+        out += ["", "## Citation gate", ""]
+        out += [f"- `citable` -- {_status_list(citable_statuses())}",
+                f"- `terminal` -- {_status_list(terminal_statuses())}"]
         # Reach the published `render.document` rather than re-spell its tail here.
         # The one-newline rule is a published guarantee, and a second copy of it
         # holds only while the copies agree: this branch spelled the join tail

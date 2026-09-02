@@ -5,8 +5,9 @@ rather than its body, and no module imports a name it never loads.
 Black-box, and the isolation contract is honored: nothing here reads the implementation
 source to DERIVE an expectation, and nothing reads the engineer's or the reviewer's notes
 or a diff. Behavior 1's expectation is built from the PUBLISHED vocabularies
-(`taxonomy.LAYERS`, `GAP_TYPES`, `SOURCE_CLASSES`, `SOURCE_WEIGHTS`, and from iteration 71
-`STATUSES` with its `STATUS_GLOSSES` attribute table), never from the verb's rendering code
+(`taxonomy.LAYERS`, `GAP_TYPES`, `SOURCE_CLASSES`, `SOURCE_WEIGHTS`, from iteration 71
+`STATUSES` with its `STATUS_GLOSSES` attribute table, and from iteration 100 the citation
+partition `citable_statuses()` / `terminal_statuses()`), never from the verb's rendering code
 and never from a restated literal -- the document's byte length and the vocabulary contents
 are both deliberately absent from this file, so a taxonomy that legitimately grows keeps
 this test green.
@@ -50,6 +51,7 @@ LAYERS_HEADING = "## Layers"
 GAP_TYPES_HEADING = "## Gap types"
 SOURCES_HEADING = "## Evidence source classes (strongest first)"
 STATUSES_HEADING = "## Record statuses"
+CITATION_GATE_HEADING = "## Citation gate"
 
 
 def _joined_with_one_newline_tail(lines):
@@ -60,6 +62,16 @@ def _joined_with_one_newline_tail(lines):
     census that someone later widens to cover `tests/`.
     """
     return "".join(line + "\n" for line in lines)
+
+
+def _expected_side(statuses):
+    """One side of the citation partition, in the verb's format.
+
+    The FORMAT is restated here and the CONTENT is derived -- the same split iteration 71
+    used for the gloss bullets. `(none)` is the documented rendering of an empty side; a
+    bare separator would leave trailing whitespace on a published line.
+    """
+    return ", ".join(f"`{status}`" for status in statuses) if statuses else "(none)"
 
 
 def _expected_taxonomy_document():
@@ -77,6 +89,13 @@ def _expected_taxonomy_document():
     # reader. Iterating the mapping instead would let a reordered gloss table read green.
     lines += [f"- `{status}` -- {taxonomy.STATUS_GLOSSES[status]}"
               for status in taxonomy.STATUSES]
+    lines += ["", CITATION_GATE_HEADING, ""]
+    # Iteration 100's partition. Both sides come from the taxonomy's own DERIVATION
+    # helpers rather than from a restated pair of lists, so this stays green when the
+    # status vocabulary grows and reds when the verb publishes a partition the library
+    # does not agree with -- which is the only failure worth pinning here.
+    lines += [f"- `citable` -- {_expected_side(taxonomy.citable_statuses())}",
+              f"- `terminal` -- {_expected_side(taxonomy.terminal_statuses())}"]
     return _joined_with_one_newline_tail(lines)
 
 
@@ -95,7 +114,7 @@ def test_taxonomy_document_equals_the_published_vocabularies(capsys):
 
 def test_taxonomy_covers_every_published_vocabulary_entry(capsys):
     """Behavior 1, restated as coverage: no entry may be silently dropped, and the
-    four sections stay in the order the verb publishes them."""
+    five sections stay in the order the verb publishes them."""
     assert main(["taxonomy"]) == 0
     out = capsys.readouterr().out
     for name in list(taxonomy.LAYERS) + list(taxonomy.GAP_TYPES):
@@ -106,9 +125,12 @@ def test_taxonomy_covers_every_published_vocabulary_entry(capsys):
     for status in taxonomy.STATUSES:
         assert f"- `{status}` -- {taxonomy.STATUS_GLOSSES[status]}" in out, (
             f"record status {status!r} is missing or carries the wrong gloss")
+    for status in taxonomy.citable_statuses() + taxonomy.terminal_statuses():
+        assert f"`{status}`" in out, (
+            f"status {status!r} is in the partition but absent from the published document")
     positions = [out.index(h) for h in
                  (TAXONOMY_TITLE, LAYERS_HEADING, GAP_TYPES_HEADING, SOURCES_HEADING,
-                  STATUSES_HEADING)]
+                  STATUSES_HEADING, CITATION_GATE_HEADING)]
     assert positions == sorted(positions), f"section order changed: offsets {positions}"
 
 

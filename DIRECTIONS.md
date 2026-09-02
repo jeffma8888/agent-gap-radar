@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-100
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A -- row 47 bite 2: a boolean-only content rule stops at its first hit
+    - Candidate B -- row 35: memoise the (pattern, file, exclude_tests) decision
+    - Candidate C -- row 92: the owed suite-wall measurement
+    - Candidate B1 -- README's published record shape omits `tags`, the one key every record carries, while only the contract's twin table is braked
+    - Candidate B2 -- the one door the register is fed through publishes three different refusal sets, and the outcome that decides whether a whole pass lands is published nowhere
+    - Candidate B3 -- the contract tells a gate to require `status == open`, the tool never filters on status, and the roadmap row recording this is now stale in its own premise
+    winner: B3
+    ship: pending (not yet decided)
   iter-99
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one offline tripwire instead of five hand-copied ones
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- (being measured) row 47 bite 2, boolean-only contexts
     - Candidate B3 -- (being measured) row 92, where the 164 s suite wall goes
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 89d262e
   iter-98
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` publishes the below-floor prescription, `null` when it would be vacuous
@@ -707,4 +717,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-71 scouted iterations
+72 scouted iterations

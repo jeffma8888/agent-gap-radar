@@ -84,6 +84,46 @@ STATUS_GLOSSES: dict[str, str] = {
 }
 
 
+#: The statuses that ASSERT the gap's work is already done. This is the EXCLUDE side of
+#: the citation partition and it is deliberately the side enumerated by hand, because the
+#: two rules are not symmetric: claiming a gap is finished needs POSITIVE evidence, which
+#: is the same invariant `checks.evaluate` already enforces before it will return ABSENT.
+#: Naming the CITABLE side instead would invert that -- a status a later research pass adds
+#: to `STATUSES` would fall outside the hand-written include-list and vanish from the build
+#: pipeline silently, which is the fail-CLOSED shape this vocabulary exists to remove.
+TERMINAL_STATUSES: tuple[str, ...] = ("addressed", "retired")
+
+
+def citable_statuses() -> tuple[str, ...]:
+    """The statuses a consumer's citation gate may accept, in `STATUSES` order.
+
+    DERIVED at call time rather than computed once at import, so a caller that patches
+    `STATUSES` -- a test, or a register that grows a fifth status -- sees the partition
+    move with it instead of reading a snapshot taken before the change.
+
+    Filtering `STATUSES` is what makes the partition exhaustive and disjoint BY
+    CONSTRUCTION rather than by a second assertion: every member comes from `STATUSES`,
+    and membership here is exactly the negation of `terminal_statuses()`. It also means a
+    name in `TERMINAL_STATUSES` that is NOT in `STATUSES` is simply inert, so the two
+    tuples cannot drift into a partition that over-counts.
+
+    Ordered by `STATUSES` and never by set iteration order: string hashing is
+    seed-dependent per interpreter run, so a set would make this vocabulary -- and the
+    `radar taxonomy` document derived from it -- non-byte-stable across processes.
+    """
+    return tuple(s for s in STATUSES if s not in TERMINAL_STATUSES)
+
+
+def terminal_statuses() -> tuple[str, ...]:
+    """The statuses a consumer's citation gate must refuse, in `STATUSES` order.
+
+    The complement of `citable_statuses()` over `STATUSES`, derived the same way and for
+    the same reason. Published as a verb section beside the citable side because a gate
+    author needs to read the rule it is being held to, not infer it by subtraction.
+    """
+    return tuple(s for s in STATUSES if s in TERMINAL_STATUSES)
+
+
 def layer_names() -> tuple[str, ...]:
     return tuple(LAYERS)
 

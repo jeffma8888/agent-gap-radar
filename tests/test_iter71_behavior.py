@@ -55,14 +55,18 @@ CONTRACT_PATH = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
 #: tell the two apart -- measured: it finds 2 and fails closed.
 RECORD_SHAPE_HEADING = "### Gap record keys"
 
-#: Behavior 1 -- the verb's four section headings, in the published order. Pinned as
-#: literals on purpose: these are publishing choices, not vocabulary content.
+#: Behavior 1 -- the verb's section headings, in the published order. Pinned as literals
+#: on purpose: these are publishing choices, not vocabulary content. The COUNT is not
+#: written into a name or a docstring here -- iteration 100 appended a fifth section, and a
+#: count baked into an identifier is a derived value that goes stale where it is read most.
 TAXONOMY_TITLE = "# Taxonomy"
 LAYERS_HEADING = "## Layers"
 GAP_TYPES_HEADING = "## Gap types"
 SOURCES_HEADING = "## Evidence source classes (strongest first)"
 STATUSES_HEADING = "## Record statuses"
-EXPECTED_HEADINGS = (LAYERS_HEADING, GAP_TYPES_HEADING, SOURCES_HEADING, STATUSES_HEADING)
+CITATION_GATE_HEADING = "## Citation gate"
+EXPECTED_HEADINGS = (LAYERS_HEADING, GAP_TYPES_HEADING, SOURCES_HEADING, STATUSES_HEADING,
+                     CITATION_GATE_HEADING)
 
 
 def _taxonomy_stdout(capsys) -> str:
@@ -83,16 +87,21 @@ def _taxonomy_stdout(capsys) -> str:
 # Behavior 1 -- four sections, in order, the new one LAST.
 # ---------------------------------------------------------------------------
 
-def test_taxonomy_publishes_exactly_four_sections_in_order(capsys):
-    """Behavior 1: exit 0, empty stderr, exactly four `##` headings in the published
-    order, with `## Record statuses` LAST in the document."""
+def test_taxonomy_publishes_exactly_the_expected_sections_in_order(capsys):
+    """Behavior 1: exit 0, empty stderr, exactly the `##` headings of `EXPECTED_HEADINGS`
+    in that order, with the LAST one last in the document.
+
+    Both claims are read from `EXPECTED_HEADINGS` rather than restated, so appending a
+    section is a ONE-LINE change to that tuple and no assertion or name carries a count
+    that a later section would falsify."""
     out = _taxonomy_stdout(capsys)
     headings = tuple(line for line in out.splitlines() if line.startswith("## "))
     assert headings == EXPECTED_HEADINGS, (
         f"`radar taxonomy` publishes {len(headings)} `##` section(s) {headings}, expected "
         f"exactly {len(EXPECTED_HEADINGS)} in the order {EXPECTED_HEADINGS}")
-    assert headings[-1] == STATUSES_HEADING, (
-        "the record-statuses section must be the LAST section of the document")
+    assert headings[-1] == EXPECTED_HEADINGS[-1], (
+        f"{EXPECTED_HEADINGS[-1]!r} must be the LAST section of the document; the document "
+        f"ends on {headings[-1]!r}")
     assert out.splitlines()[0] == TAXONOMY_TITLE, (
         f"the document must open with {TAXONOMY_TITLE!r}; it opens with "
         f"{out.splitlines()[0]!r}")
@@ -131,10 +140,34 @@ def test_taxonomy_rejects_a_positional_argument(capsys):
 # ---------------------------------------------------------------------------
 
 def _statuses_section(out: str) -> list[str]:
-    """The non-blank lines of the statuses section, sliced by OBSERVED offsets."""
+    """The non-blank lines of the statuses section, sliced by OBSERVED offsets.
+
+    Bounded at the NEXT `## ` heading rather than at end-of-document. Until iteration 100
+    the statuses section was last, so running to the end was equivalent and the difference
+    was unobservable; once a section follows it, an unbounded slice silently annexes that
+    section's bullets and behavior 2's one-bullet-per-status claim reads the wrong lines.
+    """
     at = out.index(STATUSES_HEADING)
     body = out[at + len(STATUSES_HEADING):]
-    return [line for line in body.splitlines() if line.strip()]
+    lines: list[str] = []
+    for line in body.splitlines():
+        if line.startswith("## "):
+            break
+        if line.strip():
+            lines.append(line)
+    return lines
+
+
+def _lines_after(out: str, heading: str) -> list[str]:
+    """Every non-blank line following `heading`, to end-of-document.
+
+    Deliberately UNBOUNDED, because the reader it models -- `test_iter08`'s ladder parser
+    -- is unbounded: it splits on the ladder heading and keeps every later matching line.
+    Kept separate from `_statuses_section` so one helper is not asked to be both bounded
+    and unbounded, which is how the annexation above went unnoticed.
+    """
+    at = out.index(heading)
+    return [line for line in out[at + len(heading):].splitlines() if line.strip()]
 
 
 def test_statuses_section_holds_one_derived_bullet_per_status(capsys):
@@ -196,8 +229,17 @@ def test_every_status_gloss_is_a_non_empty_single_line_string():
 # Behavior 4 -- the whole document, byte for byte, from the four vocabularies.
 # ---------------------------------------------------------------------------
 
+def _partition_side(statuses) -> str:
+    """One side of the citation partition, in the verb's format.
+
+    The FORMAT is restated; the CONTENT is derived -- the same split every other section
+    body in this file uses.
+    """
+    return ", ".join(f"`{status}`" for status in statuses) if statuses else "(none)"
+
+
 def _expected_document() -> str:
-    """The document derived from the four PUBLISHED vocabularies, in the verb's order.
+    """The document derived from the PUBLISHED vocabularies, in the verb's order.
 
     An independent derivation, not a copy of the renderer: the section bodies are built
     from `taxonomy` here, and no byte length and no vocabulary size is written down.
@@ -212,16 +254,22 @@ def _expected_document() -> str:
     lines += ["", STATUSES_HEADING, ""]
     lines += [f"- `{status}` -- {taxonomy.STATUS_GLOSSES[status]}"
               for status in taxonomy.STATUSES]
+    lines += ["", CITATION_GATE_HEADING, ""]
+    # Iteration 100's citation partition. Derived through the taxonomy's own helpers, so a
+    # status added to `STATUSES` moves the expectation with the document instead of reding
+    # a correct verb; `(none)` is the published rendering of an empty side.
+    lines += [f"- `citable` -- {_partition_side(taxonomy.citable_statuses())}",
+              f"- `terminal` -- {_partition_side(taxonomy.terminal_statuses())}"]
     return "".join(line + "\n" for line in lines)
 
 
-def test_taxonomy_stdout_equals_the_four_published_vocabularies(capsys):
+def test_taxonomy_stdout_equals_the_published_vocabularies(capsys):
     """Behavior 4: byte-for-byte equality with the derived document."""
     out = _taxonomy_stdout(capsys)
     expected = _expected_document()
     assert out == expected, (
         f"`radar taxonomy` stdout ({len(out.encode())} bytes) does not equal the document "
-        f"derived from the four published vocabularies ({len(expected.encode())} bytes)")
+        f"derived from the published vocabularies ({len(expected.encode())} bytes)")
 
 
 def test_taxonomy_ends_in_exactly_one_newline(capsys):
@@ -363,13 +411,23 @@ def test_brake_fires_on_the_actual_pre_change_document(capsys):
     pre_change = out[:at].rstrip("\n") + "\n"
     assert STATUSES_HEADING not in pre_change, (
         "the reconstruction must not still carry the statuses heading")
+    assert CITATION_GATE_HEADING not in pre_change, (
+        "the reconstruction slices at the statuses heading, so every LATER section must be "
+        "gone too; a surviving citation-gate section would publish the status names and "
+        "the brake would report nothing, passing this test for the wrong reason")
     assert len(pre_change) < len(out), (
         "the reconstruction must be strictly shorter than the published document")
 
     missing = unpublished_members(taxonomy, pre_change)
-    assert missing == {"STATUSES": sorted(taxonomy.STATUSES)}, (
-        "over the pre-change document the brake must name `STATUSES` and every member it "
-        f"failed to publish; it reported {missing}")
+    # BOTH status vocabularies live in the sections this reconstruction removes, so both
+    # must be named. Iteration 100 added `TERMINAL_STATUSES`, whose members are published
+    # only by the citation-gate section -- and pinning `STATUSES` alone would have let a
+    # second entirely unpublished vocabulary sit in the report unnoticed, which is the
+    # failure this brake exists to catch. Every member list is derived, never restated.
+    assert missing == {"STATUSES": sorted(taxonomy.STATUSES),
+                       "TERMINAL_STATUSES": sorted(taxonomy.TERMINAL_STATUSES)}, (
+        "over the pre-change document the brake must name every status vocabulary and "
+        f"every member it failed to publish; it reported {missing}")
 
     assert unpublished_members(taxonomy, out) == {}, (
         "the same brake, same run, must report zero unpublished members over the LIVE "
@@ -456,11 +514,21 @@ def test_the_document_expectation_is_falsifiable(capsys):
         "rewording a rendered gloss did not change the document, so behavior 2 is not "
         "actually comparing the rendered text against the module's gloss")
 
-    head, sep, tail = out.partition(STATUSES_HEADING)
-    bullets = [line for line in tail.splitlines() if line.strip()]
+    # The reorder mutation must isolate ORDER: swap two bullets in place and leave every
+    # other byte alone. Slicing at the heading and REBUILDING the tail cannot do that once
+    # a section follows -- the unbounded tail annexed `## Citation gate` and both partition
+    # bullets (7 lines, not 4) and the rebuild dropped the blank line before that heading,
+    # so `reordered != expected` was satisfied by the reconstruction damage and passed with
+    # NO swap applied. Measured on the pre-fix worktree: unswapped != expected was True.
+    # `_statuses_section` is bounded at the next `## `, and a targeted `replace` mutates
+    # only the swapped pair.
+    bullets = _statuses_section(out)
     if len(bullets) >= 2:
-        bullets[0], bullets[1] = bullets[1], bullets[0]
-        reordered = head + sep + "\n\n" + "".join(b + "\n" for b in bullets)
+        pair = bullets[0] + "\n" + bullets[1] + "\n"
+        reordered = out.replace(pair, bullets[1] + "\n" + bullets[0] + "\n", 1)
+        assert reordered != out, (
+            "premise: the swap must actually change the captured document, or the "
+            "assertion below passes on a no-op replace")
         assert reordered != expected, (
             "swapping two status bullets did not change the document, so the ORDER "
             "claim in behavior 2 is unenforced")
@@ -479,15 +547,25 @@ LADDER_ROW_SHAPE = re.compile(r"^-\s+`([a-z-]+)`\s+\(weight (\d+)\)")
 def test_no_trailing_section_line_matches_the_ladder_row_shape(capsys):
     """`_observed_ladder()` splits on `## Evidence source classes` and keeps EVERY later
     line that matches the ladder row shape, so any section appended AFTER the ladder is
-    inside its domain. A status bullet carries a gloss and no weight, so it must not
-    match -- and that must be measured here rather than left to whichever test happens to
-    notice a tenth rung appearing.
+    inside its domain. A status bullet carries a gloss and no weight, and a citation-gate
+    bullet carries a comma-joined name list and no weight, so neither may match -- and that
+    must be measured here rather than left to whichever test happens to notice an extra
+    rung appearing.
+
+    The domain is every line after the ladder's OWN rungs, to end-of-document, which is
+    what the reader being modelled actually scans. It was `_statuses_section` until
+    iteration 100 appended a section BEYOND the statuses -- exactly the case the docstring
+    already claimed to cover, and the one a bounded slice would have stopped covering.
     """
     out = _taxonomy_stdout(capsys)
-    for line in _statuses_section(out):
+    trailing = _lines_after(out, SOURCES_HEADING)[len(taxonomy.SOURCE_CLASSES):]
+    assert trailing, (
+        "the domain after the evidence ladder is EMPTY, so this assertion measures nothing; "
+        "it must cover every line the ladder reader would keep")
+    for line in trailing:
         assert not LADDER_ROW_SHAPE.match(line.strip()), (
-            f"a line of the trailing statuses section parses as a ladder rung: {line!r}; "
-            "the evidence-ladder reader would report a tenth source class")
+            f"a line published after the evidence ladder parses as a ladder rung: {line!r}; "
+            "the evidence-ladder reader would report an extra source class")
 
 
 def test_ladder_row_shape_is_two_sided():

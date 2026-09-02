@@ -114,14 +114,24 @@ def _substitute(monkeypatch, value):
     monkeypatch.setattr(checks, "required_literals", lambda pattern: value)
 
 
-def _fold_spy(monkeypatch) -> list[tuple[pathlib.Path, int]]:
-    """Record `(path, id(folded))` for every fold, then delegate. Returns the log."""
-    seen: list[tuple[pathlib.Path, int]] = []
+def _fold_spy(monkeypatch) -> list[tuple[pathlib.Path, str]]:
+    """Record `(path, folded)` for every fold, then delegate. Returns the log.
+
+    The log retains the folded OBJECT, never `id(folded)`. `id()` is unique only among
+    SIMULTANEOUSLY LIVE objects, so a log of bare addresses is not an identity key: once
+    `evaluate` returns, an unreferenced fold is freed and CPython may hand its address to
+    the next one, making two genuinely distinct folds report one `id()`. Measured at ~12%
+    of isolated runs before this fix. Holding the objects keeps every fold live for the
+    test's duration, which is the precondition that makes `id()` sound at the call sites
+    -- and it matters in BOTH directions: address reuse reds the no-scope control while
+    GREENING its in-scope memo twin for the wrong reason, which is false safety.
+    """
+    seen: list[tuple[pathlib.Path, str]] = []
     real = checks._folded
 
     def spy(path: pathlib.Path, text: str) -> str:
         out = real(path, text)
-        seen.append((path, id(out)))
+        seen.append((path, out))
         return out
 
     monkeypatch.setattr(checks, "_folded", spy)
@@ -397,7 +407,7 @@ def test_b5_two_evaluations_in_one_scope_share_one_folded_object(tmp_path, monke
         checks.evaluate(_matches("beta"), target)
 
     folded_file = target / "a.txt"
-    ids = {fid for path, fid in seen if path == folded_file}
+    ids = {id(obj) for path, obj in seen if path == folded_file}
     assert len(seen) >= 2, f"behavior 5: the fold seam was reached {len(seen)} time(s)"
     assert len(ids) == 1, (
         "behavior 5: two rule evaluations in ONE scope folded the same file into "
@@ -419,7 +429,7 @@ def test_b5_the_identity_claim_is_not_free(tmp_path, monkeypatch):
     checks.evaluate(_matches(PATTERN), target)
     checks.evaluate(_matches("beta"), target)
 
-    ids = {fid for _, fid in seen}
+    ids = {id(obj) for _, obj in seen}
     assert len(seen) >= 2
     assert len(ids) == len(seen), (
         "control: outside a scope the folds must not be shared, otherwise the memo "
