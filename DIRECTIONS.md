@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-98
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar list --json` publishes the below-floor prescription, `null` when it would be vacuous
+    - Candidate A2 -- `radar list --json` names the filter that produced it
+    - Candidate A3 -- `radar taxonomy --json`: the closed vocabularies get a machine surface
+    - Candidate B1 -- four hand-copied closed-vocabulary validators become ONE derived rule
+    - Candidate B2 -- three caches in `checks.py`, one mechanism: the process-lifetime special case is deleted
+    - Candidate B3 -- the roadmap index sheds 44% of itself into an archive, keyed by row id
+    winner: unknown
+    ship: pending (not yet decided)
+  iter-97
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- the public-safety gate publishes the working-tree files it did NOT scan
+    - Candidate A2 -- row 89: the mutation harness must require the REAL failure code, and one green control per oracle
+    - Candidate A3 -- row 28: a shared `live_ids()` test helper plus a brake scoped to its callers
+    - Candidate B1 -- `radar list --json` publishes the ranked ordinal, because the one declared consumer re-derives the order and disagrees
+    - Candidate B2 -- `list --json` publishes the layer filter that produced the payload (roadmap row 81)
+    - Candidate B3 -- `radar report` gains a tag-coverage section: the register's only cross-layer axis gets its first reader (roadmap row 94, on an existing surface)
+    winner: B3
+    ship: REVERTED
   iter-96
     lenses: new-capability, hardening/DX
     - A1 -- `radar report` publishes the theme census, the one field every record writes and no surface reads
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - B2 -- two fail-closed refusals a CI gate depends on, asserted by zero tests
     - B3 -- the quality-check command's PASS marker is suppressible, and it has already cost this loop time
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 9180159
   iter-95
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- The front door names no sibling document, so the contract a CI gate consumes is unreachable from the README
@@ -677,4 +697,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-68 scouted iterations
+70 scouted iterations

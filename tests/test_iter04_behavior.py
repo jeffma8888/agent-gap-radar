@@ -220,9 +220,14 @@ def test_eb1_violation_is_a_row_number_and_offending_status_pair() -> None:
 
 def test_eb2_oracle_finds_ledger_rows_and_scopes_them_to_the_section() -> None:
     digits = _oracle_ledger_rows(REAL)
+    # Ordering compares VALUES: once the ledger can carry three digits, a lexicographic
+    # compare on the raw text reports `100` as out of order before `11`, so a string sort
+    # would red this oracle on a correctly ordered ledger. Width is asserted as canonical
+    # zero-pad -- a minimum of two, which `100` satisfies and `0100` does not.
+    values = [int(d) for d in digits]
     assert len(digits) >= 4
-    assert digits == sorted(digits)
-    assert all(len(d) == 2 for d in digits)
+    assert values == sorted(values)
+    assert all(d == str(int(d)).zfill(2) for d in digits)
     assert len(set(digits)) == len(digits)
 
 

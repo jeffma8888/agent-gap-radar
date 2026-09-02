@@ -93,6 +93,7 @@ LEDGER_READING_MODULES = (
     "test_iter31_behavior",
     "test_iter74_behavior",
     "test_iter86_behavior",
+    "test_iter98_behavior",
     "test_roadmap_integrity",
     SELF_MODULE,
 )

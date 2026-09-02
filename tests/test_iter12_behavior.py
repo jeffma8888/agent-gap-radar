@@ -172,7 +172,11 @@ def _sequence_findings(rows: list[tuple[str, str]]) -> list[str]:
     findings: list[str] = []
     seen: list[str] = []
     for iteration, _ in rows:
-        if not (len(iteration) == 2 and iteration.isdigit()):
+        # Canonical zero-padded form, i.e. a MINIMUM width of two -- not an exact length of
+        # two, which made iteration 100 unrecordable and is what reverted iteration 97.
+        # Spelled with `zfill` rather than the product's f-string so this stays an
+        # INDEPENDENT statement of the rule and not a copy of the code it checks.
+        if not iteration.isdigit() or iteration != str(int(iteration)).zfill(2):
             findings.append(f"not-two-digit:{iteration}")
         elif iteration in seen:
             findings.append(f"duplicate:{iteration}")

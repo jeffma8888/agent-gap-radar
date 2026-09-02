@@ -46,6 +46,9 @@ ALLOWED_STATUSES: tuple[str, ...] = ("open", "shipped")
 
 #: The three ways a Done-ledger iteration sequence can be wrong. `duplicate` and
 #: `not-ascending` overlap, so a fixture proving one must not also trip the other.
+#: `not-two-digit` names a MINIMUM width of two, which is why it stays true of a ledger
+#: that records iteration 100: the rule it enforces is canonical zero-padded form, so `2`
+#: is a violation (its canonical form is `02`) and so is the over-padded `0100`.
 SEQUENCE_VIOLATION_KINDS: tuple[str, ...] = ("not-two-digit", "duplicate", "not-ascending")
 
 #: A table row opens with a numeric id cell, which excludes both the header row and the
@@ -194,11 +197,28 @@ def ledger_iterations(text: str) -> list[tuple[str, int]]:
 
 
 def ledger_sequence_violations(text: str) -> list[SequenceViolation]:
-    """Ledger iteration numbers that are not two-digit, unique and strictly ascending."""
+    """Ledger iteration numbers that are not canonically padded, unique and ascending.
+
+    The number rule is a MINIMUM width of two, not an exact length of two, and the
+    predicate spells that as canonical zero-padded form: `raw != f"{value:02d}"`. An exact
+    length made iteration 100 unrecordable, which is a shipping ceiling rather than a
+    cosmetic limit -- `unrecorded_ships` makes one ledger row per shipped iteration a ship
+    PRECONDITION, so a ledger that cannot carry 100 stops every iteration from 100 onward,
+    and it stopped iteration 97 already: two committed tests DERIVE rows above the live
+    maximum, so the ceiling was crossed by the suite before the ledger ever reached it.
+
+    Pointwise IDENTICAL to the length test across 1..99, which is why the published kind
+    name and its four fixtures need no edit: every two-digit run of digits already IS its
+    own canonical form, so `02` stays clean and `2` stays a violation because its canonical
+    form is `02`. The only pairs the two predicates judge differently are the ones the
+    length test could never accept -- an unpadded number of three digits or more. Over-pad
+    is still refused (`0100` is not `100`), because the defect being caught is a raw
+    iteration number that no other ledger reader will spell the same way.
+    """
     violations: list[SequenceViolation] = []
     seen: list[int] = []
     for raw, value in ledger_iterations(text):
-        if len(raw) != 2:
+        if raw != f"{value:02d}":
             violations.append(SequenceViolation("not-two-digit", raw))
         if value in seen:
             violations.append(SequenceViolation("duplicate", raw))
