@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-99
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- one offline tripwire instead of five hand-copied ones
+    - Candidate B1 -- PRODUCT.md: archive the spent Notes prose of `shipped` rows
+    - Candidate C1 -- one inline-code-span reader instead of six spellings
+    - Candidate B1 -- `radar scan` calls the literal prefilter it shipped dormant six iterations ago (roadmap row 51, bite 2)
+    - Candidate B2 -- (being measured) row 47 bite 2, boolean-only contexts
+    - Candidate B3 -- (being measured) row 92, where the 164 s suite wall goes
+    winner: B1
+    ship: pending (not yet decided)
   iter-98
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar list --json` publishes the below-floor prescription, `null` when it would be vacuous
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- three caches in `checks.py`, one mechanism: the process-lifetime special case is deleted
     - Candidate B3 -- the roadmap index sheds 44% of itself into an archive, keyed by row id
     winner: unknown
-    ship: pending (not yet decided)
+    ship: PUSHED c1c1b7f
   iter-97
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the public-safety gate publishes the working-tree files it did NOT scan
@@ -697,4 +707,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-70 scouted iterations
+71 scouted iterations

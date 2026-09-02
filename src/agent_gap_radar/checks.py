@@ -495,6 +495,13 @@ def iter_files(target: pathlib.Path, globs: list[str],
 #: and leaving it must leave the enclosing scan's snapshot intact.
 _READ_CACHE_STACK: list[dict[pathlib.Path, str | None]] = []
 
+#: Folded (lower-cased) text frames, innermost last, one frame per open scan, and
+#: kept SEPARATE from the read frames rather than added as a second value inside
+#: them. `read_cache_scope()` yields its read frame to the caller, so widening that
+#: object would change a published shape to buy an internal optimisation. One scope
+#: owns both stacks, which is what keeps a fold from outliving the scan that made it.
+_FOLD_CACHE_STACK: list[dict[pathlib.Path, str]] = []
+
 
 @contextlib.contextmanager
 def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
@@ -516,12 +523,20 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
     """
     frame: dict[pathlib.Path, str | None] = {}
     _READ_CACHE_STACK.append(frame)
+    _FOLD_CACHE_STACK.append({})
     try:
         yield frame
     finally:
         # Pop rather than clear, and in `finally`: an exception raised mid-scan
         # must not leave a frame open for the next scan to answer from.
+        #
+        # Both frames are popped by the SAME `finally`, so the fold cache has
+        # exactly the lifetime argued for above and a later scan can never answer
+        # from a fold of a file that has since changed. Pushing them together and
+        # popping them together is what makes that a structural property of the
+        # scope rather than a rule a future caller has to remember.
         _READ_CACHE_STACK.pop()
+        _FOLD_CACHE_STACK.pop()
 
 
 def _decode(path: pathlib.Path) -> str | None:
@@ -560,6 +575,34 @@ def _read(path: pathlib.Path) -> str | None:
     text = _decode(path)
     frame[path] = text
     return text
+
+
+def _folded(path: pathlib.Path, text: str) -> str:
+    """`text.lower()`, memoised if and only if a `read_cache_scope()` is open.
+
+    The fold serves the mandatory-literal prefilter in `evaluate`, which tests
+    membership against lower-cased text. A content rule is evaluated per (rule,
+    file) pair, so without memoisation one file is folded once per rule that
+    reaches it and a scan pays for the same allocation many times over -- the same
+    cost shape, and the same fix, as the decode `_read` memoises.
+
+    Keyed on the path alone rather than on the text, which is sound only because
+    the read is memoised by the SAME scope: inside one scan a path has exactly one
+    text, so a path key cannot hand back the fold of another version of the file.
+
+    Uncached by default for the reason `_read` is: outside a scan there is no key
+    at all, the fold is computed and discarded, and the cache stays an
+    optimisation rather than a precondition. `evaluate` answers identically with
+    no scope open, only slower.
+    """
+    if not _FOLD_CACHE_STACK:
+        return text.lower()
+    frame = _FOLD_CACHE_STACK[-1]
+    if path in frame:
+        return frame[path]
+    folded = text.lower()
+    frame[path] = folded
+    return folded
 
 
 def _scope_note(globs: list[str], pattern: str | None = None) -> str:
@@ -690,10 +733,40 @@ def evaluate(rule: dict, target: pathlib.Path,
         # `radar scan .` by two verdicts. Keep it named.
         domain_size = len(files)
         truncated = domain_size if domain_size > MAX_SCAN_FILES else 0
+        # Proved ONCE per rule evaluation, because a mandatory-literal set is a
+        # property of the pattern and not of any file. `None` means the extractor
+        # could not prove one, and `None` is the fail-open-proof default: it skips
+        # nothing, so every file under an unprovable pattern still pays its regex
+        # pass and can never lose a verdict to this optimisation.
+        #
+        # The name is looked up as a module global at CALL time, which is this
+        # repo established seam convention: a test substitutes the extractor to
+        # prove that a skip is this guard decision rather than an accident
+        # somewhere in the regex path.
+        literals = required_literals(rule["pattern"])
         for path in files[:MAX_SCAN_FILES]:
             text = _read(path)
             if text is None:
                 continue
+            if literals is not None:
+                # Folded once into a local: the membership test below runs once per
+                # literal, and re-deriving the fold inside that loop would pay for
+                # it per literal instead of per file.
+                folded = _folded(path, text)
+                if not any(literal in folded for literal in literals):
+                    # A text holding no member of a MANDATORY set cannot match, so
+                    # the regex pass over it is provably wasted. The one-directional
+                    # guarantee is the entire safety argument: a match IMPLIES some
+                    # member is present, so a MISSING member is decisive while a
+                    # present one proves nothing. This skip can therefore only ever
+                    # drop a pass that would have found nothing; it cannot turn a
+                    # match into a non-match, which is the inverted verdict -- the
+                    # false claim of safety -- that this module exists to prevent.
+                    #
+                    # Placed after the read on purpose: the literal test needs the
+                    # text, so no file that is read today becomes unread and
+                    # `truncated` keeps meaning exactly what it meant.
+                    continue
             for m in regex.finditer(text):
                 # Counted over a BOUNDED RANGE, never over a copied prefix.
                 # Slicing the text up to the hit allocates a fresh string as long
@@ -815,7 +888,7 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
         reason="no signature and no mitigation detected")
 
 
-# --- Required-literal extraction (DORMANT) -----------------------------------
+# --- Required-literal extraction ---------------------------------------------
 #
 # A content rule proves ABSENCE the expensive way: `evaluate` compiles the
 # pattern and runs it over every file in the rule's domain, so the budget is
@@ -823,10 +896,10 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
 # NOT there. Rejecting a file without running the regex is the one lever on that
 # term, and it needs a literal every match must contain.
 #
-# Nothing below is called yet, on purpose. The failure an unsound literal causes
-# is the INVERTED one -- a skipped file turns a PRESENT into an ABSENT, a false
-# claim of safety, which this module's header and VISION.md both forbid -- so the
-# extractor and its proof ship before any call site moves.
+# `evaluate`'s content branch is the only caller. The failure an unsound literal
+# causes is the INVERTED one -- a skipped file turns a PRESENT into an ABSENT, a
+# false claim of safety, which this module's header and VISION.md both forbid --
+# so the extractor and its proof shipped one bite ahead of this call site.
 
 #: Regex metacharacters. An UNESCAPED one of these ENDS a literal run, because
 #: past it the characters a match must contain are no longer decidable one at a
@@ -1073,9 +1146,10 @@ def required_literals(pattern: str) -> frozenset[str] | None:
         least one member of `L` is a substring of `t.lower()`.
 
     So a text containing no member of `L` cannot match, and the regex over it can
-    be skipped. Nothing calls this yet: it is DORMANT by design, because the
-    failure an unsound literal causes is the INVERTED one -- a wrongly skipped
-    file turns a PRESENT into an ABSENT, a false claim of safety.
+    be skipped. `evaluate`'s content branch is the only caller, and this shipped
+    one bite ahead of it because the failure an unsound literal causes is the
+    INVERTED one -- a wrongly skipped file turns a PRESENT into an ABSENT, a
+    false claim of safety.
 
     Only ONE direction is proved, and that asymmetry is the design. A missing
     literal is decisive. A PRESENT literal proves nothing, and `None` proves

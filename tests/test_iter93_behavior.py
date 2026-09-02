@@ -415,14 +415,22 @@ def test_b9_only_checks_names_the_extractor_anywhere_under_src():
     assert naming == ["checks.py"]
 
 
-def test_b9_checks_defines_the_extractor_and_contains_no_call_to_it():
+def test_b9_checks_defines_the_extractor_and_calls_it_once_through_the_module_global():
+    """Iteration 93 pinned `calls == []` to hold the extractor DORMANT for one bite.
+    Iteration 99 ships the single call site, so the pin INVERTS rather than retires:
+    the count still forbids a SECOND caller, and the bare-`ast.Name` callee pins the
+    late-bound module-global lookup that every substitution test depends on -- a
+    `checks.required_literals(...)` attribute call or an aliased import would break
+    that seam while leaving every other assertion in this module green.
+    """
     tree = ast.parse((SRC_DIR / "checks.py").read_text(encoding="utf-8"))
     defined = [n.name for n in tree.body
                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
     assert "required_literals" in defined
     calls = [n for n in ast.walk(tree)
              if isinstance(n, ast.Call) and _callee_name(n) == "required_literals"]
-    assert calls == [], [n.lineno for n in calls]
+    assert len(calls) == 1, [n.lineno for n in calls]
+    assert isinstance(calls[0].func, ast.Name), ast.dump(calls[0].func)
 
 
 def test_b9_the_public_function_surface_of_checks_grew_by_exactly_the_extractor():
