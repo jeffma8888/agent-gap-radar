@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-96
+    lenses: new-capability, hardening/DX
+    - A1 -- `radar report` publishes the theme census, the one field every record writes and no surface reads
+    - A2 -- `radar report --layer L`: the whole register document, scoped to the one layer a builder owns
+    - A3 -- `radar report` publishes the layer-by-gap-type matrix: 38 of 88 cells hold nothing
+    - B1 -- the stderr-purity contract the code declares in prose, and nothing enforces
+    - B2 -- two fail-closed refusals a CI gate depends on, asserted by zero tests
+    - B3 -- the quality-check command's PASS marker is suppressible, and it has already cost this loop time
+    winner: B1
+    ship: pending (not yet decided)
   iter-95
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- The front door names no sibling document, so the contract a CI gate consumes is unreachable from the README
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Scan results become comparable, so the non-regression half of the published gate rule has a surface
     - Candidate B3 -- The register can name a relation between two records, which it cannot today
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 9c1bc7d
   iter-94
     lenses: performance-and-throughput, narrative-and-docs (iteration 94)
     - Candidate A1 -- the dormant literal prefilter reaches its call site (row 51, bite 2)
@@ -667,4 +677,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-67 scouted iterations
+68 scouted iterations

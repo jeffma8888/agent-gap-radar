@@ -22,4 +22,5 @@ packages = ["src/agent_gap_radar"]
 
 [tool.pytest.ini_options]
 addopts = "-q -n auto"
+filterwarnings = ["error"]
 testpaths = ["tests"]
