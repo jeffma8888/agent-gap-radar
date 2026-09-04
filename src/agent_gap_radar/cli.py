@@ -13,6 +13,7 @@ import argparse
 import os
 import pathlib
 import sys
+from typing import NoReturn
 
 from . import __version__
 from .diff import diff_json, diff_registers, render_diff
@@ -197,8 +198,51 @@ def _select_layer(gaps: list[Gap], layer: str | None) -> list[Gap]:
     return gaps if layer is None else [gap for gap in gaps if gap.layer == layer]
 
 
+class _PublishedErrorParser(argparse.ArgumentParser):
+    """An `ArgumentParser` whose refusals speak the vocabulary this tool publishes.
+
+    argparse answers a STRUCTURAL refusal -- a missing positional, an unknown verb, an
+    unparseable flag value, an unrecognized option -- with `<prog>: error: <message>`
+    and exit 2. That code is the one `docs/CONSUMER_CONTRACT.md` publishes as "stderr's
+    last non-empty line begins `Error: `", so the default spelling makes the promise
+    FALSE on the most common failure a consumer can produce: a mistyped invocation. A
+    consumer implementing the published rule literally gets an empty match on that whole
+    failure class, and its own error report then says nothing at all.
+
+    Not a new rule. `build_parser()` below already argues it, refusing `choices=LAYERS`
+    because argparse "would refuse a bad value with ITS vocabulary on stderr and exit 2
+    -- a code this module reserves for a refusal it explains in its own published
+    `Error: ` line", and routing that one check through `_fail` instead. The decision was
+    applied to exactly one flag and to no structural refusal; this applies it to every
+    door at once.
+
+    Installed on the TOP-LEVEL parser only. `add_subparsers` defaults its `parser_class`
+    to `type(self)`, so all eight verbs inherit the override with no per-verb edit and no
+    second place to keep in sync -- and a verb added later inherits it by construction
+    rather than by someone remembering.
+    """
+
+    def error(self, message: str) -> NoReturn:
+        """Keep the usage block, then refuse through the one published error site.
+
+        The usage block is printed and printed FIRST rather than dropped, which is why
+        the contract promises the LAST non-empty line rather than a single line: usage is
+        the only place a caller learns the arity it got wrong, and three committed tests
+        read it off stderr for exactly these argv shapes. Ordering it above the message
+        keeps `Error: ` last, so a consumer reads one deterministic line.
+
+        Routed through `_fail` rather than writing its own prefixed line, so the prefix
+        keeps exactly ONE construction site in this package and a later change to the
+        error channel cannot reach half of it. `_fail` also supplies the code, so no
+        integer is spelled here either. Raises because argparse's contract for `error()`
+        is that it never returns to its caller.
+        """
+        self.print_usage(sys.stderr)
+        raise SystemExit(_fail(message))
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _PublishedErrorParser(
         prog="radar",
         description="Evidence-first gap radar for AI agent infrastructure.")
     parser.add_argument("--version", action="version", version=__version__)

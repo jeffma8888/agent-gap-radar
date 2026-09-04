@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-109
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A -- a mis-shaped glob string is schema-valid, and it silently DOWNGRADES a real finding
+    - Candidate B -- the mutation harness reads ANY non-zero pytest exit as CAUGHT, with no green control
+    - Candidate C -- the public-safety gate cannot be pointed at the file the iteration just wrote
+    - Candidate B1 -- exit 2 speaks two vocabularies and the first door a consumer hits uses the unpublished one
+    - Candidate B2 -- the below-floor prescription is human-only, so a gate must scrape a markdown table column
+    - Candidate B3 -- `scan --exit-code` has no committed consumer, and self-scanning this repo returns 1
+    winner: B1
+    ship: pending (not yet decided)
   iter-108
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the per-gap brief publishes `Check.rationale`, the largest authored field NO surface reads
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the public-safety gate cannot be pointed at the file the current iteration is adding
     - Candidate B3 -- a brake against the closed-set live-register id census (roadmap row 28)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED e8e490e
   iter-100
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- row 47 bite 2: a boolean-only content rule stops at its first hit
@@ -727,4 +737,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-73 scouted iterations
+74 scouted iterations
