@@ -129,6 +129,16 @@ Locators are verified out of band, never in the test suite: `python3 tools/check
 
 Offline-first: no network access at runtime or in tests. One runtime dependency (pydantic v2). Deterministic output, so a report can be committed and diffed. Python 3.12+, uv-managed.
 
+## Part of a pipeline
+
+A gap says what is missing; a practice says what to do. The two registers are linked by tag:
+
+- Practices in [`agent-practice-index`](https://github.com/jeffma8888/agent-practice-index) that mitigate a gap here carry `gap:GAP-NNN`, so `practice list . --tag gap:GAP-003` answers "what does the industry already say about closing this gap?" while a gap's `build_hypothesis` says what to build.
+- Both registers cite [`agent-failure-modes`](https://github.com/jeffma8888/agent-failure-modes) rules as evidence and grade confidence on the **same evidence ladder** (`model-output` = 0), so their numbers are comparable.
+- `tools/check_locators.py` originated here and is ported verbatim into the practice index, so both registers prove their citations resolve the same way.
+
+Full data flow and commands: [ECOSYSTEM.md](https://github.com/jeffma8888/agent-practice-index/blob/main/ECOSYSTEM.md).
+
 ## License
 
 MIT
