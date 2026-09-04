@@ -554,11 +554,29 @@ def test_b7_the_other_verbs_are_unchanged_and_gained_no_strongest_source(capsys)
 
 
 #: Observed on the live tree; pins "gained no key" exactly rather than approximately.
+#: Re-baselined 8 -> 10 in iteration 110, which APPENDED `strongest_source` and `needs`
+#: to `list --json` record objects. Iteration 07 pinned this set to prove the report-only
+#: helper had not LEAKED into the machine payload; iteration 110 publishes it there
+#: deliberately, as roadmap row 21, so the leak claim is retired and the exact-set claim
+#: is kept -- an unannounced ELEVENTH key, a rename or a removal still reds here.
 LIST_JSON_RECORD_KEYS = {"gap_id", "title", "layer", "gap_type", "status", "priority",
-                         "confidence", "below_floor"}
+                         "confidence", "below_floor", "strongest_source", "needs"}
 
 
 def test_b7_list_json_stays_a_stable_object_with_no_new_key(capsys):
+    """The payload's key set is EXACTLY the pinned one, top level and per record.
+
+    RE-BASELINED BY ITERATION 110. The name still says what this test refuses: no key
+    this set does not name. What changed is the set, not the rule.
+
+    One retired line: `strongest_source not in row` could not fail while `set(row)` is
+    pinned exactly, so it was proving nothing once the key joined the set. It is spent
+    instead on the two claims the set genuinely cannot see -- that the appended
+    `strongest_source` is a non-empty string on EVERY record, and that `needs` is the
+    DECIDED `null` exactly above the floor rather than an omitted key. The key ORDER and
+    the multi-floor biconditional belong to iteration 110's own behavior module; what
+    stays here is a live-register witness for both, beside the pin it re-baselines.
+    """
     assert main(["list", str(REPO_ROOT), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert set(payload) == {"confidence_floor", "counts", "records"}, sorted(payload)
@@ -566,7 +584,8 @@ def test_b7_list_json_stays_a_stable_object_with_no_new_key(capsys):
     assert rows, payload
     for row in rows:
         assert set(row) == LIST_JSON_RECORD_KEYS, sorted(row)
-        assert "strongest_source" not in row, row
+        assert isinstance(row["strongest_source"], str) and row["strongest_source"], row
+        assert (row["needs"] is None) == (not row["below_floor"]), row
 
 
 # ---------------------------------------------------------------------------

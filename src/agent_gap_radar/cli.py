@@ -22,7 +22,8 @@ from .prd import render_prd
 from .registry import RegistryError, gaps_dir, load_all, load_one
 from .render import document, gap_brief, json_document, radar_report
 from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
-from .scoring import CONFIDENCE_FLOOR_DEFAULT, below_floor, rank
+from .scoring import (CONFIDENCE_FLOOR_DEFAULT, below_floor,
+                      promotion_options, rank, strongest_source)
 from .taxonomy import (GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS,
                        STATUS_GLOSSES, STATUSES, citable_statuses,
                        terminal_statuses)
@@ -125,6 +126,33 @@ def _list_text(rows: list[ListRow]) -> str:
     ])
 
 
+def _needs(gap: Gap, is_below: bool, confidence_floor: int) -> list[str] | None:
+    """The prescription for one record: what one further citation would have to be.
+
+    `null` ABOVE the floor is a DECIDED answer, not an omission and not
+    `promotion_options`' own reply. That function is total, so it answers an
+    at-floor record with the weakest positive class -- every class already
+    satisfies the floor, so the cheapest one wins -- and published verbatim that
+    answer reads as "this record needs a secondary summary" about a record that
+    needs nothing. `null` says the question does not apply. It is the same call
+    `render._needs_cell` already makes in prose for the human table, where an
+    unreachable floor says so rather than rendering an empty cell.
+
+    The key is emitted for every record either way, so a consumer reads the
+    biconditional `needs is null <=> not below_floor` off the payload instead of
+    having to distinguish "absent" from "nothing needed" -- an absent key is the
+    one shape a gate cannot assert on.
+
+    A list rather than the tuple `promotion_options` returns. `json.dumps` would
+    emit either as an array, so this is not a correctness fix; it makes the
+    payload builder hold only JSON-native values, which is what lets the whole
+    document be compared against `json.loads` of itself without a shape caveat.
+    Order is untouched -- ladder order, strongest rung first -- because the
+    cheapest option a reader should reach for first is the one printed first.
+    """
+    return list(promotion_options(gap, confidence_floor)) if is_below else None
+
+
 def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
     """A stable record list for a machine consumer.
 
@@ -134,6 +162,23 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
     Carries `priority` and `confidence` as distinct fields and never a blended
     score, matching `scan_json` -- a composite would launder the one distinction
     the register exists to preserve.
+
+    `strongest_source` and `needs` are appended LAST, and both are DERIVED by
+    calling `scoring` rather than re-deriving anything here: this module holds no
+    second copy of the ladder order or of `SOURCE_WEIGHTS`, so a published
+    prescription cannot disagree with the score it is prescribing for. They close
+    the same gap on the machine surface that the markdown report's below-floor
+    table already closed for a human: the payload used to publish the RESULT of
+    the confidence derivation (an integer) and nothing about the ladder rung
+    behind it or the remedy, so `tools/promote.py` -- the one door the register is
+    fed through -- could see that a record was weak and never what would clear it,
+    and the only alternative was to scrape a markdown table or re-implement
+    `confidence()` across a repo boundary.
+
+    `strongest_source` is published for EVERY record and not just the tail,
+    because "what is this record's confidence derived FROM" is exactly as
+    answerable above the floor as below it, and it is the register's core
+    invariant made readable rather than a below-floor annotation.
     """
     payload = {
         "confidence_floor": confidence_floor,
@@ -152,6 +197,8 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
                 "priority": pri,
                 "confidence": conf,
                 "below_floor": is_below,
+                "strongest_source": strongest_source(gap),
+                "needs": _needs(gap, is_below, confidence_floor),
             }
             for gap, pri, conf, is_below in rows
         ],

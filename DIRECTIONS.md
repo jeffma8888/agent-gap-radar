@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-110
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar taxonomy --json`: the citation gate a release gate is TOLD to read becomes data
+    - Candidate A2 -- roadmap row 21: `list --json` carries the below-floor prescription, so the register's weakest records are actionable by a machine
+    - Candidate A3 -- roadmap row 99: bare `radar` is a scripted SUCCESS carrying a non-document
+    - Candidate B1 -- the rule language spells negation THREE ways; retire `file_absent`, the one kind used by 1 record of 120
+    - Candidate B2 -- four hand-copied closed-vocabulary validators become ONE derived rule
+    - Candidate B3 -- `checks.py` holds FIVE memo mechanisms and spells ONE of them three times
+    winner: A2
+    ship: pending (not yet decided)
   iter-109
     lenses: hardening/DX, integration-and-adoption
     - Candidate A -- a mis-shaped glob string is schema-valid, and it silently DOWNGRADES a real finding
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the below-floor prescription is human-only, so a gate must scrape a markdown table column
     - Candidate B3 -- `scan --exit-code` has no committed consumer, and self-scanning this repo returns 1
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 2e7736e
   iter-108
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the per-gap brief publishes `Check.rationale`, the largest authored field NO surface reads
@@ -737,4 +747,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-74 scouted iterations
+75 scouted iterations

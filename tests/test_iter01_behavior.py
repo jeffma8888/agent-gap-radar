@@ -46,8 +46,16 @@ LITERAL_BELOW_FLOOR_ROW = (
     "but the measurement is unaudited" + MARKER
 )
 
+#: Re-baselined 8 -> 10 in iteration 110: `strongest_source` and `needs` were APPENDED
+#: as the two new last keys, both DERIVED (`scoring.strongest_source` and
+#: `scoring.promotion_options`). The pin's intent is "no key renamed, removed or
+#: reordered" -- every pre-existing key keeps its absolute index here, so this literal
+#: still refuses the changes it exists to refuse while documenting growth by appending.
+#: Also read by `tests/test_iter84_behavior.py`, which imports it rather than restating
+#: it, so there is exactly one place to re-baseline.
 RECORD_KEYS = ["gap_id", "title", "layer", "gap_type", "status",
-               "priority", "confidence", "below_floor"]
+               "priority", "confidence", "below_floor",
+               "strongest_source", "needs"]
 
 
 def register_size() -> int:

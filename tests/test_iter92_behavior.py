@@ -85,8 +85,12 @@ SOURCE_GAP_KEYS = PRE_EXISTING_SOURCE_GAP_KEYS + ["status"]
 
 #: Behavior 7. `list --json` already published `status` (at index 4) before this iteration;
 #: it must not move. Measured by running `radar list . --json`.
+#: Re-baselined 8 -> 10 in iteration 110, which APPENDED `strongest_source` and `needs`.
+#: `status` keeps index 4 and every other pre-existing key keeps its absolute index, which
+#: is the whole claim this literal was written to make, so it is still the thing that reds
+#: if a later iteration moves one.
 LIST_RECORD_KEYS = ["gap_id", "title", "layer", "gap_type", "status", "priority",
-                    "confidence", "below_floor"]
+                    "confidence", "below_floor", "strongest_source", "needs"]
 
 #: Behavior 2. The value a record that OMITS the key must publish.
 DEFAULT_STATUS = "open"
