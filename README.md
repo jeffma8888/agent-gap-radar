@@ -137,7 +137,7 @@ A gap says what is missing; a practice says what to do. The two registers are li
 - Both registers cite [`agent-failure-modes`](https://github.com/jeffma8888/agent-failure-modes) rules as evidence and grade confidence on the **same evidence ladder** (`model-output` = 0), so their numbers are comparable.
 - `tools/check_locators.py` originated here and is ported verbatim into the practice index, so both registers prove their citations resolve the same way.
 
-Full data flow and commands: [ECOSYSTEM.md](https://github.com/jeffma8888/agent-practice-index/blob/main/ECOSYSTEM.md).
+Full data flow and commands: the `ECOSYSTEM` document at the root of [`agent-practice-index`](https://github.com/jeffma8888/agent-practice-index).
 
 ## License
 

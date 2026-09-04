@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-108
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- the per-gap brief publishes `Check.rationale`, the largest authored field NO surface reads
+    - Candidate B1 -- re-land iteration 97's `Tag coverage` census section in `radar report` (roadmap row 94)
+    - Candidate C1 -- `radar list --status S`, the selection the consumer contract already promises
+    - Candidate B1 -- the falsifiability harness scores a NON-RUNNING oracle as CAUGHT (roadmap row 89)
+    - Candidate B2 -- the public-safety gate cannot be pointed at the file the current iteration is adding
+    - Candidate B3 -- a brake against the closed-set live-register id census (roadmap row 28)
+    winner: A1
+    ship: pending (not yet decided)
   iter-100
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A -- row 47 bite 2: a boolean-only content rule stops at its first hit
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the one door the register is fed through publishes three different refusal sets, and the outcome that decides whether a whole pass lands is published nowhere
     - Candidate B3 -- the contract tells a gate to require `status == open`, the tool never filters on status, and the roadmap row recording this is now stale in its own premise
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED 68777ab
   iter-99
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one offline tripwire instead of five hand-copied ones
@@ -717,4 +727,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-72 scouted iterations
+73 scouted iterations

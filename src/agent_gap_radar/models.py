@@ -155,6 +155,48 @@ class Check(BaseModel):
             _validate_rule(v)
         return v
 
+    @field_validator("rationale")
+    @classmethod
+    def _rationale_is_one_line(cls, v: str) -> str:
+        r"""Refuse a rationale that cannot be published as ONE markdown bullet.
+
+        A REPRODUCTION, not a precaution. `render._detection_section` renders this
+        field verbatim as the last bullet of `## Detection`, and iteration 29 pinned
+        that block as a single CONTIGUOUS run sitting immediately before
+        `## Evidence`. A rationale carrying a line break splits the bullet, so the
+        block a reader sees -- and that pin -- break on whoever's iteration next
+        promotes such a record; measured before this landed, a rationale of
+        `line one` + newline + `line two` validated at rc 0 through the real loader.
+        Untrimmed is the same defect one step smaller: a trailing newline is a line
+        break, and leading space silently reindents the bullet.
+
+        `splitlines()` rather than `"\n" in v`, because the property being defended
+        is "renders as one line" and Python's line-break set is wider than `\n`
+        (`\r`, `\x0b`, `\x0c`, `\u2028`, `\u2029`): the narrow test would admit a
+        value that still breaks the bullet. The two predicates are complementary and
+        neither is redundant -- `"a\nb"` is multi-line but trimmed, `"a\n"` is
+        single-line by `splitlines` and untrimmed -- so both legs are needed to cover
+        the field.
+
+        EMPTY stays legal on purpose. Requiring a rationale is a different product
+        decision (this field is optional at the door and 1 of the 120 live records
+        carries no check at all); the renderer DISPLAYS that absence as
+        `none recorded` rather than hiding it, which is what the register's
+        below-floor-records-are-shown rule asks for.
+
+        The message is one line, because `registry.load_all` folds the first
+        validation message into a single `Error: ` line on stderr.
+        """
+        if len(v.splitlines()) > 1:
+            raise ValueError(
+                "rationale must be a single line: it is published verbatim as one "
+                f"bullet of `## Detection`, got {v!r}")
+        if v != v.strip():
+            raise ValueError(
+                "rationale must carry no leading or trailing whitespace: it is "
+                f"published verbatim as one bullet of `## Detection`, got {v!r}")
+        return v
+
     @property
     def is_automated(self) -> bool:
         """True when a static signature exists, so `scan` can decide this check alone.

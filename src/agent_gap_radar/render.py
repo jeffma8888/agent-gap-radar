@@ -345,6 +345,12 @@ def _detection_section(gap: Gap) -> list[str]:
     sentence from the closed `DETECTION_STATEMENTS` vocabulary, and the rule line
     names the slots the check declares without rating them. Nothing here can move
     `priority` or `confidence`.
+
+    The last bullet is the ONE exception to "derived words only", and it is the reason
+    the block is worth reading: `Check.rationale` is authored register prose saying WHY
+    the signature indicates the gap, published verbatim. It is the block's own
+    counterweight -- a derived `automated` reads as authority, and the rationale is
+    where the check admits what it can get wrong.
     """
     check = gap.check
     kind = detectability(check)
@@ -372,6 +378,25 @@ def _detection_section(gap: Gap) -> list[str]:
             # check the same field is `scan`'s both-signatures escalation question,
             # which is a different job.
             lines.append(f"- Question a human must answer: {check.manual_question}")
+        # LAST bullet of the block, and the only one that publishes authored register
+        # prose rather than a derived word. Everything above states THAT a signature
+        # exists; `rationale` is the sentence saying WHY it indicates the gap and what
+        # it can get wrong, which is what a reader needs before trusting a verdict --
+        # and it was the largest authored field in the register that no surface read.
+        # VERBATIM: no wrap, no reflow, no truncation, and no re-quoting. The register
+        # holds up to 1,206 characters here (GAP-032) and a reader who cannot see all
+        # of it cannot audit the check. `Check._rationale_is_one_line` is what makes a
+        # bare interpolation safe -- it refuses a value that would break this bullet.
+        # DISPLAYED when empty, never omitted: an absent rationale is a fact about the
+        # register, and a silently missing bullet reads as "this check is explained"
+        # to anyone who does not diff two records. `.strip()` rather than truthiness
+        # because the whitespace rule lives on the OTHER door: today the guard makes
+        # `"   "` unloadable so the two agree, and if that guard is ever relaxed this
+        # branch must still publish the absence instead of emitting a blank value.
+        if check.rationale.strip():
+            lines.append(f"- Rationale: {check.rationale}")
+        else:
+            lines.append("- Rationale: none recorded")
     lines.append("")
     return lines
 
