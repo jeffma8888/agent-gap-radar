@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-112
+    lenses: performance-and-throughput, narrative-and-docs (iteration 112)
+    - Candidate A1 -- roadmap row 47 bite 2: a boolean-only content rule scans 44.5% of its files after its answer is already decided
+    - Candidate A2 -- every verb pays the import cost of the seven modules its branch never calls
+    - Candidate A3 -- roadmap row 92: the raised suite-wall advisory, and the measurement the row says must come first
+    - Candidate B1 -- half the committed `tools/` are named on NO user-facing surface, including the gate that enforces the PUBLIC REPO clause
+    - Candidate B2 -- roadmap row 80: `promote.py`'s refusal set is published three times and no publication is complete
+    - Candidate B3 -- the one spec handed to context-free research agents hand-copies four closed vocabularies and two gate numerics, and the suite reads none of them
+    winner: A1
+    ship: pending (not yet decided)
   iter-111
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- four hand-copied closed-vocabulary validators become ONE derived rule
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- row 47 bite 2: a boolean-only `content_matches` node scans 44.6% of its files after its answer is decided (3,271.9 ms)
     - Candidate B3 -- (measurement in flight)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 80e9b6a
   iter-110
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar taxonomy --json`: the citation gate a release gate is TOLD to read becomes data
@@ -757,4 +767,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-76 scouted iterations
+77 scouted iterations

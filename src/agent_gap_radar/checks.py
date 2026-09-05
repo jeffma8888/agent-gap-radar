@@ -641,7 +641,8 @@ def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
 
 
 def evaluate(rule: dict, target: pathlib.Path,
-             exclude_tests: bool = False) -> RuleHit:
+             exclude_tests: bool = False, *,
+             boolean_only: bool = False) -> RuleHit:
     """Evaluate one rule against a target directory.
 
     An unknown rule kind raises: silently returning False would be the
@@ -655,6 +656,33 @@ def evaluate(rule: dict, target: pathlib.Path,
     content rule whose domain `MAX_SCAN_FILES` cut answers over a PREFIX of that
     domain, and a combinator that dropped the fact would let the composite claim
     a completeness none of its parts had.
+
+    `boolean_only` is set by a caller that provably DISCARDS
+    `RuleHit.locations`, and all it licenses is the guarded exit
+    `content_absent` already takes: a `content_matches` node leaves its file
+    loop once its own boolean can no longer change. It is KEYWORD-ONLY so it can
+    never be mistaken for the positionally passed `exclude_tests` in a recursive
+    call. This table is the entire safety argument, and it is exhaustive -- a
+    True anywhere else would truncate a list a reader acts on:
+
+    * `not` -> True for its inner rule, unconditionally. Its own return is
+      `RuleHit(not matched, [], ...)`, so those locations are thrown away one
+      line later whatever the inner rule computed.
+    * `run_check`'s `applies_when` -> True. It is read only through
+      `RuleHit.__bool__`, so nothing but the boolean escapes.
+    * `any_of` / `all_of` -> the CALLER'S value, unchanged. They only forward
+      locations upward, so they discard exactly when their caller discards.
+    * `present_when` / `mitigated_when` -> nothing. Both publish their locations
+      into a `CheckOutcome` that a reader opens, so a short list there would
+      silently break the code-before-test ranking.
+
+    Only `locations` can differ under the flag, and that is by construction
+    rather than by care -- this propagation shape has already produced one
+    fail-open in this module, so it is not enough for the flag to look safe.
+    `matched` is monotone in the content loop (`found` reads
+    `bool(code_hits or test_hits)` and nothing is ever removed from either), and
+    `truncated_files` is derived from the domain size BEFORE the loop, so neither
+    the verdict nor the completeness signal can move when the loop stops early.
     """
     kind = rule.get("kind")
 
@@ -666,7 +694,10 @@ def evaluate(rule: dict, target: pathlib.Path,
         # clean-looking composite answer, which is the same fail-open one level up.
         truncated = 0
         for sub in rule.get("rules", []):
-            hit = evaluate(sub, target, exclude_tests)
+            # `boolean_only` forwarded, never invented: this combinator hands its
+            # sub-rules' locations straight up, so it discards them exactly when
+            # its own caller does.
+            hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             truncated = max(truncated, hit.truncated_files)
             if hit.matched:
                 matched = True
@@ -680,7 +711,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         locations = []
         truncated = 0
         for sub in subs:
-            hit = evaluate(sub, target, exclude_tests)
+            hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             # Accumulated BEFORE the short circuit: the sub-rule that failed was
             # evaluated, so if the cap cut its domain the composite `False` rests
             # on an incomplete search and must say so.
@@ -694,7 +725,10 @@ def evaluate(rule: dict, target: pathlib.Path,
         inner = rule.get("rule")
         if inner is None:
             raise ValueError("not requires a 'rule'")
-        hit = evaluate(inner, target, exclude_tests)
+        # `boolean_only=True` UNCONDITIONALLY, and the line below is the proof
+        # rather than a promise: this branch returns `[]`, so whatever list the
+        # inner rule built is discarded here no matter who called `not`.
+        hit = evaluate(inner, target, exclude_tests, boolean_only=True)
         # Negation flips the BOOLEAN, never the completeness: a search that read
         # part of its domain is equally partial whichever way its answer is read.
         return RuleHit(not hit.matched, [], hit.truncated_files)
@@ -744,6 +778,10 @@ def evaluate(rule: dict, target: pathlib.Path,
         # prove that a skip is this guard decision rather than an accident
         # somewhere in the regex path.
         literals = required_literals(rule["pattern"])
+        # Decided ONCE, above the loop: neither operand can change inside it, and
+        # this loop is the exact cost term the flag exists to reduce, so paying for
+        # the test per file would spend part of the saving on computing it.
+        stop_at_first_hit = kind == "content_absent" or boolean_only
         for path in files[:MAX_SCAN_FILES]:
             text = _read(path)
             if text is None:
@@ -781,20 +819,27 @@ def evaluate(rule: dict, target: pathlib.Path,
                 loc = f"{path.relative_to(target)}:{line_no}"
                 (test_hits if is_test_path(target, path) else code_hits).append(loc)
                 break
-            if kind == "content_absent" and (code_hits or test_hits):
-                # A `content_absent` answer is DECIDED here and cannot change: its
-                # branch below reads this loop only through
-                # `bool(code_hits or test_hits)`, which is monotone once anything has
-                # been appended, and it throws `locations` away. Every further read
-                # and regex pass therefore computes a result that is provably
-                # discarded.
+            if stop_at_first_hit and (code_hits or test_hits):
+                # The answer is settled here and cannot change, so every further
+                # read and regex pass computes a result that is provably discarded.
+                # Two independent reasons the caller can no longer use more than
+                # the boolean, and either one alone is sufficient:
                 #
-                # Guarded on the KIND because `content_matches` publishes its
-                # locations: stopping early there would truncate a location list and
-                # silently break the code-before-test ranking. `truncated` is derived
-                # from `domain_size` BEFORE this loop, so an exit here still reports
-                # the same `MAX_SCAN_FILES` incompleteness an unbroken loop reported
-                # -- a cut domain is never laundered into a clean-looking answer.
+                # * `content_absent`, whose branch below reads this loop only
+                #   through `bool(code_hits or test_hits)` -- monotone once
+                #   anything has been appended -- and throws `locations` away.
+                # * `boolean_only`, which the two sites in this module's own
+                #   propagation table set only where the RESULT's locations are
+                #   discarded in code a reader can follow.
+                #
+                # The exit still has to be EARNED rather than taken always,
+                # because a `content_matches` node evaluated for its locations
+                # publishes them: stopping there unasked would truncate the list
+                # and silently break the code-before-test ranking. `truncated` is
+                # derived from `domain_size` BEFORE this loop, so an exit here
+                # still reports the same `MAX_SCAN_FILES` incompleteness an
+                # unbroken loop reported -- a cut domain is never laundered into a
+                # clean-looking answer.
                 break
         found = bool(code_hits or test_hits)
         if kind == "content_matches":
@@ -826,7 +871,10 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     applies = check.get("applies_when")
     if applies is not None:
         try:
-            if not evaluate(applies, target):
+            # `boolean_only=True`: this call is consumed by `not ...`, so only
+            # `RuleHit.__bool__` is ever read and the location list cannot escape
+            # into the `CheckOutcome` returned below.
+            if not evaluate(applies, target, boolean_only=True):
                 return CheckOutcome(Verdict.NOT_APPLICABLE,
                                     reason="applies_when did not match")
         except ValueError as exc:
