@@ -15,6 +15,16 @@ written by an outside research pipeline from arbitrary primary sources, which is
 path an account name or an address arrives on, and none of the five refusal gates
 `docs/CONSUMER_CONTRACT.md` publishes is a public-safety gate.
 
+TWO DOMAINS, and the difference between them is the whole point of the second one.
+`tracked_files` is the INDEX: it is what `main` scans by default and what every committed
+assertion on the published summary line counts. `shippable_files` is the index PLUS the
+untracked, non-ignored files, because the newest file of any iteration is untracked while
+every stage that could still fix it runs -- so the one file under review has never been
+inside the domain this gate cleared, and the answer an earlier iteration wrote was a
+hand-maintained list of its own two paths, which is the per-iteration enforcement this
+docstring was written to retire. The in-suite brake runs the gate over the wider domain;
+`main`'s default stays the index, so nothing published moves.
+
 FAIL CLOSED, on the two ways a scan can be vacuous rather than clean. A domain of zero files
 returns 2, and a file this scan cannot decode returns 2 -- an unread file is not a cleared file.
 That is this product's settled position after three earlier fail-opens, where `radar validate`
@@ -230,6 +240,11 @@ def tracked_files(root: pathlib.Path) -> list[str]:
     `git ls-files` rather than a directory walk, for the reason `radar scan` already settled: a
     walk sees build output, virtual environments and gitignored scratch, none of which is
     published, so a walk both wastes work and invents findings in files nobody can read.
+
+    Deliberately the INDEX and nothing wider. `main`'s default domain and the count on its
+    summary line are derived from this function, and `tests/_document_index.py` reuses it to
+    index COMMITTED documents, so widening it here would move published bytes; the wider
+    release-gate domain is `shippable_files` below.
     """
     result = subprocess.run(
         ["git", "-C", str(root), "ls-files"], capture_output=True, text=True, check=False
@@ -237,6 +252,42 @@ def tracked_files(root: pathlib.Path) -> list[str]:
     if result.returncode != 0:
         raise OSError(result.stderr.strip() or "git ls-files failed")
     return [line for line in result.stdout.split("\n") if line]
+
+
+def shippable_files(root: pathlib.Path) -> list[str]:
+    """Every file this work tree would publish, tracked OR not yet tracked.
+
+    The domain a release gate needs, and it is strictly wider than `tracked_files`: that
+    function's domain is the index, so a file created during the round under review is outside
+    it until the ship commit -- the gate clears a set that excludes the very file it is gating.
+    This one is derived from git on every call rather than maintained by hand, so it covers
+    whatever a later round adds without anybody remembering to add it.
+
+    `--cached --others --exclude-standard`: the index, plus the untracked files, MINUS the
+    gitignored set. That last exclusion is a decision, not an omission -- a file git is told
+    never to publish (build output, a virtual environment, scratch) is not a file this gate
+    should report, which is the same reason `tracked_files` shells to git instead of walking.
+    The cost of the widening is stated rather than hidden: this domain is a function of
+    UNCOMMITTED state, so a scratch file left in the work tree becomes a finding, and an
+    undecodable one becomes the exit-2 refusal `main` already gives an unreadable file.
+
+    Sorted and deduplicated because neither property is git's to promise: `--cached` prints one
+    line per index stage, so a path in a merge conflict arrives three times, and a caller
+    comparing this domain against `tracked_files` needs a set it can subtract, not a transcript.
+
+    Raises `OSError` when git will not treat `root` as a work tree -- the class `tracked_files`
+    raises and `main` already converts into an exit-2 refusal, so the wider domain reuses the
+    established failure path instead of inventing a second one.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise OSError(result.stderr.strip() or "git ls-files --cached --others failed")
+    return sorted({line for line in result.stdout.split("\n") if line})
 
 
 def main(

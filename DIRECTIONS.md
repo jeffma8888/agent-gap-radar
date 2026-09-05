@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-114
+    lenses: new-capability (iteration 114), hardening/DX (iteration 114)
+    - Candidate A1 -- the register cannot be asked which of its OWN records describe one gap (roadmap rows 11 + 86)
+    - Candidate A2 -- `radar prd --with-fixtures`: the build-loop PRD names the reproduction sample but carries none of its bytes (roadmap row 54)
+    - Candidate A3 -- `radar report --age-days N`: the evidence-age view has one threshold and a dormant knob behind it
+    - Candidate B1 -- the public-repo safety gate cannot see the file class every iteration ships
+    - Candidate B2 -- the mutation harness reads "the oracle could not run" as "the defect was caught" (roadmap row 89)
+    - Candidate B3 -- `addopts` spends the only `-q` the run can afford, so a caller's own `-q` deletes the suite's PASS line while the exit code stays 0
+    winner: B1
+    ship: pending (not yet decided)
   iter-113
     lenses: narrative-and-docs (iteration 113), new-capability
     - Candidate A1 -- the roadmap and two docstrings publish a "single copy of the automated/manual predicate" claim that a grep falsifies, and they name the wrong reader set
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the register cannot be asked which of its OWN records may describe one gap (roadmap rows 11 + 86)
     - Candidate B3 -- `radar report --age-days N`: the dormant knob on the evidence-age view (roadmap row 10 follow-on)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 7c5a435
   iter-112
     lenses: performance-and-throughput, narrative-and-docs (iteration 112)
     - Candidate A1 -- roadmap row 47 bite 2: a boolean-only content rule scans 44.5% of its files after its answer is already decided
@@ -777,4 +787,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-78 scouted iterations
+79 scouted iterations
