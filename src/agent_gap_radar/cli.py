@@ -5,6 +5,17 @@ Conventions (shared with sibling tools): errors go to stderr prefixed with
 "Pipeable" is the reason `EXIT_BROKEN_PIPE` exists: a reader that stops reading is
 the consumer's own decision, not a defect in the register, so it gets a code of
 its own and a silent stderr rather than this module's error vocabulary.
+
+IMPORT INVARIANT: no verb pays for a module it does not use. Only `taxonomy`
+(stdlib-only) and `__version__` are imported at module level; every other
+`agent_gap_radar` module loads behind a seam taken after argparse has decided a
+document will be produced. So `import agent_gap_radar.cli` leaves `pydantic`
+absent from `sys.modules`, and the no-document paths -- the six structural
+refusals, `--version`, `--help`, bare `radar` -- construct no pydantic model
+class to emit one line and zero document bytes. Stated as an INVARIANT rather
+than a speed target on purpose: an import graph is assertable offline and
+deterministically, while a millisecond threshold would be flaky on this machine
+and wrong on the next one.
 """
 
 from __future__ import annotations
@@ -13,20 +24,27 @@ import argparse
 import os
 import pathlib
 import sys
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 from . import __version__
-from .diff import diff_json, diff_registers, render_diff
-from .models import Gap
-from .prd import render_prd
-from .registry import RegistryError, gaps_dir, load_all, load_one
-from .render import document, gap_brief, json_document, radar_report
-from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
-from .scoring import (CONFIDENCE_FLOOR_DEFAULT, below_floor,
-                      promotion_options, rank, strongest_source)
+# `taxonomy` STAYS module-level, and it is the only sibling that does:
+# `build_parser()`, `_unknown_layer()` and the `taxonomy` verb read it, it is
+# stdlib-only, and measured against a bare interpreter it costs nothing. Every
+# other sibling is deferred -- including pydantic-free `scoring`, which pulls
+# `dataclasses` and therefore `inspect`, so deferring only the pydantic modules
+# would have left half the cost on the no-document paths.
 from .taxonomy import (GAP_TYPES, LAYERS, SOURCE_CLASSES, SOURCE_WEIGHTS,
                        STATUS_GLOSSES, STATUSES, citable_statuses,
                        terminal_statuses)
+
+if TYPE_CHECKING:
+    # Typing-only, exactly as `scoring.py` already does it: `models` IS the
+    # pydantic schema, so importing it for annotations alone would defeat the
+    # whole seam. `from __future__ import annotations` is in force above, so
+    # every `Gap` annotation below stays a string at runtime and needs no
+    # quoting -- the one exception is the `ListRow` assignment, which is an
+    # expression rather than an annotation and quotes the name itself.
+    from .models import Gap
 
 
 def _status_list(statuses: tuple[str, ...]) -> str:
@@ -40,7 +58,13 @@ def _status_list(statuses: tuple[str, ...]) -> str:
 
 
 def _resolve(path_arg: str) -> pathlib.Path:
-    """Accept either a repo root (containing gaps/) or the gaps dir itself."""
+    """Accept either a repo root (containing gaps/) or the gaps dir itself.
+
+    Local import per the module's import invariant: this is only ever reached
+    under a verb that has already committed to loading records.
+    """
+    from .registry import gaps_dir
+
     p = pathlib.Path(path_arg).expanduser()
     candidate = gaps_dir(p)
     return candidate if candidate.is_dir() else p
@@ -83,7 +107,13 @@ def _fail(msg: str) -> int:
 BELOW_FLOOR_MARKER = "  [below-floor]"
 
 #: One row of `radar list`: the scored record plus whether it is below the floor.
-ListRow = tuple[Gap, float, int, bool]
+#: `Gap` is QUOTED because this line is a runtime ASSIGNMENT, not an annotation:
+#: `from __future__ import annotations` defers every annotation in this file but
+#: not this expression, so an unquoted name here would need `models` at import
+#: time and re-create the module-level pydantic load the seam above removes.
+#: The alias itself stays a module attribute -- a consumer that imports the name
+#: keeps importing it -- only its parameter becomes a forward reference.
+ListRow = tuple["Gap", float, int, bool]
 
 
 def _list_rows(gaps: list[Gap], confidence_floor: int) -> list[ListRow]:
@@ -96,6 +126,8 @@ def _list_rows(gaps: list[Gap], confidence_floor: int) -> list[ListRow]:
     one looks like reading the ranking and is in fact hiding the research queue.
     Reuses `scoring.below_floor()`, so no second below-floor predicate exists.
     """
+    from .scoring import below_floor, rank
+
     return ([(g, pri, conf, False) for g, pri, conf in rank(gaps, confidence_floor)]
             + [(g, pri, conf, True)
                for g, pri, conf in below_floor(gaps, confidence_floor)])
@@ -119,6 +151,8 @@ def _list_text(rows: list[ListRow]) -> str:
     the same string as appending one newline per row. The list is built fresh here
     because `document` pops from the sequence it is handed.
     """
+    from .render import document
+
     return document([
         f"{gap.id}  p={pri:>4.1f}  c={conf}  {gap.title}"
         + (BELOW_FLOOR_MARKER if is_below else "")
@@ -150,6 +184,8 @@ def _needs(gap: Gap, is_below: bool, confidence_floor: int) -> list[str] | None:
     Order is untouched -- ladder order, strongest rung first -- because the
     cheapest option a reader should reach for first is the one printed first.
     """
+    from .scoring import promotion_options
+
     return list(promotion_options(gap, confidence_floor)) if is_below else None
 
 
@@ -180,6 +216,9 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
     answerable above the floor as below it, and it is the register's core
     invariant made readable rather than a below-floor annotation.
     """
+    from .render import json_document
+    from .scoring import strongest_source
+
     payload = {
         "confidence_floor": confidence_floor,
         "counts": {
@@ -462,6 +501,22 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return EXIT_OK
+
+    # THE SEAM. Everything above this line runs on the no-document paths -- the
+    # bare invocation just answered, and `parse_args` has already exited for
+    # `--version`, `--help` and all six structural refusals -- so no verb that
+    # writes zero document bytes reaches this block. ONE block rather than a
+    # per-branch import: eight verbs importing lazily on their own is eight
+    # places for the graph to drift and, in a loop, eight repeated lookups.
+    # Every name here is used by some branch below; the module-level helpers
+    # import their own, because they are reachable from a caller other than this
+    # function and must not depend on it having run.
+    from .diff import diff_json, diff_registers, render_diff
+    from .prd import render_prd
+    from .registry import RegistryError, load_all, load_one
+    from .render import document, gap_brief, radar_report
+    from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
+    from .scoring import CONFIDENCE_FLOOR_DEFAULT, rank
 
     if args.command == "taxonomy":
         out = ["# Taxonomy", "", "## Layers", ""]

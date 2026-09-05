@@ -321,12 +321,21 @@ def test_behavior_3_models_still_refuses_under_the_same_blocker():
         assert raised.value.name in {"pydantic", "pydantic_core"}, raised.value.name
 
 
-def test_acceptance_the_pydantic_free_module_set_is_exactly_three():
+def test_acceptance_the_pydantic_free_module_set_is_exactly_four():
+    """RE-BASELINED by iteration 111 / roadmap row 100, which ADDED `cli` to this set.
+
+    The pin was `{taxonomy, checks, scoring}` when this file landed. Iteration 111 moved
+    every `cli.py` sibling import except `taxonomy` behind a seam taken after argparse has
+    decided a document will be produced, so the entry point itself now imports with pydantic
+    absent -- and that fact IS the feature, measured here rather than as a wall-clock time.
+    Still an exact set rather than a superset check: a fifth member would mean some module
+    stopped validating records without saying so in the published table.
+    """
     verdicts = _import_verdicts()
     assert set(verdicts) == set(PACKAGE_MODULES)
     assert len(PACKAGE_MODULES) == 10, PACKAGE_MODULES
     free = {name for name, ok in verdicts.items() if ok}
-    assert free == {"taxonomy", "checks", "scoring"}, verdicts
+    assert free == {"taxonomy", "checks", "scoring", "cli"}, verdicts
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +586,10 @@ def test_behavior_8_the_contract_table_equals_the_measured_import_set():
     assert published == measured, {
         name: (published[name], measured[name])
         for name in measured if published.get(name) is not measured[name]}
-    assert sum(published.values()) == 3, published
+    # 4, not 3, since iteration 111 (row 100) put `cli`'s sibling imports behind the
+    # argparse seam. Redundant with the equality above by design: it is the
+    # anti-vacuity guard that a parser matching nothing cannot satisfy.
+    assert sum(published.values()) == 4, published
 
 
 def test_behavior_8_the_comparison_detects_a_table_that_lies(tmp_path):

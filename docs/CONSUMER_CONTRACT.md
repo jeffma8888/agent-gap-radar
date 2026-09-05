@@ -172,11 +172,18 @@ documented key.
 
 A consumer reading `gaps/*.json` directly, as the declared consumer does, has the
 stored integers and the evidence ladder but not `priority` and `confidence` --
-which are deliberately not stored. It does not have to reinvent them. Three
+which are deliberately not stored. It does not have to reinvent them. Four
 modules of this package import with **pydantic absent**, so a reader with nothing
 installed can `import agent_gap_radar.scoring` and call the same functions the
 CLI calls, rather than writing a third ordering rule for the same register that
 no test on either side of the repo boundary can see drift.
+
+Three of those four are that library path. The fourth, `cli`, is in the set for a
+DIFFERENT reason and buys a score reader nothing: no verb pays for a module it
+does not use, so the entry point loads the document stack only after argparse has
+decided a document will be produced. What that row promises is that a refusal
+(exit 2, one `Error: ` line, zero document bytes) and `--version` construct no
+pydantic model class at all -- not that a consumer should import `cli` to score.
 
 | Module | Imports with pydantic absent | Why |
 |---|---|---|
@@ -189,7 +196,7 @@ no test on either side of the repo boundary can see drift.
 | `agent_gap_radar.prd` | no | downstream of a validated record |
 | `agent_gap_radar.scan` | no | downstream of a validated record |
 | `agent_gap_radar.diff` | no | downstream of a validated record |
-| `agent_gap_radar.cli` | no | the entry point loads the register, so it validates |
+| `agent_gap_radar.cli` | yes | argparse decides first: every sibling import except `taxonomy` is taken inside `_dispatch`, after a document is certain |
 
 **This table is DERIVED, not hand-maintained.** A test installs an import blocker
 for `pydantic` in-process -- with a positive control asserting `import pydantic`

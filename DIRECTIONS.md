@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-111
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- four hand-copied closed-vocabulary validators become ONE derived rule
+    - Candidate A2 -- `checks._TRACKED_CACHE`, the module's only unscoped cache, moves into the scan-scoped frame
+    - Candidate A3 -- (being measured) one statement of a derived-score rule, not several
+    - Candidate B1 -- every `radar` invocation imports all eight modules, so the exit-2 refusal path costs 3.8x a bare interpreter to do nothing
+    - Candidate B2 -- row 47 bite 2: a boolean-only `content_matches` node scans 44.6% of its files after its answer is decided (3,271.9 ms)
+    - Candidate B3 -- (measurement in flight)
+    winner: B1
+    ship: pending (not yet decided)
   iter-110
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar taxonomy --json`: the citation gate a release gate is TOLD to read becomes data
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- four hand-copied closed-vocabulary validators become ONE derived rule
     - Candidate B3 -- `checks.py` holds FIVE memo mechanisms and spells ONE of them three times
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 4c179f1
   iter-109
     lenses: hardening/DX, integration-and-adoption
     - Candidate A -- a mis-shaped glob string is schema-valid, and it silently DOWNGRADES a real finding
@@ -747,4 +757,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-75 scouted iterations
+76 scouted iterations
