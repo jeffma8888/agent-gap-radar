@@ -12,9 +12,9 @@ import json
 
 from .models import Check, Gap, detectability
 from .scoring import (aged_records, below_floor, confidence, distinct_register_sources,
-                      distinct_sources, priority, promotion_options, rank,
+                      distinct_sources, distinct_tags, priority, promotion_options, rank,
                       records_on_shared_source, register_anchor_date, shared_sources,
-                      sole_source_records, strongest_source)
+                      sole_source_records, strongest_source, tag_coverage)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
@@ -243,6 +243,90 @@ def _source_concentration_section(gaps: list[Gap]) -> list[str]:
     return lines
 
 
+#: Behavior 2's census line. ONE template, so the four counts cannot drift apart in
+#: prose, and PLURAL-FREE by construction: every noun is written for the count it will
+#: never agree with, so no value changes the grammar and a census read by a diff does not
+#: change shape when a count crosses 1. The line is SELF-VALIDATING and that is its
+#: point: `distinct == listed + omitted` holds because `omitted` is the subtraction rather
+#: than a second count, and `cross <= listed` because the cross figure is counted over
+#: the listed rows themselves.
+_TAG_CENSUS = (
+    "Distinct tag values: {distinct} | listed below (2 or more records): {listed} | of "
+    "those, spanning more than one layer: {cross} | occurring on exactly one record and "
+    "omitted: {omitted}")
+
+#: The purpose line, and the sentence that decides how a reader is meant to act on the
+#: table. It refuses three readings in order: that a tag is a controlled term (it is a
+#: free label, and `docs/CONSUMER_CONTRACT.md` says never to switch on one), that the
+#: omitted singletons were dropped (their count is published, and a single-record tag is
+#: single-layer by construction so its row could carry no cross-layer information), and
+#: that the tool will merge two spellings of one theme (it reports the split; the merge is
+#: a curator's decision this section exists to inform, never one a renderer performs).
+TAG_COVERAGE_PURPOSE = (
+    "Tags are free labels and not a closed vocabulary, and nothing here derives a "
+    "penalty: no count in this section reaches priority, confidence, the ranking or the "
+    "floor. A tag carried by exactly one record is omitted from the table -- one record "
+    "sits in one layer, so such a tag can carry no cross-layer information -- and its "
+    "count is published in the census above rather than dropped. Two spellings of one "
+    "theme render as two rows: that is a curation task this section makes visible, never "
+    "a rewrite it performs.")
+
+TAG_COVERAGE_HEADING = "## Tag coverage"
+
+
+def _tag_coverage_section(gaps: list[Gap]) -> list[str]:
+    """The `## Tag coverage` block: what this register knows about one theme.
+
+    WHY IT EXISTS. `tags` is the register's only CROSS-LAYER axis, and it was the one
+    stored field no line of code read: every record writes it, `report` is ordered by
+    layer and `list --layer L` shows exactly one layer, so a builder asking what the
+    register knows about retrieval, compaction or cost had no surface to ask. Measured on
+    the register as this shipped, 55 tags span more than one layer and the most-used tag is
+    split across two spellings, `evals` and `eval` -- a curation defect the tool could not
+    show anyone.
+
+    A DISPLAY AND NOTHING MORE. No record is dropped, hidden or de-ranked by how it is
+    tagged, and no term here reaches `priority`, `confidence`, `rank` or `below_floor`.
+    The table is UNCAPPED above its threshold, and the threshold's own elision is
+    ANNOUNCED in the census rather than performed silently, because a truncated table is
+    the silent-drop shape `VISION.md` names as the one rule this register protects.
+
+    THE EMPTY REGISTER renders the heading and `None found.` with nothing else -- no
+    census, no purpose line -- mirroring `_evidence_age_section` and
+    `_source_concentration_section` for the same reason: with no records "no tag is
+    knowable" is a different claim from "no tag is shared", so the two cases do not share
+    their prose. A NON-EMPTY register whose tags are all singletons renders the census and
+    the purpose line and then `None found.` in place of the table, which is the second of
+    those two answers stated separately.
+    """
+    lines = [TAG_COVERAGE_HEADING, ""]
+    if not gaps:
+        lines += ["None found.", ""]
+        return lines
+    # Both computed ONCE. `omitted` is the SUBTRACTION rather than a second pass over the
+    # data, so behavior 2's `distinct == listed + omitted` identity holds by construction
+    # instead of by review -- the same reason `records_on_shared_source` derives from
+    # `shared_sources` rather than re-deciding what "shared" means.
+    distinct = distinct_tags(gaps)
+    rows = tag_coverage(gaps)
+    lines += [_TAG_CENSUS.format(distinct=distinct, listed=len(rows),
+                                 cross=sum(1 for _, _, layers in rows
+                                           if len(layers) > 1),
+                                 omitted=distinct - len(rows)), "",
+              TAG_COVERAGE_PURPOSE, ""]
+    if rows:
+        lines += table(["Tag", "Records", "Layers"],
+                       [[tag, str(count), ", ".join(layers)]
+                        for tag, count, layers in rows])
+    else:
+        # Same convention as every other section here: an empty result says so in words,
+        # because a heading followed by nothing reads as a renderer that failed rather
+        # than as a register whose tags happen not to overlap.
+        lines.append("None found.")
+    lines.append("")
+    return lines
+
+
 def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     """The ranked landscape view."""
     ranked = rank(gaps, confidence_floor)
@@ -282,6 +366,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
 
     lines += _evidence_age_section(gaps)
     lines += _source_concentration_section(gaps)
+    lines += _tag_coverage_section(gaps)
 
     lines += ["## Below confidence floor", "",
               "Kept visible on purpose: a weakly-sourced gap is a research task, "

@@ -495,3 +495,76 @@ def aged_records(
             rows.append((gap, newest, age))
     rows.sort(key=lambda row: (-row[2], row[0].id))
     return rows
+
+
+# --- tag coverage: a DISPLAY census over the register's only cross-layer axis ---
+#
+# Derived here beside the source and age views for the same reason they are: a renderer
+# gets a decided answer rather than deciding one, so the census line and the table under
+# it cannot drift apart. Nothing below reaches `priority`, `confidence`, `rank` or
+# `below_floor`, and that is a product rule and not an accident -- `tags` are free labels
+# with no closed vocabulary behind them, so a term folded into a score would let a
+# record's ranking move because a curator typed `evals` rather than `eval`.
+
+#: A tag reaches the rendered table only at this many DISTINCT records. Named, because it
+#: is a product decision with a measured justification rather than a felt cutoff: a tag on
+#: exactly ONE record is single-layer by construction -- one record sits in one layer --
+#: so its row can carry no cross-layer information, which is the whole quantity the view
+#: publishes. The count of what the threshold withholds is published in the census line,
+#: so the elision is announced rather than silent.
+TAG_COVERAGE_MIN_RECORDS = 2
+
+
+def distinct_tags(gaps: list[Gap]) -> int:
+    """How many DISTINCT tag values the whole register carries.
+
+    The census denominator, and the reason it is a function rather than `len()` at the
+    call site: the rendered `omitted` count is DERIVED as this minus the number of listed
+    rows, so both halves of that subtraction have to mean the same thing by construction.
+    A record naming one tag twice contributes it once, since the union is over a set.
+
+    Total, matching `distinct_register_sources`: an empty register returns 0 rather than
+    raising, so a renderer may print the number without first asking whether any record
+    exists.
+    """
+    return len({tag for gap in gaps for tag in gap.tags})
+
+
+def tag_coverage(gaps: list[Gap]) -> list[tuple[str, int, list[str]]]:
+    """`(tag, distinct records carrying it, layers those records span)`, rendered order.
+
+    Ordered by record count DESCENDING with ties broken on the tag ASCENDING, so the order
+    is total and the rendered bytes are stable across two runs of the same register -- the
+    same reason `rank()` breaks its ties on id. Layers inside a row ascend for the same
+    reason, and neither ordering can be moved by filesystem enumeration order or by the
+    per-process hash seed, because the intermediate dedupe preserves INSERTION order
+    (`dict.fromkeys`) and every published sequence is sorted before it is returned.
+
+    A record naming the same tag twice counts ONCE, both for the record count and for the
+    layer set: the question is how many RECORDS carry the theme, so a repeated mention
+    inside one record must not read as two records agreeing. Without the per-record
+    dedupe, a duplicated label would inflate exactly the cross-layer breadth this view
+    exists to report honestly.
+
+    UNCAPPED above the threshold: truncating the tail would be the silent-drop shape
+    `VISION.md` names as the one rule this register protects, and the tail is where a
+    curator finds the second spelling of a theme they thought they had one name for.
+
+    Returns `[]` for an empty register, and for a register where no tag reaches
+    `TAG_COVERAGE_MIN_RECORDS` -- those are the same answer to this question, and the
+    RENDERER distinguishes "no record exists" from "no tag is shared", because only it
+    knows whether any record exists.
+
+    Reads `.layer` and `.tags` and nothing else, so it runs over any record-shaped object
+    and needs no pydantic on its path.
+    """
+    counts: dict[str, int] = {}
+    layers: dict[str, set[str]] = {}
+    for gap in gaps:
+        for tag in dict.fromkeys(gap.tags):
+            counts[tag] = counts.get(tag, 0) + 1
+            layers.setdefault(tag, set()).add(gap.layer)
+    rows = [(tag, count, sorted(layers[tag])) for tag, count in counts.items()
+            if count >= TAG_COVERAGE_MIN_RECORDS]
+    rows.sort(key=lambda row: (-row[1], row[0]))
+    return rows

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-113
+    lenses: narrative-and-docs (iteration 113), new-capability
+    - Candidate A1 -- the roadmap and two docstrings publish a "single copy of the automated/manual predicate" claim that a grep falsifies, and they name the wrong reader set
+    - Candidate B1 -- the front door names one of the three machine-readable surfaces the product ships, while the consumer contract publishes all three
+    - Candidate C1 -- the README's one worked example of the ladder excluding a record is pinned to one gap id, and promoting that record is a stated goal
+    - Candidate B1 -- `radar report` gains a tag-coverage census: re-land iteration 97 (roadmap row 94)
+    - Candidate B2 -- the register cannot be asked which of its OWN records may describe one gap (roadmap rows 11 + 86)
+    - Candidate B3 -- `radar report --age-days N`: the dormant knob on the evidence-age view (roadmap row 10 follow-on)
+    winner: B1
+    ship: pending (not yet decided)
   iter-112
     lenses: performance-and-throughput, narrative-and-docs (iteration 112)
     - Candidate A1 -- roadmap row 47 bite 2: a boolean-only content rule scans 44.5% of its files after its answer is already decided
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 80: `promote.py`'s refusal set is published three times and no publication is complete
     - Candidate B3 -- the one spec handed to context-free research agents hand-copies four closed vocabularies and two gate numerics, and the suite reads none of them
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED b23b4ed
   iter-111
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- four hand-copied closed-vocabulary validators become ONE derived rule
@@ -767,4 +777,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-77 scouted iterations
+78 scouted iterations
