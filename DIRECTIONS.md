@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-117
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- the confidence floor default is spelled FOUR times, and the one place that cannot reach the constant is the reason
+    - Candidate A2 -- (in progress)
+    - Candidate A3 -- (in progress)
+    - Candidate B1 -- half of every regex pass in a scan is UNPREFILTERABLE, because the literal extractor reads only the LEADING run of an alternative
+    - Candidate B2 -- roadmap row 92, measured at last: the suite wall is 171.83 s and 57.6% of the slowest 40 tests is ONE recomputed live scan
+    - Candidate B3 -- `required_literals` is the one hot helper in `checks.py` with no memo, and roadmap row 35's premise has DECAYED to 13.2%
+    winner: B1
+    ship: pending (not yet decided)
   iter-116
     lenses: integration-and-adoption -- iteration 116, simplification-and-deletion
     - Candidate A1 -- the release gate's widened domain has exactly ONE consumer, the suite, and no command line can reach it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- retire `file_absent`, the rule kind used by 1 of 761 live rule nodes
     - Candidate B3 -- `PRODUCT.md` sheds its spent prose, and open rows 64 and 70 collapse into one
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED b7b8cb7
   iter-115
     lenses: hardening/DX -- iteration 115, integration-and-adoption -- iteration 115
     - Candidate A1 -- the release gate enumerates paths in a spelling it cannot read back, and `checks.py` already ships the fix
@@ -807,4 +817,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-81 scouted iterations
+82 scouted iterations

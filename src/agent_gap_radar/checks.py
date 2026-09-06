@@ -993,6 +993,15 @@ _MAX_ALTERNATION_DEPTH = 32
 #: wrong rather than merely weak.
 _INLINE_FLAGS_RE = re.compile(r"\(\?[ims]+\)")
 
+#: A `{m,n}` REPEAT COUNT body: braces around digits and at most one comma. Its
+#: characters are a COUNT, not text a match must contain, and -- unlike every
+#: other structural character -- digits and `,` are absent from `_RUN_ENDERS`,
+#: so a run STARTED inside one reads `0,70` out of `[^.\n]{0,70}` and claims a
+#: literal no match has. `_run_start_offsets` refuses those offsets, and that is
+#: a soundness requirement rather than tidiness: a prototype of this fallback
+#: without the refusal skipped 40 files whose text the regex does match.
+_BRACE_BODY_RE = re.compile(r"\{\d*(?:,\d*)?\}")
+
 
 def _scan_unescaped(pattern: str) -> Iterator[tuple[int, str, int, bool]]:
     """Yield `(index, char, depth, in_class)` for every UNESCAPED character.
@@ -1117,6 +1126,12 @@ def _leading_literal_run(alternative: str, fold: bool) -> str:
     The last run character is DROPPED when the next pattern character is `?`, `*`
     or `{`, because a quantifier binds the single atom before it and all three
     admit zero of it: `foobar?` matches `fooba`, and `ab{0,3}c` matches `ac`.
+
+    `_longest_literal_run` also calls this on a SUFFIX of an alternative, which is
+    sound for the same reason and needs nothing here: every rule above reads
+    forward from offset 0 of whatever string it is handed and stops at the first
+    character it cannot decide, so a suffix is judged exactly as its own text.
+    Choosing WHICH suffixes may be handed in is that caller's job, not this one's.
     """
     chars: list[str] = []
     index = 0
@@ -1146,6 +1161,68 @@ def _leading_literal_run(alternative: str, fold: bool) -> str:
     return max(re.split(f"[{_FOLD_UNSAFE}]", run), key=len)
 
 
+def _run_start_offsets(alternative: str) -> Iterator[int]:
+    r"""Offsets in ONE alternative where a MANDATORY literal run may start.
+
+    Three exclusions, each in the same conservative direction as the run reader
+    itself -- refusing an offset can only cost a wasted regex pass, admitting a
+    wrong one costs a verdict:
+
+    * `depth > 0`. A character inside a group is not mandatory, because the group
+      can be made optional (`(?:x)?`), alternated (`(a|b)`) or negated
+      (`(?!x)`). Its enclosing depth-0 sequence is safe: the caller has already
+      split every depth-0 `|` away, so what remains is a plain concatenation and
+      each of ITS characters is one every match must contain.
+    * `in_class`. `[ab]` requires neither member, and `]` closing the class is
+      yielded inside it.
+    * inside a `{m,n}` body. Those characters are a repeat COUNT, and they are
+      the one structural text made of characters `_RUN_ENDERS` does not stop on.
+
+    An offset that is the second half of an escape pair is never yielded, because
+    `_scan_unescaped` steps over the pair whole -- so `\-\-hard` contributes
+    `hard` rather than the unsound `-hard`, and no run can begin at a `\d`'s `d`.
+    """
+    brace_end = 0
+    for index, char, depth, in_class in _scan_unescaped(alternative):
+        if depth or in_class or index < brace_end:
+            continue
+        if char == "{":
+            body = _BRACE_BODY_RE.match(alternative, index)
+            if body is not None:
+                brace_end = body.end()
+            continue
+        yield index
+
+
+def _longest_literal_run(alternative: str, fold: bool) -> str:
+    r"""The LONGEST mandatory literal run anywhere in one alternative, else `""`.
+
+    The fallback for an alternative whose LEADING run proves nothing: one
+    metacharacter at offset 0 (`["']--hard["']`, `\s+git\s+push\b`) told the
+    caller a pattern was unprovable while a mandatory literal sat in plain sight,
+    and an unprovable pattern costs a regex pass over every file in the domain.
+
+    It re-applies `_leading_literal_run` to each candidate SUFFIX rather than
+    walking characters itself, and that delegation is the safety argument, not a
+    convenience: the escape whitelist, the non-ASCII stop, the optional-quantifier
+    drop and the `(?i)` fold are ONE policy with one copy. A prototype of this
+    change that re-enumerated characters instead welded `AGENTS\.md` into
+    `agentsmd` -- a literal no text contains -- and skipped 155 files it should
+    have read.
+
+    LONGEST rather than first, because a longer literal rejects more files: the
+    two runs of `\s+git\s+push\b` are `git` and `push`, and both are mandatory,
+    so either is sound and the second is the better filter. Ties keep the
+    earliest offset, so the answer is deterministic for a given pattern.
+    """
+    longest = ""
+    for offset in _run_start_offsets(alternative):
+        run = _leading_literal_run(alternative[offset:], fold)
+        if len(run) > len(longest):
+            longest = run
+    return longest
+
+
 def _prove_literals(pattern: str, depth: int, fold: bool) -> frozenset[str] | None:
     """One level of the public extractor, carrying the fold state down the walk.
 
@@ -1169,7 +1246,11 @@ def _prove_literals(pattern: str, depth: int, fold: bool) -> frozenset[str] | No
     stripped = _strip_full_wrapper(stripped)
     alternatives = _split_alternatives(stripped)
     if len(alternatives) == 1 and stripped == pattern:
-        run = _leading_literal_run(pattern, fold)
+        # `or` is the policy, not a shortcut: the fallback is consulted ONLY when
+        # the leading run proves nothing, so every alternative that already
+        # proves a literal keeps a byte-identical answer and the whole blast
+        # radius of the fallback is claims that did not exist before it.
+        run = _leading_literal_run(pattern, fold) or _longest_literal_run(pattern, fold)
         return frozenset({run}) if run else None
     literals: set[str] = set()
     for alternative in alternatives:
@@ -1219,6 +1300,15 @@ def required_literals(pattern: str) -> frozenset[str] | None:
     alphanumeric escape (`\b`, `\w`, `\d`, `\s`, `\1`) ENDS the run, because it
     denotes a class, an assertion or a backreference rather than a character that
     must appear.
+
+    A run is read at the START of each alternative and, ONLY when that proves
+    nothing, at the longest unquantified depth-0 run ANYWHERE in it: one leading
+    metacharacter otherwise made a whole pattern unprovable while a mandatory
+    literal sat in plain sight, so `["']--hard["']` proves `--hard` and
+    `\s+git\s+push\b` proves `push` -- the longer of its two mandatory runs. An
+    offset inside a `{m,n}` body is refused, because those digits are a repeat
+    COUNT: `[^.\n]{0,70}rollback` proves `rollback`, never `0,70`. An alternative
+    that already proves a leading run keeps that exact answer.
 
     Returns `None` or a NON-EMPTY frozenset, never `frozenset()`: an empty set
     would read as "no literal is required", which is what a caller checking

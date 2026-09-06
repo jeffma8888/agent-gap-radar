@@ -1,6 +1,18 @@
 """Iteration 93 behaviors: `checks.required_literals`, a DORMANT required-literal
 extractor for register content patterns.
 
+MIGRATED IN ITERATION 117, which widened the run policy this module pins: when an
+alternative's LEADING literal run proves nothing, the LONGEST unquantified depth-0 run
+ANYWHERE in that alternative is proved instead, and an offset inside a `{m,n}` count body is
+refused. Two tests below asserted the ABSENCE of exactly that claim -- an alternative opening
+on a class or assertion escape, and one whose first run is emptied by the optional-atom drop,
+were both `None` because their FIRST run was empty -- so each is INVERTED here rather than
+deleted, and each keeps the property it existed to protect as its own discriminator: the
+escape is still not a literal character, and the atom before `?`, `*` or `{` is still dropped.
+Every other assertion in this module's 9 behaviors is untouched -- including the rest of
+behaviors 2 and 4, and behavior 5's `None` cases, which have no depth-0 literal ANYWHERE and
+so are unmoved by a longest-run fallback.
+
 Black-box, and the ISOLATION CONTRACT IS HONORED: nothing here reads the implementation
 as logic, nor the engineer's or the reviewer's notes, nor `IMPLEMENTATION.patch`, nor any
 diff. Every expectation comes from `pm.md`'s Expected Behaviors and from the function's
@@ -206,8 +218,19 @@ def test_b2_every_whitelisted_punctuation_escape_contributes_itself(ch):
 
 @pytest.mark.parametrize(
     "esc", [r"\b", r"\B", r"\w", r"\W", r"\d", r"\D", r"\s", r"\S", r"\A", r"\Z", r"\1"])
-def test_b2_an_alternative_opening_with_a_class_or_assertion_escape_has_no_literal(esc):
-    assert checks.required_literals(esc + "foo|bar") is None
+def test_b2_an_alternative_opening_with_a_class_or_assertion_escape_proves_the_run_after_it(
+        esc):
+    # MIGRATED IN ITERATION 117 (see the module docstring). The half this case exists for is
+    # unchanged: the escape itself contributes NO literal character. What changed is the
+    # consequence -- a leading metacharacter no longer voids the alternative, because the
+    # mandatory run that follows it is proved instead of nothing.
+    #
+    # Still discriminating in iteration 93's own direction, and the equality is what does it:
+    # an extractor reading the escape as its letter answers `{"dfoo", "bar"}` for `\d` and
+    # `{"bfoo", "bar"}` for `\b`, neither of which equals the set below. (A membership test
+    # could NOT stand in for the equality here: `\b`'s letter also occurs in "bar".)
+    got = checks.required_literals(esc + "foo|bar")
+    assert got == frozenset({"foo", "bar"}), (esc, got)
 
 
 def test_b2_a_class_escape_ends_a_run_without_voiding_the_prefix_before_it():
@@ -244,9 +267,23 @@ def test_b4_a_plus_quantifier_keeps_the_character_it_repeats():
     assert checks.required_literals("foo+|bar") == frozenset({"foo", "bar"})
 
 
-@pytest.mark.parametrize("pattern", ["a?bc|de", "x{2}y|z", "a*bc|de"])
-def test_b4_when_dropping_empties_the_run_the_whole_pattern_is_unprovable(pattern):
-    assert checks.required_literals(pattern) is None
+@pytest.mark.parametrize("pattern,expected", [
+    ("a?bc|de", frozenset({"bc", "de"})),
+    ("x{2}y|z", frozenset({"y", "z"})),
+    ("a*bc|de", frozenset({"bc", "de"})),
+])
+def test_b4_when_dropping_empties_the_run_the_next_mandatory_run_is_proved(pattern, expected):
+    # MIGRATED IN ITERATION 117 (see the module docstring). THE DROP IS UNCHANGED and is
+    # still the whole point of these three cases: the reader declines the atom before `?`,
+    # `*` or `{` rather than reason about the count, so `a` and `x` may never be claimed.
+    # Until iteration 117 that emptied the answer for the whole pattern; now the NEXT
+    # mandatory run carries it, which is a claim these cases could not make before.
+    #
+    # The equality discriminates twice over: an extractor that leaked the dropped atom
+    # answers `{"abc", "de"}`, and one that started a run inside the `{m,n}` count body
+    # answers `{"2", "z"}` -- a repeat count is not text a match must contain.
+    got = checks.required_literals(pattern)
+    assert got == expected, (pattern, got)
 
 
 # ---------------------------------------------------------------------------
