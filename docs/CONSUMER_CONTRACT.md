@@ -330,8 +330,15 @@ directory's base name, unaffected by how the invocation spelled the path -- so
 the payload still says WHAT was scanned.
 Every key the tool emits must appear in this list: the drift this paragraph
 already suffered was omission, so the list is the contract and not a summary of
-it. Output is byte-stable across runs of one INVOCATION; two spellings of one
-directory agree key-for-key except in `target`.
+it. The converse binds too, and is now held: this list names no key the tool
+does not emit. A committed test compares the documented set with the emitted set
+for EQUALITY, scoped to the enumeration sentence above, so a name that outlives
+its key reds this repo's own suite here rather than reaching a gate as a lookup
+failure on the consumer's side of the boundary -- where the failure reads as the
+consumer's bug and not as ours. That scope ends at the enumeration sentence's
+period, which is why the prose around it may backtick a word like `score`
+without joining the list. Output is byte-stable across runs of one INVOCATION;
+two spellings of one directory agree key-for-key except in `target`.
 
 ## The prd payload -- the five top-level keys, published
 

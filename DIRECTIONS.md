@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-118
+    lenses: performance-and-throughput, narrative-and-docs (iteration 118)
+    - Candidate A1 -- both runs of `\s+git\s+push\b` are mandatory and the extractor keeps only the longer one, so 75% of the register's patterns prefilter on one literal when they could prove several
+    - Candidate A2 -- the 23 patterns that still prefilter on nothing carry 24% of the regex wall, and 21 of them fail on an unquantified group of pure literals
+    - Candidate A3 -- every hot pattern pays a runtime IGNORECASE tax, and the lower-cased text it would need is already computed and memoised
+    - Candidate B1 -- the roadmap asks for a measurement that iteration 117 already made, because the answer landed only in the foundry's private log
+    - Candidate B2 -- the contract's `scan --json` key list is braked in ONE direction; its sibling prd list is braked in TWO
+    - Candidate B3 -- the `radar scan` contract section's heading promises a debt its own body has discharged, and it restates a 9-record-era census
+    winner: B2
+    ship: pending (not yet decided)
   iter-117
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- the confidence floor default is spelled FOUR times, and the one place that cannot reach the constant is the reason
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 92, measured at last: the suite wall is 171.83 s and 57.6% of the slowest 40 tests is ONE recomputed live scan
     - Candidate B3 -- `required_literals` is the one hot helper in `checks.py` with no memo, and roadmap row 35's premise has DECAYED to 13.2%
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 526edd6
   iter-116
     lenses: integration-and-adoption -- iteration 116, simplification-and-deletion
     - Candidate A1 -- the release gate's widened domain has exactly ONE consumer, the suite, and no command line can reach it
@@ -817,4 +827,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-82 scouted iterations
+83 scouted iterations

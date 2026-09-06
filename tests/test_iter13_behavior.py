@@ -345,9 +345,17 @@ def test_b6_the_two_surfaces_stay_separate(tmp_path, target, capsys):
 # ---------------------------------------------------------------------------
 # Behavior 7 -- the contract documents every key the tool emits.
 #
-# Asserted ONE-directionally: the emitted keys are a subset of the paragraph's
-# backticked tokens. The reverse is deliberately not asserted, because the paragraph
-# legitimately backticks `score` while stating that no such key exists.
+# Asserted ONE-directionally HERE: the emitted keys are a subset of the PARAGRAPH's
+# backticked tokens. This scope stays one-directional because the paragraph
+# legitimately backticks `score` while stating that no such key exists, so equality
+# over the paragraph is unreachable without an exception list -- and an exception list
+# is where a real drift would hide.
+#
+# The reverse direction IS asserted, from iteration 118, over a narrower scope that
+# needs no exceptions: the enumeration SENTENCE alone, whose backticked tokens are
+# exactly the emitted keys. Oracle `tests/_key_enumeration.py`, behaviors in
+# `tests/test_iter118_behavior.py`. Nothing below moves: the subset claim over the
+# whole paragraph is still true and still the thing these four tests measure.
 # ---------------------------------------------------------------------------
 
 def _contract_paragraph(text=None):
