@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refuse to ship a public-repo leak, over every tracked file rather than one document.
+"""Refuse to ship a public-repo leak, over every shippable file rather than one document.
 
 This repository is PUBLIC and the quality bar it ships under says so: no absolute machine
 paths, no employer or personal identifiers. Nothing committed enforced that clause. Enforcement
@@ -15,15 +15,27 @@ written by an outside research pipeline from arbitrary primary sources, which is
 path an account name or an address arrives on, and none of the five refusal gates
 `docs/CONSUMER_CONTRACT.md` publishes is a public-safety gate.
 
-TWO DOMAINS, and the difference between them is the whole point of the second one.
-`tracked_files` is the INDEX: it is what `main` scans by default and what every committed
-assertion on the published summary line counts. `shippable_files` is the index PLUS the
-untracked, non-ignored files, because the newest file of any iteration is untracked while
-every stage that could still fix it runs -- so the one file under review has never been
-inside the domain this gate cleared, and the answer an earlier iteration wrote was a
-hand-maintained list of its own two paths, which is the per-iteration enforcement this
-docstring was written to retire. The in-suite brake runs the gate over the wider domain;
-`main`'s default stays the index, so nothing published moves.
+TWO DOMAINS, and `main` defaults to the WIDER one because that is the set a release gate is
+asked about. `tracked_files` is the INDEX, and it stays the index because
+`tests/_document_index.py` indexes COMMITTED documents through it. `shippable_files` is the
+index PLUS the untracked, non-ignored files, and it is what `main` scans when no seam is
+supplied: the newest file of any iteration is untracked while every stage that could still fix
+it runs, so an index-only default cleared a set that excluded the very file under review, and
+a gate that cannot see the file under review certifies nothing. The measured shape of that
+fail-open: this capability reported a finding (1) on an untracked leak while the command line
+a human, a CI step and the final ship stage actually run reported the same tree clean (0).
+The published count and noun therefore read `shippable file(s)`, built ONCE by
+`_domain_phrase` and shared with both refusals, so the number and the word it labels cannot
+drift apart.
+
+ONE SPELLING OF THE GIT CALL, and `-z` is load-bearing rather than a detail. With
+`core.quotePath` at its default, `git ls-files` renders a path carrying a byte outside
+printable ASCII in C-quoted form -- wrapped in quotes, every such byte escaped -- and that
+string names no file on disk. Widening the default without `-z` would therefore convert a
+clean pass into this tool's own unreadable-file refusal (exit 2) on any tree holding one
+accented filename: a domain whose elements cannot round-trip through `Path.read_text` is not
+a domain, it is a list of strings. Both listers go through `_git_ls_files`, so the two domains
+cannot disagree about the path alphabet.
 
 FAIL CLOSED, on the two ways a scan can be vacuous rather than clean. A domain of zero files
 returns 2, and a file this scan cannot decode returns 2 -- an unread file is not a cleared file.
@@ -62,12 +74,13 @@ repository must not contain IS the leak it claims to prevent.
 Usage:
     python3 tools/check_public_safety.py [repo_root]
 
-Exit codes: 0 every tracked file is clean, 1 at least one finding, 2 the scan cannot be trusted
+Exit codes: 0 every shippable file is clean, 1 at least one finding, 2 the scan cannot be trusted
 (bad usage, a rule that fails its own samples, an empty domain, or a file it could not read).
 """
 
 from __future__ import annotations
 
+import os
 import pathlib
 import re
 import subprocess
@@ -181,8 +194,8 @@ RULES: tuple[Rule, ...] = (
     ),
 )
 
-#: Lists the tracked file set as repo-relative paths. `main` takes one of these as a SEAM, so
-#: every verdict below is reachable from a suite with no git repository to hand.
+#: Lists the domain as repo-relative paths. `main` takes one of these as a SEAM, so every
+#: verdict below is reachable from a suite with no git repository to hand.
 _ListFn = Callable[[], list[str]]
 
 #: Reads one repo-relative path as text, raising `UnicodeDecodeError` or `OSError` when it
@@ -234,34 +247,78 @@ def findings(path: str, text: str, rules: Sequence[Rule] | None = None) -> list[
     return found
 
 
+#: The noun this tool publishes for its domain, held ONCE. Both refusals and the summary line
+#: read it through `_domain_phrase`, so a future widening moves the word everywhere or nowhere
+#: -- the drift this iteration had to migrate 12 committed assertions to repair.
+_DOMAIN_NOUN = "shippable file(s)"
+
+
+def _domain_phrase(count: int) -> str:
+    """`<count> shippable file(s)` -- the count and the noun it labels, from one place.
+
+    A builder rather than three f-strings because the previous spelling put the number in
+    `main` and the word in three separate literals, so widening the domain left two of them
+    describing a set the tool no longer scanned. A reader of stderr and a reader of stdout must
+    be told about the same thing by the same name.
+    """
+    return f"{count} {_DOMAIN_NOUN}"
+
+
+def _git_ls_files(root: pathlib.Path, *selectors: str) -> list[str]:
+    """Repo-relative paths from ONE spelling of the git call, in git's own order.
+
+    Both listers below share this, so the two domains cannot disagree about the path ALPHABET.
+    That is not a tidiness argument: `-z` is what makes the returned strings name real files.
+    Without it, and with `core.quotePath` at its default, git renders a path carrying a byte
+    outside printable ASCII in C-quoted form, so an accented filename comes back wrapped in
+    quotes with each byte escaped -- a string `Path.read_text` cannot open, which this tool
+    correctly converts into an exit-2 refusal. A gate that refuses to run because a filename
+    has an accent in it is not a gate.
+
+    Raw bytes decoded with `os.fsdecode` rather than `text=True`: the filesystem encoding is
+    what produced these names, and its `surrogateescape` handler is what lets a name that is
+    not valid UTF-8 still round-trip back to the file it came from. `text=True` would decode
+    through the locale and can raise on the same bytes.
+
+    Raises `OSError` when git will not treat `root` as a work tree -- the one failure class
+    `main` converts into its exit-2 list refusal.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", *selectors],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", "replace").strip()
+        raise OSError(detail or "git ls-files failed")
+    # `-z` TERMINATES each path with NUL, so the final split yields an empty tail.
+    return [name for name in os.fsdecode(result.stdout).split("\0") if name]
+
+
 def tracked_files(root: pathlib.Path) -> list[str]:
-    """The tracked file set, as repo-relative paths.
+    """The INDEX, as repo-relative paths.
 
     `git ls-files` rather than a directory walk, for the reason `radar scan` already settled: a
     walk sees build output, virtual environments and gitignored scratch, none of which is
     published, so a walk both wastes work and invents findings in files nobody can read.
 
-    Deliberately the INDEX and nothing wider. `main`'s default domain and the count on its
-    summary line are derived from this function, and `tests/_document_index.py` reuses it to
-    index COMMITTED documents, so widening it here would move published bytes; the wider
-    release-gate domain is `shippable_files` below.
+    Deliberately the index and nothing wider, and it is no longer `main`'s default: this is the
+    COMMITTED set, which is the question `tests/_document_index.py` asks when it indexes
+    published documents. The release-gate domain -- what `main` now scans -- is
+    `shippable_files` below.
     """
-    result = subprocess.run(
-        ["git", "-C", str(root), "ls-files"], capture_output=True, text=True, check=False
-    )
-    if result.returncode != 0:
-        raise OSError(result.stderr.strip() or "git ls-files failed")
-    return [line for line in result.stdout.split("\n") if line]
+    return _git_ls_files(root)
 
 
 def shippable_files(root: pathlib.Path) -> list[str]:
     """Every file this work tree would publish, tracked OR not yet tracked.
 
-    The domain a release gate needs, and it is strictly wider than `tracked_files`: that
-    function's domain is the index, so a file created during the round under review is outside
-    it until the ship commit -- the gate clears a set that excludes the very file it is gating.
-    This one is derived from git on every call rather than maintained by hand, so it covers
-    whatever a later round adds without anybody remembering to add it.
+    The domain a release gate needs, so this is what `main` scans by default. It is strictly
+    wider than `tracked_files`: that function's domain is the index, so a file created during
+    the round under review is outside it until the ship commit -- an index-only gate clears a
+    set that excludes the very file it is gating. This one is derived from git on every call
+    rather than maintained by hand, so it covers whatever a later round adds without anybody
+    remembering to add it.
 
     `--cached --others --exclude-standard`: the index, plus the untracked files, MINUS the
     gitignored set. That last exclusion is a decision, not an omission -- a file git is told
@@ -279,21 +336,13 @@ def shippable_files(root: pathlib.Path) -> list[str]:
     raises and `main` already converts into an exit-2 refusal, so the wider domain reuses the
     established failure path instead of inventing a second one.
     """
-    result = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise OSError(result.stderr.strip() or "git ls-files --cached --others failed")
-    return sorted({line for line in result.stdout.split("\n") if line})
+    return sorted(set(_git_ls_files(root, "--cached", "--others", "--exclude-standard")))
 
 
 def main(
     argv: list[str], list_fn: _ListFn | None = None, read_fn: _ReadFn | None = None
 ) -> int:
-    """Scan every tracked file, and refuse rather than report health it did not establish.
+    """Scan every shippable file, and refuse rather than report health it did not establish.
 
     Three refusals, all returning 2, because each one is a clean report this tool would
     otherwise have printed over work it did not do:
@@ -309,8 +358,13 @@ def main(
     prints its denominator: a reader must not have to trust that "0 findings" came from a full
     pass rather than from an empty one.
 
+    The default domain is `shippable_files`, NOT the index: a release gate is asked whether
+    the tree it is about to publish is clean, and the one file class this loop invariably adds --
+    the round's own new test file -- is untracked while every stage that could still fix it
+    runs. Scanning the index instead certified a set with that file cut out of it.
+
     `list_fn` and `read_fn` are SEAMS resolved at CALL time and never bound as signature
-    defaults. A default argument is evaluated once at definition, so `list_fn=tracked_files`
+    defaults. A default argument is evaluated once at definition, so `list_fn=shippable_files`
     would capture this module's function forever and silently ignore any later substitution --
     a failure that reads as a broken repository rather than as an unusable seam.
     """
@@ -325,18 +379,18 @@ def main(
             sys.stderr.write(f"Error: {defect}\n")
         return 2
 
-    lister = list_fn or (lambda: tracked_files(root))
+    lister = list_fn or (lambda: shippable_files(root))
     reader = read_fn or (lambda relative: (root / relative).read_text(encoding="utf-8"))
 
     try:
         files = lister()
     except OSError as exc:
-        sys.stderr.write(f"Error: cannot list the tracked files of {root}: {exc}\n")
+        sys.stderr.write(f"Error: cannot list the {_DOMAIN_NOUN} of {root}: {exc}\n")
         return 2
 
     if not files:
         sys.stderr.write(
-            f"Error: 0 tracked file(s) under {root} -- a scan of nothing is not a clean scan\n"
+            f"Error: {_domain_phrase(0)} under {root} -- a scan of nothing is not a clean scan\n"
         )
         return 2
 
@@ -358,7 +412,7 @@ def main(
     for finding in found:
         print(f"  {finding.path}:{finding.line}  {finding.rule}  {finding.text}")
     print(
-        f"{len(files)} tracked file(s) scanned against {len(RULES)} rule(s): "
+        f"{_domain_phrase(len(files))} scanned against {len(RULES)} rule(s): "
         f"{len(found)} finding(s)"
     )
     for rule in RULES:

@@ -1,5 +1,12 @@
 """Iteration 91 behaviors: the PUBLIC REPO clause of the quality bar gets a committed,
-fail-closed brake over the whole tracked file set.
+fail-closed brake over the whole shippable file set.
+
+MIGRATED IN ITERATION 116, which rewired `main()`'s DEFAULT domain from the git index to the
+SHIPPABLE set (index plus untracked, minus gitignored) and moved the published noun with it.
+Every assertion below that derives a DEFAULT run's expected count now derives it from the
+widened lister, and the 10 sites carrying the old noun carry the new one. Assertions that hand
+`main` their OWN domain through the `list_fn` seam keep their counts unchanged -- that is the
+point of the seam, and it is the proof the rewiring did not reach past the default.
 
 Until this iteration nothing in the suite enforced "no absolute machine paths, no employer
 or personal identifiers" over `git ls-files`. Enforcement was a per-iteration hand-rolled
@@ -35,6 +42,7 @@ from __future__ import annotations
 import io
 import contextlib
 import hashlib
+import os
 import pathlib
 import re
 import subprocess
@@ -104,22 +112,27 @@ def _live_scan() -> subprocess.CompletedProcess:
     )
 
 
-def test_b1_the_live_tracked_tree_is_clean_and_the_scan_states_its_domain_size():
+def test_b1_the_live_shippable_tree_is_clean_and_the_scan_states_its_domain_size():
     proc = _live_scan()
-    n = len(cps.tracked_files(REPO))
+    n = len(cps.shippable_files(REPO))
     assert n > 0, "the brake is vacuous if the domain is empty"
     expected = (
-        f"{n} tracked file(s) scanned against {len(cps.RULES)} rule(s): 0 finding(s)\n"
+        f"{n} shippable file(s) scanned against {len(cps.RULES)} rule(s): 0 finding(s)\n"
     )
     assert proc.stdout == expected, (
-        "the live tracked tree must be clean and must SAY how many files it cleared; "
+        "the live SHIPPABLE tree must be clean and must SAY how many files it cleared. "
+        "Since iteration 116 that domain includes the untracked, non-ignored files, so a "
+        "scratch file left in the work tree is a finding rather than an invisible; "
         f"got {proc.stdout!r} on stderr {proc.stderr!r}"
     )
     assert proc.stderr == ""
     assert proc.returncode == 0
 
 
-def test_b1_the_stated_count_is_the_git_index_and_not_a_directory_walk():
+def test_b1_the_index_lister_is_the_git_index_and_not_a_directory_walk():
+    """Renamed in iteration 116: the STATED count is now the shippable domain, so this
+    covers `tracked_files` itself -- still the index, because `tests/_document_index.py`
+    asks it which documents are COMMITTED."""
     tracked = cps.tracked_files(REPO)
     listed = subprocess.run(
         ["git", "ls-files"], capture_output=True, text=True, cwd=str(REPO)
@@ -172,7 +185,7 @@ def test_b1_one_dirty_file_anywhere_in_the_real_domain_flips_the_verdict():
     assert err == ""
     assert f"  {target}:" in out
     assert "macos-account-home" in out
-    assert f"{len(domain)} tracked file(s) scanned against {len(cps.RULES)} rule(s): 1 finding(s)" in out
+    assert f"{len(domain)} shippable file(s) scanned against {len(cps.RULES)} rule(s): 1 finding(s)" in out
 
 
 def test_b1_findings_are_ordered_by_path_not_by_the_order_handed_in():
@@ -261,7 +274,7 @@ def test_b3_control_the_same_seam_with_a_readable_clean_file_exits_zero():
     code, out, err = _run_main([str(REPO)], list_fn=list_fn, read_fn=read_fn)
     assert code == 0
     assert err == ""
-    assert out == f"1 tracked file(s) scanned against {len(cps.RULES)} rule(s): 0 finding(s)\n"
+    assert out == f"1 shippable file(s) scanned against {len(cps.RULES)} rule(s): 0 finding(s)\n"
 
 
 # ===========================================================================
@@ -283,7 +296,7 @@ def test_b4_a_finding_exits_one_and_names_path_line_rule_and_matched_text():
     assert hit.startswith("  doc.md:2  ")
     assert rule.name in hit
     assert _marker("posix-account-home") in hit
-    assert lines[1] == f"1 tracked file(s) scanned against {len(cps.RULES)} rule(s): 1 finding(s)"
+    assert lines[1] == f"1 shippable file(s) scanned against {len(cps.RULES)} rule(s): 1 finding(s)"
     assert lines[2] == f"  {rule.name}: {rule.why}"
     assert out.endswith("\n") and not out.endswith("\n\n")
 
@@ -421,17 +434,19 @@ def test_b7_this_test_file_is_silent_under_the_gate():
     assert cps.findings(rel, text) == []
 
 
-def test_b7_the_gate_is_inside_the_domain_it_scans_once_it_is_tracked():
-    """Conditional ON PURPOSE: at tester time the new tool is still untracked, so a
-    hard assertion here would red the suite before the commit and green after it. The
-    self-scan property itself is asserted unconditionally above."""
-    tracked = cps.tracked_files(REPO)
-    if TOOL_REL in tracked:
-        proc = _live_scan()
-        assert proc.returncode == 0
-        assert f"{len(tracked)} tracked file(s)" in proc.stdout
-    else:
-        assert TOOL.exists(), "the gate must exist even before it is committed"
+def test_b7_the_gate_is_inside_the_domain_it_scans():
+    """UNCONDITIONAL since iteration 116, and that is the migration: this was branched on
+    `TOOL_REL in tracked_files(REPO)` precisely because at tester time a new file is still
+    untracked, so an index-only default would red before the commit and green after it.
+    The shippable domain holds an untracked file, so the branch had no remaining reason to
+    exist -- and its disappearance IS the fail-open closing."""
+    domain = cps.shippable_files(REPO)
+    assert TOOL_REL in domain, (
+        f"the gate must be inside the set it clears; {TOOL_REL} is outside {len(domain)} path(s)"
+    )
+    proc = _live_scan()
+    assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    assert f"{len(domain)} shippable file(s)" in proc.stdout
 
 
 def test_b7_only_the_address_rule_carries_an_exemption():
@@ -606,7 +621,7 @@ def test_b11_the_lister_seam_is_the_one_consulted():
         [str(REPO)], list_fn=lambda: ["only.md"], read_fn=lambda path: "clean"
     )
     assert code == 0
-    assert out.startswith("1 tracked file(s) scanned"), (
+    assert out.startswith("1 shippable file(s) scanned"), (
         "main() reported a domain size the substituted lister did not produce"
     )
 
@@ -644,14 +659,16 @@ def test_b11_the_scan_touches_no_network_and_needs_no_runtime_dependency():
 
 
 def _post_commit_domain() -> list[str]:
-    """Today's index plus whatever of this iteration's two files it does not yet hold.
+    """The domain that exists after the commit -- which iteration 116 made the LIVE default.
 
-    Idempotent on purpose: before the commit this adds two paths, after the commit it
-    adds none, so the same assertion holds on both sides of the ship.
+    Was: today's index plus a hand-maintained list of this iteration's own two paths, kept
+    idempotent so one assertion held on both sides of the ship. That hand-maintained list is
+    exactly the per-iteration enforcement the tool's docstring set out to retire, and
+    `shippable_files` is the same answer DERIVED from git: it already holds every untracked,
+    non-ignored path before the commit and the identical set after it, for any round's files
+    rather than for two named ones.
     """
-    tracked = cps.tracked_files(REPO)
-    shipping = [TOOL_REL, "tests/" + pathlib.Path(__file__).name]
-    return sorted(tracked + [rel for rel in shipping if rel not in tracked])
+    return cps.shippable_files(REPO)
 
 
 def test_b12_the_domain_this_iteration_ships_is_clean_including_its_own_two_files():
@@ -666,19 +683,26 @@ def test_b12_the_domain_this_iteration_ships_is_clean_including_its_own_two_file
     assert code == 0, f"the post-commit domain is not clean: stdout={out!r} stderr={err!r}"
     assert err == ""
     assert out == (
-        f"{len(domain)} tracked file(s) scanned against {len(cps.RULES)} rule(s): 0 finding(s)\n"
+        f"{len(domain)} shippable file(s) scanned against {len(cps.RULES)} rule(s): "
+        "0 finding(s)\n"
     )
 
 
-def test_b12_the_shipping_domain_is_a_superset_of_the_live_one():
-    """Guards the guard: if this ever equals the live domain BEFORE the commit, the test
-    above has quietly stopped covering the new files."""
-    live = cps.tracked_files(REPO)
+def test_b12_the_shipping_domain_covers_the_index_and_this_iterations_own_files():
+    """Guards the guard, INVERTED by iteration 116. The old guard proved a hand-built list
+    was strictly wider than the live default; the live default now IS the shipping domain,
+    so strictness is unprovable after the commit and the load-bearing claim moves to the two
+    properties that stay true on both sides of the ship: it loses nothing the index holds,
+    and it contains this iteration's own files whether or not they are committed yet."""
+    index = cps.tracked_files(REPO)
     domain = _post_commit_domain()
-    assert set(live) <= set(domain)
-    assert len(domain) - len(live) == sum(
-        1 for rel in (TOOL_REL, "tests/" + pathlib.Path(__file__).name) if rel not in live
-    )
+    assert index, "the index is empty, so the containment below would prove nothing"
+    dropped = sorted(set(index) - set(domain))
+    assert not dropped, f"the shipping domain must hold every indexed path; missing {dropped[:5]}"
+    for rel in (TOOL_REL, "tests/" + pathlib.Path(__file__).name):
+        assert rel in domain, (
+            f"{rel} is outside the domain the gate clears -- the fail-open iteration 116 closed"
+        )
 
 
 # ===========================================================================
@@ -688,16 +712,24 @@ def test_b12_the_shipping_domain_is_a_superset_of_the_live_one():
 # ===========================================================================
 
 
-def _tracked_count(cwd: pathlib.Path) -> int:
+def _shippable_count(cwd: pathlib.Path) -> int:
+    """The size of the domain `main` defaults to since iteration 116, derived from git here
+    rather than from `cps.shippable_files` on purpose: these three tests exist to catch the
+    tool reporting a domain it did not scan, and a count read from the module under test
+    would agree with it by construction. `-z` plus a set, matching the tool's own promise
+    that the domain is deduplicated over RAW paths.
+    """
     listed = subprocess.run(
-        ["git", "ls-files"], capture_output=True, text=True, cwd=str(cwd)
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        capture_output=True,
+        cwd=str(cwd),
     )
     assert listed.returncode == 0
-    return len([line for line in listed.stdout.splitlines() if line])
+    return len({name for name in os.fsdecode(listed.stdout).split("\0") if name})
 
 
 def test_b13_invoked_from_a_subdirectory_the_root_argument_still_scans_the_whole_tree():
-    whole = _tracked_count(REPO)
+    whole = _shippable_count(REPO)
     proc = subprocess.run(
         [sys.executable, str(TOOL), str(REPO)],
         capture_output=True,
@@ -705,14 +737,14 @@ def test_b13_invoked_from_a_subdirectory_the_root_argument_still_scans_the_whole
         cwd=str(REPO / "tests"),
     )
     assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
-    assert proc.stdout.startswith(f"{whole} tracked file(s) scanned")
+    assert proc.stdout.startswith(f"{whole} shippable file(s) scanned")
 
 
 def test_b13_a_subtree_root_narrows_the_domain_to_that_subtree():
     """The control for the test above: if the root argument were ignored, these two
     invocations would report the SAME count and neither test would mean anything."""
-    whole = _tracked_count(REPO)
-    subtree = _tracked_count(REPO / "tests")
+    whole = _shippable_count(REPO)
+    subtree = _shippable_count(REPO / "tests")
     assert 0 < subtree < whole, "tests/ must be a strict non-empty subset for this control"
     proc = subprocess.run(
         [sys.executable, str(TOOL), str(REPO / "tests")],
@@ -721,16 +753,16 @@ def test_b13_a_subtree_root_narrows_the_domain_to_that_subtree():
         cwd=str(REPO),
     )
     assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
-    assert proc.stdout.startswith(f"{subtree} tracked file(s) scanned")
+    assert proc.stdout.startswith(f"{subtree} shippable file(s) scanned")
 
 
 def test_b13_a_bare_invocation_scans_the_cwd_domain():
-    whole = _tracked_count(REPO)
+    whole = _shippable_count(REPO)
     proc = subprocess.run(
         [sys.executable, str(TOOL)], capture_output=True, text=True, cwd=str(REPO)
     )
     assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
-    assert proc.stdout.startswith(f"{whole} tracked file(s) scanned")
+    assert proc.stdout.startswith(f"{whole} shippable file(s) scanned")
 
 
 # ===========================================================================

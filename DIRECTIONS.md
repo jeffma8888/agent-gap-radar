@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-116
+    lenses: integration-and-adoption -- iteration 116, simplification-and-deletion
+    - Candidate A1 -- the release gate's widened domain has exactly ONE consumer, the suite, and no command line can reach it
+    - Candidate B1 -- `radar validate` is the first door a pipeline hits, and its refusal is one unsplittable line
+    - Candidate C1 -- `scan` is the verb a gate consumes, it is floor-GATED, it PUBLISHES the floor it applied, and it is the one verb with no `--floor`
+    - Candidate B1 -- eleven hand-built copies of `None found.` become ONE section frame
+    - Candidate B2 -- retire `file_absent`, the rule kind used by 1 of 761 live rule nodes
+    - Candidate B3 -- `PRODUCT.md` sheds its spent prose, and open rows 64 and 70 collapse into one
+    winner: A1
+    ship: pending (not yet decided)
+  iter-115
+    lenses: hardening/DX -- iteration 115, integration-and-adoption -- iteration 115
+    - Candidate A1 -- the release gate enumerates paths in a spelling it cannot read back, and `checks.py` already ships the fix
+    - Candidate A2 -- one derived locator-shape predicate, because the three locator doors disagree and the register can hold an uncheckable citation
+    - Candidate A3 -- half the committed gates answer `--help` with `Error: not a directory: --help`
+    - Candidate B1 -- the verb a gate consumes answers a vacuous register with exit 0 on the two surfaces a gate scrapes, and exit 2 on the two it does not
+    - Candidate B2 -- the two-register link runs one way only: a practice names its gap, a gap names no practice
+    - Candidate B3 -- nothing derived is committed, so "byte-stable so it can be committed and diffed" has no consumer
+    winner: A2
+    ship: unknown
   iter-114
     lenses: new-capability (iteration 114), hardening/DX (iteration 114)
     - Candidate A1 -- the register cannot be asked which of its OWN records describe one gap (roadmap rows 11 + 86)
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the mutation harness reads "the oracle could not run" as "the defect was caught" (roadmap row 89)
     - Candidate B3 -- `addopts` spends the only `-q` the run can afford, so a caller's own `-q` deletes the suite's PASS line while the exit code stays 0
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED fb8ccb8
   iter-113
     lenses: narrative-and-docs (iteration 113), new-capability
     - Candidate A1 -- the roadmap and two docstrings publish a "single copy of the automated/manual predicate" claim that a grep falsifies, and they name the wrong reader set
@@ -787,4 +807,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-79 scouted iterations
+81 scouted iterations

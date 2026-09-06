@@ -13,6 +13,13 @@ the gate cleared. `shippable_files` widens the domain to the index PLUS the untr
 non-ignored files, and the in-suite brake below runs the real gate over that wider set --
 so this file is scanned while it is still untracked.
 
+MIGRATED IN ITERATION 116, which shipped this row's deliberately-deferred BITE 2: `main()`'s
+DEFAULT domain became `shippable_files` and the published noun moved to `shippable file(s)`.
+B8 below was the negative half of bite 1 -- "the default did not move, so nothing published
+moves" -- and bite 2 is exactly that move, so B8 is INVERTED here rather than deleted. The
+property it existed to protect (the default domain is a NAMED, checkable set and the summary
+count tracks whatever domain is actually scanned) survives verbatim as its non-vacuity probe.
+
 **No banned token is written as a literal here.** Every positive sample is COMPOSED at call
 time from a `RULES` member's own `silent_on` marker plus one name character, so this module
 is clean under the very gate it exercises. A marker typed as a literal would red the brake
@@ -60,7 +67,7 @@ FIXTURE_IDENTITY = (
 
 #: `  <path>:<line>  <rule>  <excerpt>` -- the shape the gate prints per finding.
 _FINDING_LINE = re.compile(r"^\s+(?P<path>\S+):(?P<line>\d+)\s")
-_SUMMARY_FRAGMENT = "tracked file(s) scanned"
+_SUMMARY_FRAGMENT = "shippable file(s) scanned"
 
 
 # ---------------------------------------------------------------------------
@@ -313,24 +320,29 @@ def test_b6_b7_the_in_suite_brake_clears_the_domain_this_iteration_ships():
 
 
 # ===========================================================================
-# B8  `main`'s DEFAULT domain did not move: bite 2 was not smuggled into bite
-#     1, so every committed assertion on the summary line stays true.
+# B8  MIGRATED BY ITERATION 116 (this row's bite 2): `main`'s DEFAULT domain
+#     IS the widened one. The iteration-114 spelling of this test asserted the
+#     opposite -- that the default had NOT moved -- because bite 2 was
+#     deliberately out of that iteration's scope. Bite 2 is that move, so the
+#     claim is inverted while its non-vacuity probe is kept verbatim.
 # ===========================================================================
 
 
-def test_b8_the_default_domain_is_still_the_index_and_the_summary_line_did_not_move():
-    tracked = cps.tracked_files(REPO)
+def test_b8_the_default_domain_is_the_widened_shippable_domain():
+    shippable = cps.shippable_files(REPO)
     code, out, err = _run_main(["x", str(REPO)])
-    assert code == 0, f"the default run must still be green; stdout={out!r} stderr={err!r}"
+    assert code == 0, f"the default run must be green; stdout={out!r} stderr={err!r}"
     assert err == ""
-    assert out == _summary(len(tracked), 0) + "\n", (
-        "main()'s default domain must remain the git index and its summary line must be "
-        f"byte-identical to the published one; got {out!r}"
+    assert out == _summary(len(shippable), 0) + "\n", (
+        "main()'s default domain must be the SHIPPABLE set -- the index plus the untracked, "
+        "non-ignored files -- and its summary line must state that size in the published "
+        f"shape; got {out!r}"
     )
 
-    # Not vacuous: the reported count really is a function of the domain, so the equality
-    # above would have moved had the default been rewired. Stated without depending on
-    # whether this module is yet committed, so it holds on both sides of the ship.
+    # Not vacuous, and kept VERBATIM from the iteration-114 spelling: the reported count
+    # really is a function of the domain, so the equality above would read differently had
+    # the default not been rewired. Independent of whether this module is yet committed, so
+    # it holds on both sides of the ship.
     code, other, _ = _run_main(
         ["x", str(REPO)], list_fn=lambda: ["only.md"], read_fn=lambda rel: "clean line\n"
     )
@@ -339,4 +351,25 @@ def test_b8_the_default_domain_is_still_the_index_and_the_summary_line_did_not_m
         "the summary count must track the substituted domain, else the default-domain "
         f"equality above proves nothing; got {other!r}"
     )
-    assert len(cps.shippable_files(REPO)) >= len(tracked)
+    assert set(cps.tracked_files(REPO)) <= set(shippable)
+
+
+def test_b8_the_default_domain_is_strictly_wider_than_the_index_where_it_can_be(
+    synthetic_repo: pathlib.Path,
+):
+    """The strict half of the inversion, which the product repo cannot carry: on a clean
+    tree the two domains are EQUAL, so `main`'s summary count there is compatible with an
+    index-only default. The fixture has a real untracked file, so the default run's own
+    count separates the two readings -- and this is the assertion the iteration-114 version
+    could only make as `>=`."""
+    index = cps.tracked_files(synthetic_repo)
+    shippable = cps.shippable_files(synthetic_repo)
+    assert len(shippable) > len(index), f"fixture is wrong: {index} vs {shippable}"
+
+    code, out, err = _run_main(["x", str(synthetic_repo)])
+    assert code == 0, f"the fixture tree is clean; stdout={out!r} stderr={err!r}"
+    assert err == ""
+    assert out == _summary(len(shippable), 0) + "\n", (
+        "the default run must report the WIDER count; an index-only default would have "
+        f"said {len(index)}. Got {out!r}"
+    )
