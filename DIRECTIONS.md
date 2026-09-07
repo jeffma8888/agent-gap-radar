@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-122
+    lenses: integration-and-adoption (iteration 122), simplification-and-deletion
+    - Candidate A1 -- `radar taxonomy` is the only verb with no machine surface, and it is the verb the contract tells a gate to read
+    - Candidate A2 -- the deep per-record view has no machine surface, while a per-gap gate now exists
+    - Candidate A3 -- the product sells byte-stable output "so reports can be committed and diffed" and commits zero derived artifacts
+    - Candidate B1 -- three hand-spelled copies of the locator rule survive in `tools/`, in two dialects that disagree with iteration 121's shared predicate on 7 of 13 register-legal locators
+    - Candidate B2 -- `PRODUCT.md` is 227,194 chars, rows 64 and 70 are two open rows for one defect, and both carry composition figures the file has outgrown
+    - Candidate B3 -- the confidence floor is hand-typed three more times in `src/`, and a measurement refutes the reason iteration 117 gave for leaving it that way
+    winner: B1
+    ship: pending (not yet decided)
   iter-121
     lenses: hardening/DX, integration-and-adoption (iteration 121)
     - Candidate A1 -- the "resolvable locator" clause of the quality bar is enforced at ONE of the two doors the register is fed through, and the schema is the one that skips it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `list --json` is the PM block's feed, and the ONE partition the contract forbids a consumer to guess is the one the payload makes them guess
     - Candidate B3 -- `--gaps` defaults to `.`, so the invocation the neighbour's doc publishes returns a clean-looking all-zero census with exit 0 from any cwd
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 0af2fb9
   iter-120
     lenses: new-capability, hardening/DX
     - Candidate A1 -- re-land iteration 119: the corroboration denominator, and the `show --json` twin it rides on, which HEAD does not have
@@ -854,4 +864,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-86 scouted iterations
+87 scouted iterations

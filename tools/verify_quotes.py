@@ -64,6 +64,19 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 
+# Same shim shape as `tools/promote.py:46`, and for the same reason: this file is
+# run as a script from the repo root, so the package is not importable without it.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+# The ONE locator rule in this product. This file used to spell its own, three times:
+# a `startswith` scheme test that ADMITS four shapes the ingest gate refuses (a bare
+# scheme with no host, an embedded space, an embedded newline, a trailing space). Each
+# entered the fetch set, could not be fetched, and became `deferred` -- which the
+# module docstring above defines as deliberately NOT a verdict -- so a record
+# `promote.py` can never accept was retried forever instead of quarantined. Same
+# argument as the single `_norm` below: two spellings of one rule cost real time twice.
+from agent_gap_radar.models import is_resolvable_locator  # noqa: E402
+
 UA = "Mozilla/5.0 (compatible; agent-gap-radar quote verifier)"
 TIMEOUT = 30
 #: Words of the quote that must appear contiguously for a PARTIAL pass. A quote
@@ -355,7 +368,7 @@ def partition(
         ev["locator"]
         for _, gap in loaded
         for ev in gap["evidence"]
-        if ev["locator"].startswith(("http://", "https://"))
+        if is_resolvable_locator(ev["locator"])
     })
     print(f"{len(loaded)} judgeable record(s), {len(malformed)} malformed, "
           f"{len(urls)} unique page(s) to fetch")
@@ -373,7 +386,7 @@ def partition(
         verdicts = []
         for ev in gap["evidence"]:
             url, quote = ev["locator"], ev["quote"]
-            if not url.startswith(("http://", "https://")):
+            if not is_resolvable_locator(url):
                 verdicts.append((NOT_FOUND, url, quote))
             else:
                 verdicts.append((classify(quote, pages.get(url)), url, quote))
@@ -449,7 +462,7 @@ def verify(records: list[tuple[str, dict]], fetch: _FetchFn | None = None) -> in
     for name, gap in records:
         for ev in gap.get("evidence", []):
             url, quote = ev.get("locator", ""), ev.get("quote", "")
-            if not url.startswith(("http://", "https://")):
+            if not is_resolvable_locator(url):
                 missing += 1
                 problems.append(f"{name}: locator is not a URL: {url!r}")
                 continue
