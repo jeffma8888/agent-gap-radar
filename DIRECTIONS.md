@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-124
+    lenses: performance-and-throughput (iteration 124), narrative-and-docs
+    - Candidate A1 -- the 23 patterns that prove NOTHING are the largest single remaining term: 3,218 passes, 2.470 s, 23.6% of the regex wall
+    - Candidate A2 -- row 106 as filed: the per-alternative literal DNF, the one measured AND prototyped perf prize still open
+    - Candidate A3 -- the census prices the PROOF and never the PASS, so the 86% term has no committed instrument and this scout hand-rolled one again
+    - Candidate B1 -- the research contract prints an "unconditional" promise that a live promote path breaks, and the only brake on it checks the PROSE
+    - Candidate B2 -- the front door enumerates the scan flag surface one flag per line and omits the one iteration 120 shipped
+    - Candidate B3 -- the public README asserts byte-equality with a file in another repo, and the claim is measurably false
+    winner: B1
+    ship: pending (not yet decided)
   iter-123
     lenses: simplification-and-deletion, performance-and-throughput (iteration 123)
     - Candidate A1 -- 42 test modules hand-copy the register's record shape; the largest identical cluster (18) becomes ONE fixture factory
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 35, re-measured: the duplicate-evaluation premise has GROWN from 19.6% to 24.9%, and the row's own memo key has a dead third component
     - Candidate B3 -- six shipped performance rows, zero committed instruments: land the deterministic scan cost census
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED 668b495
   iter-122
     lenses: integration-and-adoption (iteration 122), simplification-and-deletion
     - Candidate A1 -- `radar taxonomy` is the only verb with no machine surface, and it is the verb the contract tells a gate to read
@@ -874,4 +884,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-88 scouted iterations
+89 scouted iterations

@@ -416,7 +416,22 @@ def _promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool,
                 print(f"  (unparseable)  {cpath.name}")
             else:
                 print(f"  c{confidence(cgap)} p{priority(cgap):>4}  {cpath.name}")
-        return 0
+        # NO early return here, deliberately: this branch FALLS THROUGH to the one summary
+        # emitter at the bottom, exactly as the vacuous branch above does. The contract
+        # this tool is governed by (research/CANDIDATE_CONTRACT.md) promises the census
+        # and the summary UNCONDITIONALLY, because an unattended caller reads a missing
+        # summary as proof the tool died -- and capacity is the ONE outcome where a whole
+        # batch survives un-promoted and a human MUST intervene, i.e. the moment that
+        # promise most needs to be believed. Returning needed no replacement code: `room`
+        # is already <= 0 at capacity, so `budget` is 0, the accept loop breaks on its
+        # first iteration, nothing is written, and the emitter reports both counts at
+        # zero with the whole inbox left for a later pass. That sentence deliberately
+        # avoids SPELLING the summary format substring: iteration 22's census counts that
+        # literal over this whole file and a comment quoting it reads as a second emitter.
+        #
+        # A LEXICAL one-emitter census cannot see a return that jumps OVER the emitter,
+        # which is how this defect outlived the roadmap row that named it, so the pin is
+        # structural: this function holds exactly ONE `return`, and it is its last line.
 
     room = (register_cap - len(existing)) if register_cap else len(candidates)
     budget = max(0, min(limit or len(candidates), room, len(candidates)))

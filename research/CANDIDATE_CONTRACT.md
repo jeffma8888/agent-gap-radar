@@ -178,7 +178,22 @@ ran this against is the one failure this process cannot absorb.
 Every run opens with a census — `examined N candidates in <inbox>` — and closes with
 `N accepted, M rejected`, an empty inbox included. Both lines are unconditional on purpose:
 an unattended caller reads a missing summary as proof the tool died, so the census is what
-keeps "there was nothing to do" distinguishable from a crash.
+keeps "there was nothing to do" distinguishable from a crash. That holds on the capacity
+path too, which is the only outcome that prints neither an `ACCEPT` nor a `REJECT` line for
+anybody.
+
+`--register-cap N` refuses to grow the register past N records. When the register is already
+at that ceiling the run announces `REGISTER AT CAPACITY`, ranks the strongest waiting
+candidates for whoever reads the log, discards nothing, writes nothing, and still closes with
+its summary at exit 0, both counts zero and every candidate reported as
+`left for a later pass`. The same phrase appears with a non-zero accepted count whenever
+`--limit N` stops a pass after N acceptances. **A candidate counted as
+`left for a later pass` was neither accepted NOR rejected.** Nothing was decided about it:
+its file is still in the inbox, no reason file is written for it under the rejected
+directory, and a later pass will judge it unchanged. So a run that does not carry your own
+filename on an `ACCEPT` line has not necessarily refused you -- read the summary before you
+rewrite anything, because rewriting a candidate that was merely deferred is how a research
+pass loses good work.
 
 Before you even write a candidate, check whether the register already covers it, by
 pointing the existing checks at your own fixtures:
