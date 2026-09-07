@@ -169,10 +169,42 @@ def test_rejects_evidence_that_is_only_model_output(tmp_path):
 
 
 def test_rejects_non_url_locator(tmp_path):
+    """RE-BASELINED BY ITERATION 121, deliberately: this gate's own literal is still
+    pinned, on the case that still reaches it.
+
+    Iteration 121 lifted this gate's predicate onto `Gap` as a RECORD-level rule, and
+    `Gap.model_validate` runs BEFORE `_gate_evidence`, so an ALL-non-URL candidate is now
+    refused by the schema and never reaches this message. The gate is strictly STRONGER
+    than the schema -- EVERY citation must be a URL here, at least ONE there -- so the
+    MIXED candidate below is the case only this gate refuses, which makes it the honest
+    known-bad sample for this refusal path. The preempted arm is pinned by
+    `test_rejects_an_all_non_url_candidate_at_the_schema_door`, so the inbox path keeps a
+    two-sided refusal and nothing about this change is silent.
+    """
+    doc = _candidate()
+    doc["evidence"][0]["locator"] = "a blog post I remember reading"
+    doc["evidence"].append({
+        "source_class": "vendor-primary",
+        "title": "A second page that was actually fetched",
+        "locator": "https://example.com/b",
+        "date": "2026-01-01",
+        "quote": "one two three four five six seven",
+    })
+    out = _run(tmp_path, {"c.json": doc})
+    assert "REJECT" in out and "not a fetchable URL" in out, out
+
+
+def test_rejects_an_all_non_url_candidate_at_the_schema_door(tmp_path):
+    """The other arm of iteration 121's re-baseline: the candidate whose ONLY citation is
+    a non-URL locator is STILL refused, and the inbox still never admits it -- only the
+    reason moved, from this gate's literal to the schema's record-level locator rule.
+    Pinned here so that user-visible string is a stated behavior rather than a surprise.
+    """
     doc = _candidate()
     doc["evidence"][0]["locator"] = "a blog post I remember reading"
     out = _run(tmp_path, {"c.json": doc})
-    assert "REJECT" in out and "not a fetchable URL" in out, out
+    assert "REJECT" in out, out
+    assert "locator" in out, out
 
 
 def test_rejects_quote_too_short_to_be_a_real_excerpt(tmp_path):

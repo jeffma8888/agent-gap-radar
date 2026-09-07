@@ -43,7 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from agent_gap_radar.checks import Verdict, run_check  # noqa: E402
-from agent_gap_radar.models import Gap  # noqa: E402
+from agent_gap_radar.models import Gap, is_resolvable_locator  # noqa: E402
 from agent_gap_radar.registry import load_all  # noqa: E402
 from agent_gap_radar.scoring import confidence, priority  # noqa: E402
 from agent_gap_radar.taxonomy import SOURCE_WEIGHTS  # noqa: E402
@@ -83,7 +83,11 @@ def _gate_evidence(gap: Gap) -> None:
             f"({sorted(weights)}): the claim rests on nothing checkable"
         )
     for e in gap.evidence:
-        if not re.match(r"https?://\S+$", e.locator):
+        # The predicate itself now lives in `models.is_resolvable_locator`, which
+        # iteration 121 lifted verbatim FROM this line. This gate is unchanged in
+        # behavior -- same regex, same anchoring, EVERY citation still required to
+        # be a URL -- it simply no longer keeps a second copy of the rule.
+        if not is_resolvable_locator(e.locator):
             raise Rejected(f"locator is not a fetchable URL: {e.locator!r}")
         if len(e.quote.split()) < 6:
             raise Rejected(

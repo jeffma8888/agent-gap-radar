@@ -19,6 +19,26 @@ RULE_KINDS = frozenset({
 
 GAP_ID_RE = re.compile(r"^GAP-\d{3}$")
 
+# The ONE definition of a resolvable locator in this product. Lifted verbatim from
+# `tools/promote.py`'s ingest gate, which iteration 121 named AUTHORITATIVE for the
+# record-level promise, and which now calls this instead of holding its own copy --
+# two doors with two spellings of one rule is how the register grew two standards in
+# the first place. `re.match` + a trailing `$` (not `fullmatch`) is deliberate: it is
+# byte-for-byte the predicate the ingest gate has always applied, so sharing it moves
+# nothing that promote already accepted or rejected.
+RESOLVABLE_LOCATOR_RE = re.compile(r"https?://\S+$")
+
+
+def is_resolvable_locator(locator: str) -> bool:
+    """True when `locator` has the SHAPE a reader can dereference.
+
+    SHAPE only, never a dereference: the offline bar forbids network access, so this
+    cannot and does not tell a live URL from a 404. It answers the narrower question
+    the register actually needs -- "could a reader even try?" -- which is what makes a
+    DERIVED confidence auditable.
+    """
+    return bool(RESOLVABLE_LOCATOR_RE.match(locator))
+
 
 class Evidence(BaseModel):
     """One citation supporting a gap. Every field here is checkable by a reader."""
@@ -82,12 +102,16 @@ class Evidence(BaseModel):
         withhold a corroboration point from the DERIVED confidence the whole
         ranking rests on.
 
-        Non-blank and NOTHING stronger, deliberately -- see PRODUCT.md row 57.
-        The three doors a locator passes through disagree on its SHAPE (the
-        ingest gate demands `https?://`, the out-of-band resolver skips a
-        non-URL and still exits 0, and this field's own docstring promises a
-        DOI or a stable local path), so a shape rule here would make two of
-        them wrong: that is a new product promise, not a hardening bite.
+        Non-blank and NOTHING stronger AT THE FIELD LEVEL, deliberately. The
+        SHAPE rule the quality bar names lives one level up, on the RECORD:
+        `Gap._one_citation_is_resolvable`. Iteration 121 settled row 57 by
+        naming `tools/promote.py`'s `https?://\\S+$` authoritative for the
+        record-level promise and leaving this field's rule alone, which is
+        exactly what keeps the other two doors TRUE and is not a retraction of
+        either: this field's advertised "URL, DOI, or a stable local artifact
+        path" still holds, and `tools/check_locators.py` still SKIPs a non-URL
+        locator and still exits 0. A DOI or a stable local path remains a legal
+        locator; it simply may not be a record's ONLY citation.
         """
         if not v.strip():
             raise ValueError("locator must not be empty: a citation without a locator "
@@ -381,3 +405,31 @@ class Gap(BaseModel):
         if v not in STATUSES:
             raise ValueError(f"unknown status {v!r}; allowed: {STATUSES}")
         return v
+
+    @model_validator(mode="after")
+    def _one_citation_is_resolvable(self) -> "Gap":
+        """At least ONE citation must carry a locator a reader can dereference.
+
+        The quality bar makes "at least one citation with a resolvable locator and a
+        verbatim quote" a RECORD-level promise, and until iteration 121 only one of the
+        two doors records arrive through kept it: `tools/promote.py` held a research
+        pass to `https?://\\S+$`, while a hand-committed record in `gaps/` was held only
+        to "not blank". So `radar validate` -- the first verb a CI gate runs -- could
+        certify a register whose evidence nobody can resolve, and a confidence DERIVED
+        from an evidence ladder is only worth as much as the ladder being checkable.
+
+        Deliberately WEAKER than the ingest gate, which demands EVERY citation be a
+        URL: promote governs what a research pass may ADD, the schema governs what the
+        register may HOLD -- including records that predate the gate. One degraded
+        locator among several therefore does not reject the record.
+
+        Measured before installing (120 records, 402 citations, offline): 402 of 402
+        already match, so this changes zero register records and zero rendered bytes.
+        It is a brake on future data, not a repair of present data.
+        """
+        if not any(is_resolvable_locator(e.locator) for e in self.evidence):
+            raise ValueError(
+                f"{self.id}: no citation has a resolvable locator; at least one "
+                "must start http:// or https:// so a reader can check the claim"
+            )
+        return self

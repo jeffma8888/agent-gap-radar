@@ -59,7 +59,7 @@ import types
 import pytest
 
 from agent_gap_radar.cli import main
-from agent_gap_radar.models import Gap
+from agent_gap_radar.models import Evidence, Gap
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scoring import confidence, promotion_options
 
@@ -106,15 +106,32 @@ REAL_CLASSES = tuple(c for c in LADDER_ORDER if LADDER[c] > 0)
 ZERO_CLASSES = tuple(c for c in LADDER_ORDER if LADDER[c] == 0)
 
 
-def _gap(cites, gid: str = "GAP-900", sev: int = 3, freq: int = 3, tract: int = 3) -> Gap:
-    """A schema-valid synthetic record whose citations are (source_class, locator) pairs."""
-    return Gap.model_validate({
+def _gap(cites, gid: str = "GAP-900", sev: int = 3, freq: int = 3, tract: int = 3,
+         *, admit_unresolvable: bool = False) -> Gap:
+    """A schema-valid synthetic record whose citations are (source_class, locator) pairs.
+
+    `admit_unresolvable=True` bypasses schema ADMISSION only, via `Gap.model_construct`.
+    Iteration 121 gave `Gap` a record-level rule requiring at least one citation whose
+    locator has the shape `http(s)://` + non-space, and exactly ONE probe below needs a
+    record whose sole locator is the bare fragment `#s1` -- because its SUBJECT is the
+    distinct-SOURCE count over that citation. Appending a second, resolvable citation
+    there would move that count from 1 to 2 and silently rewrite what the probe measures,
+    so the record is built unvalidated instead. Each citation still passes `Evidence`, so
+    every FIELD-level rule (including the non-blank locator) is still applied.
+    """
+    payload = {
         "id": gid, "title": f"t{gid}", "layer": "orchestration",
         "gap_type": "missing-contract", "problem": "p", "symptom": "s", "why_now": "w",
         "severity": sev, "frequency": freq, "tractability": tract,
         "evidence": [{"source_class": c, "title": "t", "locator": loc,
                       "date": "2026-01-02", "quote": "q"} for c, loc in cites],
-    })
+    }
+    if admit_unresolvable:
+        return Gap.model_construct(
+            **{**payload,
+               "evidence": [Evidence.model_validate(e) for e in payload["evidence"]]}
+        )
+    return Gap.model_validate(payload)
 
 
 def _key(locator: str) -> str:
@@ -355,9 +372,17 @@ def test_the_simulated_citation_counts_as_a_distinct_source():
     `quote` already had, so that record can no longer be loaded at all and the first
     assertion below now pins the refusal instead of building on it.
 
+    AMENDED AGAIN IN ITERATION 121, on the same principle: `Gap` gained a RECORD-level
+    rule requiring at least one citation whose locator is a resolvable `http(s)` URL, so a
+    record whose sole locator is `"#s1"` is no longer ADMITTED either. It is still
+    FIELD-valid, and the probe's subject is the distinct-SOURCE count over that one
+    citation, so the fixture is now built with `admit_unresolvable=True`
+    (`Gap.model_construct`) rather than given a second citation -- a second citation would
+    move the count from 1 to 2 and rewrite what this test measures. See `_gap`.
+
     The property is untouched and still reachable, because a collision needs an empty
     SOURCE KEY and not an empty string: `_key("#s1")` is `""` under behavior 3's own
-    fragment rule, and `"#s1"` is schema-valid. If the probe were keyed on an empty
+    fragment rule, and `"#s1"` is a valid `Evidence.locator`. If the probe were keyed on an empty
     locator too, the two would read as ONE source, corroboration would be refused, and
     the prescription would jump a whole rung -- from the cheapest class to a weight-5
     one -- for a record that in truth needs only a second kind of evidence. That is a
@@ -366,7 +391,7 @@ def test_the_simulated_citation_counts_as_a_distinct_source():
     with pytest.raises(ValueError):  # pydantic's ValidationError IS a ValueError
         _gap((("peer-reviewed", ""),))
     assert _key("#s1") == "", "control: the empty-source-key case must still be reachable"
-    empty_key = _gap((("peer-reviewed", "#s1"),))
+    empty_key = _gap((("peer-reviewed", "#s1"),), admit_unresolvable=True)
     assert promotion_options(empty_key, 5) == _pre_change_promotion_options(empty_key, 5)
     assert promotion_options(empty_key, 5) == ("secondary-summary",)
 

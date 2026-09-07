@@ -87,12 +87,23 @@ def _ev(**over) -> dict:
     return base
 
 
-def _register(root: pathlib.Path, locator: str) -> pathlib.Path:
-    """A throwaway register directory holding one record whose citation has `locator`."""
+def _register(root: pathlib.Path, locator: str, *,
+              also_resolvable: bool = False) -> pathlib.Path:
+    """A throwaway register directory holding one record whose citation has `locator`.
+
+    `also_resolvable=True` appends a SECOND citation carrying `GOOD_LOCATOR`. Iteration
+    121 gave `Gap` a RECORD-level rule -- at least one citation's locator must have the
+    shape `http(s)://` + non-space -- so that is the shape a register whose first citation
+    is a non-URL locator must now take to be admitted at all. See
+    `test_behaviors7and8_non_url_register_still_validates` for why that is a deliberate,
+    named re-baseline of this module rather than a repair.
+    """
     d = root / "gaps"
     d.mkdir(parents=True)
     record = json.loads(json.dumps(RECORD))
     record["evidence"][0]["locator"] = locator
+    if also_resolvable:
+        record["evidence"].append(_ev(locator=GOOD_LOCATOR, title="a second citation"))
     (d / "GAP-001.json").write_text(json.dumps(record), encoding="utf-8")
     return d
 
@@ -240,7 +251,21 @@ def test_behaviors7and8_non_url_locators_stay_accepted(locator):
 
 @pytest.mark.parametrize("locator", ACCEPTED_NON_URL_LOCATORS)
 def test_behaviors7and8_non_url_register_still_validates(tmp_path, capsys, locator):
-    d = _register(tmp_path, locator)
+    """RE-BASELINED BY ITERATION 121, deliberately and by name, so the retirement of this
+    pin is auditable instead of silent.
+
+    Iteration 24 pinned non-URL acceptance at TWO levels: the FIELD (the test above, left
+    byte-identical -- it is the pin that keeps the three doors consistent and it still
+    holds) and the REGISTER (this one). Iteration 121 discharged roadmap row 57 by naming
+    `tools/promote.py`'s `https?://\\S+$` AUTHORITATIVE for the record-level promise and
+    lifting it onto `Gap` as an at-least-ONE-citation rule, so a register whose single
+    record carries a single non-URL citation is now refused on purpose.
+
+    What this case therefore pins is what iteration 121 still promises: a non-URL locator
+    ALONGSIDE a resolvable one is ADMITTED. A bare DOI or a stable local artifact path is
+    still a legal locator -- it simply may not be a record's ONLY citation.
+    """
+    d = _register(tmp_path, locator, also_resolvable=True)
     assert main(["validate", str(d)]) == 0, capsys.readouterr().err
 
 
@@ -365,5 +390,10 @@ def test_roadmap_records_this_iteration_once():
     assert "44" in rows, "roadmap row 44 is missing"
     assert rows["44"].split("|")[3].strip() == "shipped", rows["44"]
     assert "57" in rows, "roadmap row 57 (deferred three-door reconciliation) is missing"
-    assert rows["57"].split("|")[3].strip() == "open", rows["57"]
+    # RE-BASELINED BY ITERATION 121, deliberately: iteration 24 pinned row 57 `open`
+    # because it DEFERRED the three-door reconciliation. Iteration 121 discharged the row
+    # -- promote's `https?://\S+$` named authoritative and lifted onto `Gap` as a
+    # record-level rule -- so `shipped` is now the expectation, and a revert to `open`
+    # would mean that ship was undone.
+    assert rows["57"].split("|")[3].strip() == "shipped", rows["57"]
     assert len([l for l in text.splitlines() if l.startswith("- iter 24 ")]) == 1
