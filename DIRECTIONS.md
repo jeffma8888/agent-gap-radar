@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-123
+    lenses: simplification-and-deletion, performance-and-throughput (iteration 123)
+    - Candidate A1 -- 42 test modules hand-copy the register's record shape; the largest identical cluster (18) becomes ONE fixture factory
+    - Candidate A2 -- the library's LAST code clone: `render.py:151` and `render.py:321`
+    - Candidate A3 -- a superseded doc section in `docs/CONSUMER_CONTRACT.md`
+    - Candidate B1 -- the suite wall is the cost paid most often in this whole product, and `tests/conftest.py` does not exist
+    - Candidate B2 -- roadmap row 35, re-measured: the duplicate-evaluation premise has GROWN from 19.6% to 24.9%, and the row's own memo key has a dead third component
+    - Candidate B3 -- six shipped performance rows, zero committed instruments: land the deterministic scan cost census
+    winner: B3
+    ship: pending (not yet decided)
   iter-122
     lenses: integration-and-adoption (iteration 122), simplification-and-deletion
     - Candidate A1 -- `radar taxonomy` is the only verb with no machine surface, and it is the verb the contract tells a gate to read
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `PRODUCT.md` is 227,194 chars, rows 64 and 70 are two open rows for one defect, and both carry composition figures the file has outgrown
     - Candidate B3 -- the confidence floor is hand-typed three more times in `src/`, and a measurement refutes the reason iteration 117 gave for leaving it that way
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED d126ec7
   iter-121
     lenses: hardening/DX, integration-and-adoption (iteration 121)
     - Candidate A1 -- the "resolvable locator" clause of the quality bar is enforced at ONE of the two doors the register is fed through, and the schema is the one that skips it
@@ -864,4 +874,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-87 scouted iterations
+88 scouted iterations

@@ -129,6 +129,8 @@ Locators are verified out of band, never in the test suite: `python3 tools/check
 
 Offline-first: no network access at runtime or in tests. One runtime dependency (pydantic v2). Deterministic output, so a report can be committed and diffed. Python 3.12+, uv-managed.
 
+Cost claims are re-derived, never remembered: `python3 tools/scan_cost.py --json` counts one real scan -- gap records, content-rule evaluations, file decodes against distinct decoded paths, literal-set proofs, and the distinct evaluation keys under each candidate memo key. It publishes counts and never durations, because a duration is not reproducible on another machine and a committed one decays while still looking precise, and it prints to stdout rather than writing a file, for the same reason.
+
 ## Part of a pipeline
 
 A gap says what is missing; a practice says what to do. The two registers are linked by tag:
