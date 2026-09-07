@@ -83,7 +83,7 @@ EXPECTED_CELLS = [
     "`radar show <ID> [<repo>]`",
     "`radar report [<repo>] [--floor N]`",
     "`radar prd [<repo>] [--gap <ID>] [--project NAME]`",
-    "`radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]`",
+    "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`",
     "`radar diff <old> <new> [--json]`",
     "`radar taxonomy`",
 ]
@@ -279,7 +279,8 @@ def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
     limit is stated in the module docstring: a before/after byte comparison is the
     reviewer's and the final gate's, not a black-box test's.
     """
-    scan_cell = "`radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]`"
+    scan_cell = ("`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--prd] "
+                 "[--exit-code]`")
     assert scan_cell in EXPECTED_CELLS
     pinned = (REPO_ROOT / "tests" / "test_surface_contract_unit.py").read_text(
         encoding="utf-8")
@@ -325,8 +326,8 @@ def test_b4_the_gap_flag_cell_is_the_one_that_costs_a_consumer_something():
 # --- behavior 5: direction B -- required documented as OPTIONAL is refused -------
 
 @pytest.mark.parametrize("verb, old, new", [
-    ("scan", "`radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]`",
-     "`radar scan [<target>] [--gaps R] [--json] [--prd] [--exit-code]`"),
+    ("scan", "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`",
+     "`radar scan [<target>] [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`"),
     ("show", "`radar show <ID> [<repo>]`", "`radar show [<ID>] [<repo>]`"),
 ])
 def test_b5_a_required_argument_documented_as_optional_is_refused(verb, old, new):
@@ -444,8 +445,8 @@ def test_b7_every_planted_known_bad_differs_from_the_committed_document():
         ("`radar report [<repo>] [--floor N]`", "`radar report <repo> [--floor N]`"),
         ("`radar prd [<repo>] [--gap <ID>] [--project NAME]`",
          "`radar prd [<repo>] --gap <ID> [--project NAME]`"),
-        ("`radar scan <target> [--gaps R] [--json] [--prd] [--exit-code]`",
-         "`radar scan [<target>] [--gaps R] [--json] [--prd] [--exit-code]`"),
+        ("`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`",
+         "`radar scan [<target>] [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`"),
         ("`radar show <ID> [<repo>]`", "`radar show [<ID>] [<repo>]`"),
     ]
     for old, new in plants:

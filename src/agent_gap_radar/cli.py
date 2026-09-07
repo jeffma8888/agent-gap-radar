@@ -284,6 +284,30 @@ def _select_layer(gaps: list[Gap], layer: str | None) -> list[Gap]:
     return gaps if layer is None else [gap for gap in gaps if gap.layer == layer]
 
 
+def _select_gap(gaps: list[Gap], gap_id: str | None) -> list[Gap]:
+    """Narrow the record DOMAIN to one named record, or hand it back untouched.
+
+    The `_select_layer` ordering, for the `_select_layer` reason: applied to the LOADED
+    RECORDS, UPSTREAM of `scan()`, so the narrowing is a smaller domain rather than a
+    filter over answers. A domain of one is then indistinguishable from a register of
+    one to everything downstream -- the checks, the floor rule, both renderers -- which
+    is what makes the narrowed finding EQUAL to its unnarrowed twin by construction
+    rather than by test: nothing that could differ ever sees the flag. Filtering
+    `result.findings` after
+    the scan, or the rendered lines after that, would put an omission mechanism
+    DOWNSTREAM of the one rule this register protects, and that is exactly how a
+    below-floor record gets dropped by a filter that never mentions the floor.
+
+    Raising `RegistryError` for an unknown id rather than returning an empty list is
+    the whole safety property: an empty domain scans cleanly, `records_applied` reads
+    0, and a mistyped id would report a target as healthy. `registry.select_one` owns
+    that refusal so its sentence has one construction site package-wide.
+    """
+    from .registry import select_one
+
+    return gaps if gap_id is None else [select_one(gaps, gap_id)]
+
+
 class _PublishedErrorParser(argparse.ArgumentParser):
     """An `ArgumentParser` whose refusals speak the vocabulary this tool publishes.
 
@@ -377,6 +401,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_scan.add_argument("target", help="path to the repository/service to inspect")
     p_scan.add_argument("--gaps", default=".",
                         help="register location (default: current dir)")
+    # `--gap` (a record SELECTION) next to `--gaps` (the register LOCATION) is a
+    # one-character difference, and until iteration 120 `--gap` was a legal
+    # ABBREVIATION of `--gaps`: `radar scan . --gap ./` returned a full-register
+    # document with exit 0. Adding the option string takes that spelling over --
+    # argparse matches an exact option string before it tries any prefix -- so the
+    # rebinding is total and, because an unknown id is refused with exit 2 and an
+    # empty stdout, LOUD. A caller who meant the location gets a refusal naming what
+    # it read as an id, never a silently different document. `--ga` becomes ambiguous
+    # and argparse says so, which is the same loudness one letter earlier.
+    #
+    # `dest="gap_id"` and the flag name are both taken verbatim from `radar prd
+    # --gap`, which has published this selection since iteration 88: one name for one
+    # concept across the CLI, so a consumer that learned it on `prd` does not have to
+    # learn a second spelling here. "gap id" leads the help text because argparse
+    # wraps on whitespace.
+    p_scan.add_argument("--gap", dest="gap_id", default=None,
+                        help="gap id to narrow the scanned register to; the "
+                             "checks of that ONE record are applied, and an "
+                             "unknown id is refused")
     p_scan.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
     # `--prd` and `--exit-code` are MUTUALLY EXCLUSIVE, and argparse enforces it
@@ -515,7 +558,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .prd import render_prd
     from .registry import RegistryError, load_all, load_one
     from .render import document, gap_brief, radar_report
-    from .scan import gate_verdict, render_scan, scan, scan_json, select_for_prd
+    from .scan import (gate_verdict, render_scan, scan, scan_json,
+                       select_for_prd, unanswered)
     from .scoring import CONFIDENCE_FLOOR_DEFAULT, rank
 
     if args.command == "taxonomy":
@@ -551,7 +595,12 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command == "scan":
         directory = _resolve(args.gaps)
         try:
-            gaps = load_all(directory)
+            # Load and narrow inside ONE guard, because both halves refuse in the
+            # same published vocabulary and the narrowing's own miss (`no such gap`)
+            # is a `RegistryError` for exactly that reason. Narrowing here, before
+            # `scan()`, is what keeps the domain -- not the answers -- the thing that
+            # `--gap` changes.
+            gaps = _select_gap(load_all(directory), args.gap_id)
         except RegistryError as exc:
             return _fail(str(exc))
         try:
@@ -598,6 +647,29 @@ def _dispatch(argv: list[str] | None = None) -> int:
                 f"scan applied 0 register records from {directory}, so "
                 "--exit-code has no verdict to report; an all-zero census is "
                 "vacuous, not a clean target -- check the register path")
+        # The SAME refusal as above, for the case that denominator cannot see.
+        # `gate_verdict`'s `None` is derived from `records_applied == 0`, and a
+        # domain narrowed to one record applies 1 record even when that record's
+        # check reached no automated verdict -- so `None` never fires, `False` is
+        # returned, and `False` is published as "this target has no above-floor
+        # PRESENT gap". Deciding it from the FINDING's verdict (via `unanswered`),
+        # never from a second floor comparison, keeps the floor rule's one spelling.
+        #
+        # Gated on `--gap`, and that is a scope decision rather than an oversight:
+        # over the whole register an unanswered record sits beside answered ones and
+        # the gate's verdict is still about the target, so what `--exit-code` returns
+        # for an unnarrowed scan is unchanged to the byte.
+        if args.exit_code and args.gap_id is not None:
+            # At most one element here -- `--gap` narrows to one record -- but joined
+            # rather than indexed, so the line stays true if the domain ever widens.
+            unanswered_ids = ", ".join(gap.id for gap in unanswered(result))
+            if unanswered_ids:
+                return _fail(
+                    f"scan reached no automated verdict for {unanswered_ids}, so "
+                    "--exit-code has no verdict to report: a one-record domain "
+                    "applies 1 record even when its check cannot decide, and 0 "
+                    "would publish a clean gate this scan never earned. Run "
+                    "without --exit-code to read what the scan does say.")
         sys.stdout.write(scan_json(result) if args.json
                          else render_scan(result))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK

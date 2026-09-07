@@ -150,7 +150,8 @@ EXPECTED_SURFACE = {
     "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
     "prd": (["--gap", "--project"], 1, [], ["path"]),
     "report": (["--floor"], 1, [], ["path"]),
-    "scan": (["--exit-code", "--gaps", "--json", "--prd"], 1, ["target"], ["target"]),
+    "scan": (["--exit-code", "--gap", "--gaps", "--json", "--prd"], 1, ["target"],
+             ["target"]),
     "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
     "taxonomy": ([], 0, [], []),
     "validate": ([], 1, [], ["path"]),
@@ -188,6 +189,9 @@ EXPECTED_ARGUMENTS = {
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("target", [], True, None, None),
         ("gaps", ["--gaps"], False, ".", None),
+        # Iteration 120: the per-record domain. Same dest and same flag spelling as
+        # `prd`'s row above, which is the point -- one name for one concept.
+        ("gap_id", ["--gap"], False, None, None),
         ("json", ["--json"], False, False, 0),
         ("prd", ["--prd"], False, False, 0),
         ("exit_code", ["--exit-code"], False, False, 0),

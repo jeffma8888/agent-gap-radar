@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from collections.abc import Iterable
 
 from pydantic import ValidationError
 
@@ -48,8 +49,25 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     return gaps
 
 
-def load_one(directory: pathlib.Path | str, gap_id: str) -> Gap:
-    for gap in load_all(directory):
+def select_one(gaps: Iterable[Gap], gap_id: str) -> Gap:
+    """The one record named `gap_id`, or refuse naming it.
+
+    Split out of `load_one` so a caller that ALREADY holds the register can narrow it
+    without a second full load, and -- the reason it lives here rather than in `cli.py`
+    -- so the sentence `no such gap: X` keeps exactly ONE construction site in this
+    package. `radar prd --gap` and `radar scan --gap` refuse an unknown id with the same
+    bytes because they run the same line, not because two strings happen to agree; a
+    consumer matching that sentence cannot be told two stories about one input.
+
+    Raises rather than returning `None`: every caller here turns the miss into a
+    published `Error: ` line and exit 2, and an ignorable `None` is how a mistyped id
+    silently becomes "the whole register".
+    """
+    for gap in gaps:
         if gap.id == gap_id:
             return gap
     raise RegistryError(f"no such gap: {gap_id}")
+
+
+def load_one(directory: pathlib.Path | str, gap_id: str) -> Gap:
+    return select_one(load_all(directory), gap_id)

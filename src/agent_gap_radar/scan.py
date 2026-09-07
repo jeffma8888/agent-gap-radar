@@ -187,6 +187,47 @@ def gate_verdict(result: ScanResult,
     return select_for_prd(result, confidence_floor).selected is not None
 
 
+#: The verdicts that ANSWER a gate's question about a target. Named positively and
+#: kept beside `unanswered()` so the partition is stated once: PRESENT says the
+#: signature is there, ABSENT says a mitigation was positively found, and
+#: NOT_APPLICABLE says the gap cannot apply here -- three different answers, all of
+#: them answers. `MANUAL` and `UNKNOWN` are the complement by construction, so a
+#: sixth verdict added to `checks.Verdict` lands OUTSIDE this set and is treated as
+#: unanswered until someone argues otherwise, which is the safe default for a set
+#: whose members are allowed to gate a release.
+AUTOMATED_VERDICTS = frozenset(
+    {Verdict.PRESENT, Verdict.ABSENT, Verdict.NOT_APPLICABLE})
+
+
+def unanswered(result: ScanResult) -> list[Gap]:
+    """Every applied record this scan reached no automated verdict for, in scan order.
+
+    TOTAL over the record domain, which is the whole point: a record either produced
+    a finding whose verdict is in `AUTOMATED_VERDICTS`, or it is unanswered -- because
+    its check ran and honestly could not decide (`MANUAL`), because the check could not
+    run or its search was cut (`UNKNOWN`), or because the record declares no check at
+    all and never became a `Finding` (`uncheckable`). All three are the same fact to a
+    consumer asking for a verdict code: nothing was decided about this record.
+
+    WHY a caller needs it even though `gate_verdict` is already three-valued: that
+    function's `None` is derived from `records_applied == 0`, and `records_applied`
+    counts BOTH halves of the partition above. Over the whole register the two rarely
+    coincide, but over a domain narrowed to ONE record the denominator is 1 even when
+    that record's check could not decide -- so `gate_verdict` returns `False`, and
+    `False` is published as "this target has no above-floor PRESENT gap". That is a
+    fail-open: the reassuring reading of an absence of information, which is the exact
+    failure the `None` case was introduced to stop.
+
+    Returns the RECORDS, not a bool and not a message: the caller names them in its own
+    published `Error: ` line, so this module holds no consumer-facing wording. Empty
+    list means every applied record was answered, which is the common case over a
+    whole-register scan of a real target.
+    """
+    return ([f.gap for f in result.findings
+             if f.verdict not in AUTOMATED_VERDICTS]
+            + list(result.uncheckable))
+
+
 def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
     """One finding as a stable object, with its floor status derived in place.
 

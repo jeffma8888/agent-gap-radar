@@ -222,6 +222,20 @@ def _documented(cell: str, verb: str) -> tuple[set[str], int]:
     return options, positionals
 
 
+def _names_flag(text: str, flag: str) -> bool:
+    """Is `flag` named in `text` as a WHOLE option string, not a prefix of a longer one?
+
+    `in` is the wrong predicate for a flag whose spelling is a prefix of another flag on
+    the SAME verb, and `scan` now has that pair: `--gap` (a record id) and `--gaps` (the
+    register location). A substring test answers yes to `--gap` for a text that only ever
+    says `--gaps`, which is fail-open where it ARMS a known-bad and a false negative where
+    it checks a mutation actually removed the flag from the invocation. An option string
+    ends at the first character that cannot continue one, so a flag is named only when the
+    next character is neither a word character nor a dash.
+    """
+    return re.search(re.escape(flag) + r"(?![\w-])", text) is not None
+
+
 # ---------------------------------------------------------------------------
 # the check -- one entry point, so a known-bad fails the same way a real drift does
 # ---------------------------------------------------------------------------
@@ -456,6 +470,10 @@ def test_b3_only_the_first_cell_of_a_row_is_read() -> None:
     Derived, not hand-picked: the sweep below looks for a verb whose first cell names a
     flag that also appears in a LATER cell of the same row. If no such row exists the
     discriminator cannot be armed, and this test says so instead of arming nothing.
+
+    "Names" is `_names_flag`, never `in`: `scan` documents both `--gap` and `--gaps`, so a
+    substring test would arm `--gap` off a prose mention of `--gaps` and would then read
+    the surviving `--gaps` in the mutated invocation as the flag it just deleted.
     """
     armed: list[tuple[str, str]] = []
     _header, rows, _numbers = _surface_table(CONTRACT_TEXT)
@@ -464,7 +482,7 @@ def test_b3_only_the_first_cell_of_a_row_is_read() -> None:
         options, _positionals = _documented(row[0], verb)
         prose = " ".join(row[1:])
         for flag in sorted(options):
-            if flag in prose:
+            if _names_flag(prose, flag):
                 armed.append((verb, flag))
     assert armed, (
         "no row names one of its own flags in its Promise prose, so the fail-open a "
@@ -473,10 +491,10 @@ def test_b3_only_the_first_cell_of_a_row_is_read() -> None:
         mutated = _rewrite_first_cell(CONTRACT_TEXT, verb, _without_flag(verb, flag))
         _header, mutated_rows, _numbers = _surface_table(mutated)
         row = next(r for r in mutated_rows if _invocation_verb(r[0]) == verb)
-        assert flag in " ".join(row[1:]), (
+        assert _names_flag(" ".join(row[1:]), flag), (
             f"{flag} was removed from the row's prose too, so this known-bad no longer "
             "discriminates a first-cell reader from a whole-row reader")
-        assert flag not in row[0], row[0]
+        assert not _names_flag(row[0], flag), row[0]
         assert f"{verb}: option strings missing ['{flag}']" in _refused(mutated)
 
 

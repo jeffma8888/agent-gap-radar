@@ -1,6 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-120
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- re-land iteration 119: the corroboration denominator, and the `show --json` twin it rides on, which HEAD does not have
+    - Candidate A2 -- 120 records, 17 KB of `list`, and no way to LOOK ONE UP: selection exists only over a CLOSED vocabulary
+    - Candidate A3 -- `radar scan` is all-or-nothing, so the gate that owns ONE gap cannot ask about it
+    winner: A3
+    ship: pending (not yet decided)
+  iter-119
+    lenses: narrative-and-docs (iteration 119), new-capability (iteration 119)
+    - Candidate A1 -- a doc-brake declares the roadmap row it discharges, so a fixed row cannot keep reading `open`
+    - Candidate A2 -- three committed gates are named on NO document a reader will open, including the one that enforces the PUBLIC REPO clause
+    - Candidate A3 -- every command line the docs tell a reader to COPY is unparsed, and the one in the research spec is not runnable as written
+    - Candidate B1 -- a target's gap posture cannot be compared to its own past, so the target-side half of the contract's own gate rule has no instrument, and the artifact it tells a gate to diff is 12 lines of noise against 511 lines of signal
+    - Candidate B2 -- the corroboration denominator that makes `confidence` non-trivial reaches no machine surface, so a gate can read the register's core invariant but never audit it
+    - Candidate B3 -- `gap_type` is the register's only closed axis with no census anywhere, and the status vocabulary's terminal half has never held a record
+    winner: B2
+    ship: REVERTED
   iter-118
     lenses: performance-and-throughput, narrative-and-docs (iteration 118)
     - Candidate A1 -- both runs of `\s+git\s+push\b` are mandatory and the extractor keeps only the longer one, so 75% of the register's patterns prefilter on one literal when they could prove several
@@ -10,7 +27,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the contract's `scan --json` key list is braked in ONE direction; its sibling prd list is braked in TWO
     - Candidate B3 -- the `radar scan` contract section's heading promises a debt its own body has discharged, and it restates a 9-record-era census
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 1f549ab
   iter-117
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- the confidence floor default is spelled FOUR times, and the one place that cannot reach the constant is the reason
@@ -827,4 +844,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-83 scouted iterations
+85 scouted iterations
