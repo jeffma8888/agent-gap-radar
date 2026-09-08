@@ -373,8 +373,21 @@ rename cannot fix one surface and leave the other behind.
 `confidence`, `evidence`, `check`, `status`. `status` is read from the register
 record and published verbatim: the prd is the document that enters a build
 loop's prompt, so a `partially-addressed` record must not arrive there looking
-fresh. It is published, not acted on -- the prd verb selects the same record
-whatever the status says.
+fresh.
+
+It is published verbatim AND acted on, at the SELECTION door only. The default
+pick considers only the CITABLE statuses -- the partition `radar taxonomy`
+publishes, derived from the closed status vocabulary and never re-spelled by the
+verb -- so when a register's top-ranked record has been marked as finished, that
+record is not the one selected and the top-ranked citable record is. An explicit
+`--gap` naming a record whose status is terminal is REFUSED rather than silently
+re-pointed at some other record: no document, exit 2, and one `Error: ` line
+naming that id and the status it carries. A register that holds records and
+offers no citable one is refused the same way, and its line names the citable
+vocabulary rather than the confidence floor, because a floor sentence there
+would be false. This is a SELECTION rule and not a display filter: `list`,
+`list --json`, `report` and `show` keep showing every terminal record, and the
+value published here is passed through unchanged whatever it says.
 
 ## `radar ingest` - the reverse direction (NOT PLANNED)
 

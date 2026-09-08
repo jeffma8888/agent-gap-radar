@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-125
+    lenses: narrative-and-docs, new-capability (iteration 125)
+    - Candidate A1 -- the front door tells a contributor which documents are safe to hand-edit, and it is wrong about the two the loop rewrote most recently
+    - Candidate A2 -- the last key enumeration in the consumer contract held in ONE direction, and its expectation is a hand-typed tuple
+    - Candidate A3 -- a register record asserts its own derived confidence in prose, and no door checks it
+    - Candidate B1 -- the register cannot hold a CLOSED gap: `radar prd` builds against a `retired` record at exit 0
+    - Candidate B2 -- roadmap row 86, sliced to ONE record: which other records' evidence does this detector reproduce?
+    - Candidate B3 -- `radar scan --layer L`: the target owner's domain is a layer, and only 1 or 120 records are reachable
+    winner: B1
+    ship: pending (not yet decided)
   iter-124
     lenses: performance-and-throughput (iteration 124), narrative-and-docs
     - Candidate A1 -- the 23 patterns that prove NOTHING are the largest single remaining term: 3,218 passes, 2.470 s, 23.6% of the regex wall
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the front door enumerates the scan flag surface one flag per line and omits the one iteration 120 shipped
     - Candidate B3 -- the public README asserts byte-equality with a file in another repo, and the claim is measurably false
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED f0d4982
   iter-123
     lenses: simplification-and-deletion, performance-and-throughput (iteration 123)
     - Candidate A1 -- 42 test modules hand-copy the register's record shape; the largest identical cluster (18) becomes ONE fixture factory
@@ -884,4 +894,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-89 scouted iterations
+90 scouted iterations

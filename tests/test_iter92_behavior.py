@@ -20,7 +20,11 @@ Structural notes, so this file cannot lie later:
   last. There is no second literal that could drift from the first.
 * **The status vocabulary is IMPORTED, never written down.** `models.STATUSES` drives the
   per-status table, so a future status lands in these tests without an edit and a removed
-  one reds them.
+  one reds them. Iteration 125 SPLIT that table at the `prd --gap` door -- citable statuses
+  select, terminal ones are refused -- and both sides are imported the same way, from
+  `taxonomy.citable_statuses()` / `terminal_statuses()`. The all-four-statuses pass-through
+  claim was re-homed on the `scan --prd` door, which that iteration leaves deliberately
+  ungated, so no status lost its coverage.
 * **Every fixture asserts its own premise.** The `UNKNOWN` case asserts the SAME fixture
   returns a different verdict uncut, so "UNKNOWN" is attributable to the truncated domain
   rather than to a typo in a marker. The `MANUAL` case asserts the verdict it claims. The
@@ -58,6 +62,7 @@ from agent_gap_radar.cli import main
 from agent_gap_radar.models import STATUSES
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scan import scan, scan_json
+from agent_gap_radar.taxonomy import citable_statuses, terminal_statuses
 from test_iter02_behavior import MARKER, _record, _target, _write_register
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -96,6 +101,18 @@ LIST_RECORD_KEYS = ["gap_id", "title", "layer", "gap_type", "status", "priority"
 DEFAULT_STATUS = "open"
 #: A status that is valid, stored, and not the default. Asserted to be in `STATUSES`.
 OTHER_STATUS = "partially-addressed"
+
+#: Iteration 125 split this vocabulary AT THE `prd --gap` DOOR: a citable record is still
+#: selectable there, a terminal one is refused with exit 2. Both sides are IMPORTED and
+#: derived from the same `STATUSES` partition rather than written down, so the header's
+#: "a future status lands in these tests without an edit" claim survives the split.
+#: Snapshotted at import because `pytest.mark.parametrize` needs its values at COLLECTION
+#: time; the patched-vocabulary case belongs to iteration 125's own tests, not to this
+#: module, so a snapshot is honest here. `test_premise_...` below asserts the partition is
+#: exhaustive and that NEITHER side is empty -- an empty side would silently collect zero
+#: cases instead of failing.
+CITABLE_STATUSES = citable_statuses()
+TERMINAL_STATUSES = terminal_statuses()
 
 #: Behavior 6. The frozen table, pinned by its ROW KEYS and by the one row this iteration
 #: is about, so a rename, a removal or a reorder reds here after the commit lands too.
@@ -219,6 +236,13 @@ def test_premise_the_status_vocabulary_is_what_this_file_assumes():
     assert DEFAULT_STATUS in STATUSES, STATUSES
     assert OTHER_STATUS in STATUSES, STATUSES
     assert DEFAULT_STATUS != OTHER_STATUS
+    # The iteration-125 split, premised the same way: exhaustive over `STATUSES`, disjoint,
+    # and NEITHER side empty -- an empty side makes a parametrized table below collect zero
+    # cases, which reads as green.
+    assert set(CITABLE_STATUSES) | set(TERMINAL_STATUSES) == set(STATUSES), STATUSES
+    assert not set(CITABLE_STATUSES) & set(TERMINAL_STATUSES), CITABLE_STATUSES
+    assert CITABLE_STATUSES and TERMINAL_STATUSES, (CITABLE_STATUSES, TERMINAL_STATUSES)
+    assert DEFAULT_STATUS in CITABLE_STATUSES, CITABLE_STATUSES
 
 
 # ---------------------------------------------------------------------------
@@ -380,25 +404,84 @@ def test_b3_scan_prd_source_gap_carries_the_eight_keys_in_order(tmp_path, target
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("status", STATUSES)
+@pytest.mark.parametrize("status", CITABLE_STATUSES)
 def test_b4_prd_gap_publishes_the_stored_status_verbatim(status, tmp_path, capsys):
+    """NARROWED FROM `STATUSES` IN ITERATION 125, which gated this door on the partition.
+
+    `prd --gap` now REFUSES a record carrying a terminal status (exit 2, one `Error: `
+    line), so sweeping all four values through THIS door pins the opposite of a shipped
+    product decision. What narrowed is the VEHICLE, not iteration 92's claim: the docstring
+    below still says "publishing is not selecting", and the claim keeps both halves of the
+    vocabulary, split across three tables instead of one --
+
+    * this test: every CITABLE status is published verbatim at exit 0;
+    * `test_b4_scan_prd_publishes_every_stored_status_verbatim`: all FOUR, through the
+      `scan --prd` door iteration 125 leaves deliberately ungated;
+    * `test_b4_prd_gap_refuses_a_terminal_record`: the new refusal, so the narrowing
+      records what IS true and not only what stopped being true.
+
+    The value stays DERIVED, never a literal, so a fifth status lands here without an edit.
+    """
     reg = _reg(tmp_path, f"b4-{status}", [_with_status(TOP, status)])
     _raw, doc, rc, err = _cli_prd(["prd", str(reg), "--gap", "GAP-500"], capsys)
     assert rc == 0, err
     assert doc["sourceGap"]["status"] == status, doc["sourceGap"]["status"]
 
 
+@pytest.mark.parametrize("status", STATUSES)
+def test_b4_scan_prd_publishes_every_stored_status_verbatim(status, tmp_path, target,
+                                                            capsys):
+    """The all-four-statuses pass-through claim, re-homed on the door that still holds it.
+
+    `scan --prd` selects on the TARGET's measured findings rather than on the register's
+    belief, so iteration 125 left it ungated on purpose -- which makes it the door that can
+    still carry the `addressed` and `retired` cases the narrowed table above cannot reach.
+    Same publish-verbatim assertion, and the id assertion keeps the premise honest: the
+    varying record must be the one selected, or nothing is being measured.
+    """
+    reg = _reg(tmp_path, f"b4scan-{status}", [_with_status(TOP, status)])
+    _raw, doc, rc, err = _cli_prd(
+        ["scan", str(target), "--gaps", str(reg), "--prd"], capsys)
+    assert rc == 0, err
+    assert doc["sourceGap"]["id"] == "GAP-500", doc["sourceGap"]["id"]
+    assert doc["sourceGap"]["status"] == status, doc["sourceGap"]["status"]
+
+
+@pytest.mark.parametrize("status", TERMINAL_STATUSES)
+def test_b4_prd_gap_refuses_a_terminal_record(status, tmp_path, capsys):
+    """The complement of the narrowing: the terminal side of the same door, pinned.
+
+    Refusal shape, not wording: exit 2, ZERO stdout bytes, exactly one `Error: `-prefixed
+    stderr line. The verbatim message is iteration 125's own claim to make; what this
+    module owes is that the statuses it stopped sweeping through this door are refused
+    rather than merely absent from a table.
+    """
+    reg = _reg(tmp_path, f"b4term-{status}", [_with_status(TOP, status)])
+    raw, doc, rc, err = _cli_prd(["prd", str(reg), "--gap", "GAP-500"], capsys)
+    assert rc == 2, (rc, err)
+    assert raw == "" and doc is None, raw
+    assert err.startswith("Error: "), err
+    assert err.endswith("\n") and err.count("\n") == 1, err
+
+
 def test_b4_status_changes_no_other_emitted_key_and_no_exit_code(tmp_path, capsys):
-    """Strip the one key and the two documents must be byte-identical."""
+    """Strip the one key and the emitted documents must be byte-identical.
+
+    Looped over `CITABLE_STATUSES` in iteration 125 for the reason above: a terminal record
+    emits no document to strip. The claim is unaffected -- the surviving documents still
+    differ in exactly that one key -- and the premise assertion says so, because with a
+    single citable status the comparison would compare a document with itself.
+    """
+    assert len(CITABLE_STATUSES) >= 2, CITABLE_STATUSES
     docs, codes = {}, {}
-    for status in STATUSES:
+    for status in CITABLE_STATUSES:
         reg = _reg(tmp_path, f"b4strip-{status}", [_with_status(TOP, status)])
         raw, doc, rc, _err = _cli_prd(["prd", str(reg), "--gap", "GAP-500"], capsys)
         codes[status] = rc
         assert doc["sourceGap"].pop("status") == status
         docs[status] = doc
     assert set(codes.values()) == {0}, codes
-    first = docs[STATUSES[0]]
+    first = docs[CITABLE_STATUSES[0]]
     for status, doc in docs.items():
         assert doc == first, status
 

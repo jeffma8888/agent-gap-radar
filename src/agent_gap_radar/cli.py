@@ -308,6 +308,29 @@ def _select_gap(gaps: list[Gap], gap_id: str | None) -> list[Gap]:
     return gaps if gap_id is None else [select_one(gaps, gap_id)]
 
 
+def _citable_domain(gaps: list[Gap]) -> list[Gap]:
+    """Narrow the record DOMAIN to the statuses a build loop may act on.
+
+    The `_select_layer` ordering, for the `_select_layer` reason: applied to the LOADED
+    RECORDS, UPSTREAM of `rank()`, so the narrowing is a smaller domain rather than a
+    filter over answers and row 26's single `_partition()` pass stays the only
+    below-floor predicate in the product.
+
+    WHY a SELECTION verb may narrow at all, when the register's invariant is that a
+    below-floor record is displayed and never silently dropped: that invariant binds the
+    DISPLAY surfaces, and `prd` is not one. It already answers with exactly one record
+    out of the whole register, and already excludes below-floor records from that
+    choice. `list`, `report` and `show` keep showing every terminal record.
+
+    Reads `citable_statuses()` at CALL TIME rather than binding the tuple once: the
+    partition is derived from `STATUSES` minus `TERMINAL_STATUSES`, so a register that
+    grows a fifth status -- or a test that patches either tuple -- must move this
+    domain with it instead of consulting a snapshot taken at import.
+    """
+    citable = citable_statuses()
+    return [gap for gap in gaps if gap.status in citable]
+
+
 class _PublishedErrorParser(argparse.ArgumentParser):
     """An `ArgumentParser` whose refusals speak the vocabulary this tool publishes.
 
@@ -739,8 +762,32 @@ def _dispatch(argv: list[str] | None = None) -> int:
         if args.command == "prd":
             if args.gap_id:
                 gap = load_one(directory, args.gap_id)
+                # The EXCLUDE side names what this refusal is ABOUT, while the
+                # domain filter below names what the selection is FOR; the two
+                # are complements over `STATUSES` by construction, so they
+                # cannot disagree about one record.
+                if gap.status in terminal_statuses():
+                    return _fail(
+                        f"{gap.id} carries the terminal status {gap.status!r}; "
+                        "the work is already done, so no prd is emitted for it")
             else:
-                ranked = rank(gaps)
+                citable = _citable_domain(gaps)
+                # `gaps and` is load-bearing: a register holding ZERO records has
+                # not asserted that anything is finished, so it keeps the floor
+                # sentence it has always answered with. Only a register that holds
+                # records and offers no citable one has made the claim this line
+                # reports back.
+                if gaps and not citable:
+                    # DERIVED, never a second literal copy of the partition: with
+                    # the vocabulary patched, this line names the patched statuses.
+                    # No `(none)` branch, because an empty citable side is
+                    # unreachable here -- `citable_statuses()` is `STATUSES` minus
+                    # the hand-enumerated `TERMINAL_STATUSES`, `open` is not in it,
+                    # and a record whose status is outside `STATUSES` cannot load.
+                    return _fail(
+                        "every gap record carries a terminal status; the citable "
+                        f"statuses are: {', '.join(citable_statuses())}")
+                ranked = rank(citable)
                 if not ranked:
                     return _fail("no gap clears the confidence floor")
                 gap = ranked[0][0]
