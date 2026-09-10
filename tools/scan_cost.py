@@ -22,9 +22,10 @@ NOTHING IS COMMITTED BY THIS TOOL. It writes a document to stdout and never into
 repo. A committed census decays exactly like the stale figures this file exists to
 replace, and it would decay silently, because nothing recomputes it.
 
-THE LIBRARY IS OBSERVED, NEVER CHANGED. The counters are installed by rebinding three
-module globals that `agent_gap_radar.checks` already publishes as substitution seams
-(`evaluate`, `_read`, `required_literals`) and restored in a `finally`, so a scan that
+THE LIBRARY IS OBSERVED, NEVER CHANGED. The counters are installed by rebinding four
+module globals that `agent_gap_radar.checks` already reaches through a CALL-TIME global
+lookup, which is this repo's settled substitution convention (`evaluate`, `_read`,
+`required_literals`, `iter_files`), and restored in a `finally`, so a scan that
 raises cannot leave a counting wrapper installed for the rest of the process. That
 `finally` is not politeness: under `pytest -n auto` a leaked wrapper would keep counting
 into a dead census while every later test in that worker ran through it.
@@ -38,7 +39,7 @@ Usage:
     python3 tools/scan_cost.py [--target DIR] [--gaps DIR] [--json]
 
 Exit codes: 0 the census was emitted, 2 a usage error (a --target or --gaps that is not a
-directory, or a register that will not load).
+directory, a register that will not load, or a register holding zero records).
 """
 
 from __future__ import annotations
@@ -97,13 +98,18 @@ _KEYINGS: tuple[tuple[str, tuple[str, ...]], ...] = (
 #: that agree only while someone keeps them agreeing.
 _GAP_RECORDS = "gap records"
 _EVALUATIONS = "content evaluations"
+_DOMAIN_FILES = "files in content domains"
 _DECODES = "decode calls"
 _DECODED_PATHS = "distinct decoded paths"
 _PROOFS = "literal-set proofs"
 _PROVED_SET = "proofs that proved a set"
 _PROVED_NOTHING = "proofs that proved nothing"
+#: `_DOMAIN_FILES` sits between the evaluation count and the decode count because the
+#: three rows are ONE funnel in that order -- evaluations, the files those evaluations were
+#: handed, the reads they actually made -- and a reader who has to jump a row to compare a
+#: numerator with its denominator infers the amplification instead of being shown it.
 _DOMAIN_LABELS: tuple[str, ...] = (
-    _GAP_RECORDS, _EVALUATIONS, _DECODES, _DECODED_PATHS,
+    _GAP_RECORDS, _EVALUATIONS, _DOMAIN_FILES, _DECODES, _DECODED_PATHS,
     _PROOFS, _PROVED_SET, _PROVED_NOTHING)
 
 #: The two columns of the keying table, also held once and also used as JSON keys.
@@ -129,6 +135,14 @@ class _Counters:
 
     `decoded` holds paths, which is why nothing here is ever rendered: a path is a cache
     key in this module and a leak in a public document.
+
+    `content_domain_files` is a SUM, and `kind_stack` is the whole reason that sum can be
+    ATTRIBUTED: `iter_files` is reached from the content branch and from the
+    `file_exists`/`file_absent` branch, and its arguments do not say which caller asked, so
+    an enumeration is credited to the innermost rule kind `evaluate` is inside -- a kind the
+    evaluation wrapper already holds. A stack and not one field, because `evaluate` recurses
+    through the combinators, so the kind that asked is the LAST one pushed and the frames
+    above it are still open.
     """
 
     evaluation_keys: list[tuple[object, ...]] = dataclasses.field(default_factory=list)
@@ -136,6 +150,8 @@ class _Counters:
     decoded: set[pathlib.Path] = dataclasses.field(default_factory=set)
     literal_proofs: int = 0
     literal_sets: int = 0
+    content_domain_files: int = 0
+    kind_stack: list[object] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -153,7 +169,7 @@ class Census:
 
 @contextlib.contextmanager
 def _observing(counters: _Counters) -> Iterator[None]:
-    """Install counting wrappers over the three `checks` seams, and always restore them.
+    """Install counting wrappers over the four `checks` seams, and always restore them.
 
     The wrappers are installed as MODULE GLOBALS of `checks`, which is this repo's settled
     substitution convention (`checks.py` names it at its own call sites): the content
@@ -172,6 +188,7 @@ def _observing(counters: _Counters) -> Iterator[None]:
     original_evaluate = checks.evaluate
     original_read = checks._read
     original_literals = checks.required_literals
+    original_iter_files = checks.iter_files
 
     def counting_evaluate(rule: dict, target: pathlib.Path,
                           exclude_tests: bool = False, *,
@@ -184,7 +201,15 @@ def _observing(counters: _Counters) -> Iterator[None]:
             counters.evaluation_keys.append((
                 target, kind, rule.get("pattern"), tuple(rule.get("globs") or ()),
                 exclude_tests, boolean_only))
-        return original_evaluate(rule, target, exclude_tests, boolean_only=boolean_only)
+        # The kind stays on the stack for the whole delegation, so an enumeration made
+        # inside this branch is credited to it, and it is popped in a `finally` for the same
+        # reason the seams are restored in one: a rule that raises must not leave its kind
+        # on the stack, crediting the NEXT rule's enumeration to a branch that is over.
+        counters.kind_stack.append(kind)
+        try:
+            return original_evaluate(rule, target, exclude_tests, boolean_only=boolean_only)
+        finally:
+            counters.kind_stack.pop()
 
     def counting_read(path: pathlib.Path) -> str | None:
         # Counts the SEAM's calls, not `_decode`'s: `_read` is memoised inside a scan's
@@ -193,6 +218,18 @@ def _observing(counters: _Counters) -> Iterator[None]:
         counters.decode_calls += 1
         counters.decoded.add(path)
         return original_read(path)
+
+    def counting_iter_files(target: pathlib.Path, globs: list[str],
+                            exclude_tests: bool = False) -> list[pathlib.Path]:
+        files = original_iter_files(target, globs, exclude_tests)
+        if counters.kind_stack and counters.kind_stack[-1] in _CONTENT_KINDS:
+            # The list a content rule's read/regex loop is HANDED, summed over the
+            # evaluations that asked for one. Counted here rather than derived from the
+            # register, because a domain is a fact about the TARGET tree -- two rules
+            # carrying the same globs enumerate the same files, and a static walk of the
+            # records would price that domain once instead of once per evaluation.
+            counters.content_domain_files += len(files)
+        return files
 
     def counting_literals(pattern: str) -> frozenset[str] | None:
         counters.literal_proofs += 1
@@ -204,12 +241,14 @@ def _observing(counters: _Counters) -> Iterator[None]:
     checks.evaluate = counting_evaluate
     checks._read = counting_read
     checks.required_literals = counting_literals
+    checks.iter_files = counting_iter_files
     try:
         yield
     finally:
         checks.evaluate = original_evaluate
         checks._read = original_read
         checks.required_literals = original_literals
+        checks.iter_files = original_iter_files
 
 
 def _tally(gap_records: int, counters: _Counters) -> Census:
@@ -226,6 +265,7 @@ def _tally(gap_records: int, counters: _Counters) -> Census:
     domain = {
         _GAP_RECORDS: gap_records,
         _EVALUATIONS: evaluations,
+        _DOMAIN_FILES: counters.content_domain_files,
         _DECODES: counters.decode_calls,
         _DECODED_PATHS: len(counters.decoded),
         _PROOFS: counters.literal_proofs,
@@ -260,8 +300,22 @@ def census(target: pathlib.Path | str, gaps_dir: pathlib.Path | str,
     Raises whatever the register loader or the scan raises. Refusing to swallow is the
     point: a census over a register that half-loaded, or over a scan that died in the
     middle, is a smaller set of counts printed with the same authority as a complete one.
+
+    A register holding ZERO records is refused by the same argument, one step further in,
+    and the refusal is HERE rather than in `main` so that every caller of the library gets
+    it. An empty register yields a census whose every count is `0` at exit 0, and each
+    property this document publishes then holds VACUOUSLY -- `duplicate calls` is `0 - 0`
+    under all four keyings, and the complete key "dominates" every degraded one by tying
+    with it -- so an all-zero census is indistinguishable from a scan that genuinely had no
+    work to do, while carrying the authority of a real measurement. It is also the shape a
+    reader hits by accident: `--gaps` resolves under `--target`, so pointing it at a tree
+    whose records live elsewhere loads nothing at all. The message names no path, because
+    this repository is public and a register argument is an absolute path in most hands.
     """
     gaps = registry.load_all(gaps_dir)
+    if not gaps:
+        raise ValueError("no gap records in the register: a census over zero records "
+                         "counts zero of everything, which reads as a clean scan")
     counters = _Counters()
     fn = scan_fn or scan
     with _observing(counters):
@@ -281,6 +335,11 @@ def render_markdown(result: Census) -> str:
         "Counts from one scan of one target against one register. No value below is a "
         "duration: a duration is not reproducible on another machine, so a committed one "
         "decays while still looking precise.", "",
+        "The domain row is the total its content read loops were HANDED, so it bounds the "
+        "decode row beneath it, and the difference between the two is what the first-hit "
+        "exit and the file cap never reached -- NOT what the decode memo saved. A memo hit "
+        "is a call that was still made, so the memo's saving is the decode row read "
+        "against the distinct-path row.", "",
     ]
     lines += render.table(
         ["fact", "count"],

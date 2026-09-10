@@ -1,6 +1,13 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-202
+    lenses: performance-and-throughput (iteration 202)
+    - Candidate A1 -- one import block serves eight verbs, so `radar taxonomy` pays 93 ms of pydantic for a document derived from a stdlib-only module
+    - Candidate A2 -- the register's 506 detection patterns are compiled at load by a schema gate, then compiled again by the only consumer, under a different flag
+    - Candidate A3 -- `radar scan` decodes 23,195 times to cover 255 files, and the literal prefilter now proves a set for 226 of 254 evaluations, so the remaining regex prize is 11% of the passes and shrinking
+    winner: A3
+    ship: pending (not yet decided)
   iter-125
     lenses: narrative-and-docs, new-capability (iteration 125)
     - Candidate A1 -- the front door tells a contributor which documents are safe to hand-edit, and it is wrong about the two the loop rewrote most recently
@@ -10,7 +17,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 86, sliced to ONE record: which other records' evidence does this detector reproduce?
     - Candidate B3 -- `radar scan --layer L`: the target owner's domain is a layer, and only 1 or 120 records are reachable
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 3111a38
   iter-124
     lenses: performance-and-throughput (iteration 124), narrative-and-docs
     - Candidate A1 -- the 23 patterns that prove NOTHING are the largest single remaining term: 3,218 passes, 2.470 s, 23.6% of the regex wall
@@ -894,4 +901,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-90 scouted iterations
+91 scouted iterations
