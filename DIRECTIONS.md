@@ -1,13 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-203
+    lenses: narrative-and-docs, new-capability (iteration 203)
+    - Candidate A1 -- the front door's census enumeration is missing the row iteration 202 shipped, and the gate that owned the item declined it in writing
+    - Candidate A2 -- roadmap row 80 bite 2: the README publishes four of the inbox gate's five refusals, and the sixth is published nowhere
+    - Candidate A3 -- the number that bounds every ABSENT verdict is published in no document a consumer reads
+    - Candidate B1 -- a `scan` verdict cites a locator with no quote, so the tool holds a target to a weaker evidence rule than it holds its own records to
+    - Candidate B2 -- `radar report` publishes a 100-row tag census and no verb can select on it
+    - Candidate B3 -- the build-loop PRD hands the loop a locator and drops the quote the register already validated
+    winner: A3
+    ship: pending (not yet decided)
   iter-202
     lenses: performance-and-throughput (iteration 202)
     - Candidate A1 -- one import block serves eight verbs, so `radar taxonomy` pays 93 ms of pydantic for a document derived from a stdlib-only module
     - Candidate A2 -- the register's 506 detection patterns are compiled at load by a schema gate, then compiled again by the only consumer, under a different flag
     - Candidate A3 -- `radar scan` decodes 23,195 times to cover 255 files, and the literal prefilter now proves a set for 226 of 254 evaluations, so the remaining regex prize is 11% of the passes and shrinking
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED 3a0d1cc
   iter-125
     lenses: narrative-and-docs, new-capability (iteration 125)
     - Candidate A1 -- the front door tells a contributor which documents are safe to hand-edit, and it is wrong about the two the loop rewrote most recently
@@ -901,4 +911,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-91 scouted iterations
+92 scouted iterations

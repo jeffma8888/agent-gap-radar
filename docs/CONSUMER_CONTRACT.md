@@ -267,6 +267,26 @@ misleads with authority. MANUAL is a first-class verdict - where static
 analysis cannot honestly decide, the tool asks a question instead of guessing,
 which is the behaviour a consumer should trust it for.
 
+**The search cap and the one verdict it can change.** A content rule reads at
+most 4000 files per evaluation (`MAX_SCAN_FILES`), and that bound is per rule on
+one record, not per scan and not per target: a rule whose domain is larger
+answers over the head of it. Exactly one verdict transition can follow from that
+cut: ABSENT -> UNKNOWN, and it is the only place the cut is WEIGHED. It fires
+where the gap signature was not found over a domain the cap cut AND a mitigation
+was found -- the case that would otherwise read ABSENT -- because ABSENT is the
+only one of the five verdicts that claims safety, and a claim is only as wide as
+the search behind it. PRESENT, MANUAL and NOT_APPLICABLE are decided WITHOUT
+consulting the cut, so where a rule's own positive is an ABSENCE
+(`content_absent`, `not`) a cut head can read PRESENT where a full read would
+not: the cap can over-report a gap silently, and only ABSENT is protected. The
+mitigation's locators are dropped along with that verdict, on purpose: printed
+beside a verdict that no longer claims safety they read as evidence of safety.
+An UNKNOWN reached this way says the search was incomplete over this target;
+it never says "no gap here". A gate must treat it as un-answered -- the same
+as an UNKNOWN whose check never executed -- and never as a pass; the finding's
+`reason` is where the cut is named, since no payload key separates the two
+causes yet.
+
 **First real target, 2026-08-16: `agent-foundry`** (a 200+-iteration autonomous
 loop whose defects are independently documented, so its ground truth was known
 before the scan ran). Result: 2 PRESENT, 1 ABSENT, 1 NOT_APPLICABLE, 5 MANUAL,
