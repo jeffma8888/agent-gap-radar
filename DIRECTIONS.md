@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-205
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- `radar scan` executes a command the SCANNED repository chooses
+    - Candidate A2 -- `radar prd`'s refusal blames the evidence when the register is EMPTY
+    - Candidate A3 -- the offline guarantee is enforced over 4 of 10 modules, and over none of the declared dependencies
+    - Candidate B1 -- the CI-gate recipe this product publishes has never been pointed at this product, and it FAILS
+    - Candidate B2 -- roadmap row 99: bare `radar` exits 0 with 923 bytes of non-document on stdout
+    - Candidate B3 -- `radar --version` is the only producer stamp a consumer has, and it is on no published surface
+    winner: A1
+    ship: pending (not yet decided)
   iter-204
     lenses: new-capability -- iteration 204, hardening/DX -- iteration 204
     - Candidate A1 -- `radar prd --with-fixtures`: the PRD orders a failing test and withholds the bytes that prove one fails
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the harness that proves this suite can fail scores exit 5 and exit 2 as CAUGHT (roadmap row 89)
     - Candidate B3 -- the ingest door type-checks the `globs` LIST and never an element, so `""` and `/etc/**` are schema-valid (roadmap rows 61 + 62)
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED f5d7f61
   iter-203
     lenses: narrative-and-docs, new-capability (iteration 203)
     - Candidate A1 -- the front door's census enumeration is missing the row iteration 202 shipped, and the gate that owned the item declined it in writing
@@ -921,4 +931,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-93 scouted iterations
+94 scouted iterations

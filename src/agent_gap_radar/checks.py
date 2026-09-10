@@ -40,6 +40,20 @@ SKIP_DIRS = frozenset({
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
     "dist", "build", ".mypy_cache", ".ruff_cache", ".tox", "target",
 })
+#: Git settings the SCANNED repository must not be allowed to choose for us.
+#: `git ls-files` honours the target tree's own `.git/config`, and that tree is
+#: the artifact under inspection, so any setting naming a command git RUNS hands
+#: execution to the data we were asked to judge. `core.fsmonitor` was measured
+#: doing exactly that: a scan of a scratch victim repo ran the target's script,
+#: exited 0 and printed a normal-looking document, silent in both directions --
+#: and pointed at a downloader it would also buy the network access this
+#: product's own contract says a run does not have. Each element is neutralised
+#: by an empty override, which git reads as unset, and `tracked_files` BUILDS
+#: its argv from this tuple, so the pin that EXECUTES and the pin published in
+#: `docs/CONSUMER_CONTRACT.md` cannot drift apart. NOT a completeness claim:
+#: the rest of the hostile-configuration space is unaddressed, and the contract
+#: states that in writing rather than implying coverage it does not have.
+UNTRUSTED_GIT_SETTINGS: tuple[str, ...] = ("core.fsmonitor",)
 
 
 class Verdict(str, enum.Enum):
@@ -99,15 +113,18 @@ def tracked_files(target: pathlib.Path) -> frozenset[pathlib.Path] | None:
     "what is this project", so it is preferred over any hand-maintained skip
     list; the skip list remains the fallback for a non-git target.
 
-    Local subprocess only - this keeps the offline contract (no network).
+    Local subprocess only - this keeps the offline contract (no network), and
+    the invocation is PINNED against the target's own git configuration: see
+    `UNTRUSTED_GIT_SETTINGS` for the settings a scanned tree may not choose.
     """
     key = target.resolve()
     if key in _TRACKED_CACHE:
         return _TRACKED_CACHE[key]
     result: frozenset[pathlib.Path] | None = None
+    pins = [tok for name in UNTRUSTED_GIT_SETTINGS for tok in ("-c", f"{name}=")]
     try:
         proc = subprocess.run(
-            ["git", "-C", str(key), "ls-files", "-z"],
+            ["git", "-C", str(key), *pins, "ls-files", "-z"],
             capture_output=True, timeout=30)
         if proc.returncode == 0:
             names = [n for n in proc.stdout.decode("utf-8", "replace").split("\0") if n]

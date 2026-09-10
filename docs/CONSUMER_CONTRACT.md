@@ -287,6 +287,28 @@ as an UNKNOWN whose check never executed -- and never as a pass; the finding's
 `reason` is where the cut is named, since no payload key separates the two
 causes yet.
 
+**The target's git configuration is not trusted.** Deciding what a target
+SHIPS means asking `git ls-files` what it tracks, and git honours the
+configuration of the tree it is pointed at -- which here is the artifact under
+inspection. A setting there naming a command git RUNS is therefore a command the
+SCANNED repository chooses for us, and that was measured rather than theorised: a
+scratch repo whose config named a script had that script EXECUTED by a scan which
+then exited 0, wrote zero bytes to stderr and printed a normal-looking document,
+so no verdict, byte count or exit code betrayed it; pointed at a downloader, the
+same setting buys the network access this contract says a run does not have. The
+invocation is now pinned with an empty override per setting, BUILT from one
+published list (`checks.UNTRUSTED_GIT_SETTINGS`) instead of typed twice, so what
+executes and what is documented here cannot drift.
+The settings neutralised are exactly these: `core.fsmonitor`.
+Only the settings named there are neutralised and the list is NOT claimed to be
+complete -- git has further settings, includes and environment variables that can
+name a command or redirect a lookup, they are unaddressed today, and a consumer
+scanning a repository it does not trust should assume that reading that
+repository can still run code from it. Safety is not bought with correctness
+either: the pinned call still resolves the tracked set, never falling back to the
+hand-maintained skip list, so the scanned domain does not widen and an honest
+target's document is byte-identical before and after.
+
 **First real target, 2026-08-16: `agent-foundry`** (a 200+-iteration autonomous
 loop whose defects are independently documented, so its ground truth was known
 before the scan ran). Result: 2 PRESENT, 1 ABSENT, 1 NOT_APPLICABLE, 5 MANUAL,
