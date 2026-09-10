@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-206
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `list --json` publishes the retraction counterfactual iteration 204 stranded on the one verb with no machine surface
+    - Candidate A2 -- the front door names 4 of the 9 flags the CLI accepts, and two of the three machine surfaces are invisible on it
+    - Candidate A3 -- the contract points a machine gate at a markdown heading: `radar taxonomy` is the only verb with no machine surface
+    - Candidate B1 -- the three census sections in `render.py` are one skeleton hand-copied three times, including a three-line comment written verbatim three times
+    - Candidate B2 -- the quality bar's `Error: ` rule has ONE canonical emitter and 20 hand-spelled copies in `tools/`, in two dialects
+    - Candidate B3 -- three of the seven tools hand-parse `sys.argv` instead of using the argparse the other four already use
+    winner: B2
+    ship: pending (not yet decided)
   iter-205
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `radar scan` executes a command the SCANNED repository chooses
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 99: bare `radar` exits 0 with 923 bytes of non-document on stdout
     - Candidate B3 -- `radar --version` is the only producer stamp a consumer has, and it is on no published surface
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 9a0ce0f
   iter-204
     lenses: new-capability -- iteration 204, hardening/DX -- iteration 204
     - Candidate A1 -- `radar prd --with-fixtures`: the PRD orders a failing test and withholds the bytes that prove one fails
@@ -931,4 +941,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-94 scouted iterations
+95 scouted iterations

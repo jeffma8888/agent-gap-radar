@@ -33,12 +33,19 @@ by content, not assumed.
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import subprocess
 import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
+
+# Same shim shape as `tools/promote.py`, and for the same reason: this file runs as a
+# script from the repo root, so the package is not importable without it.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+# Refusals speak the `Error: ` vocabulary this repo publishes rather than argparse's
+# `<prog>: error: ...`; the class docstring carries the argument.
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -261,7 +268,7 @@ def _sha(text: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = PublishedErrorParser(description=__doc__)
     ap.add_argument("--list", action="store_true", help="name the defects and exit")
     ap.add_argument("--only", help="run one defect by name")
     args = ap.parse_args(argv)

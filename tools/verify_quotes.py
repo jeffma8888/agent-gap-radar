@@ -53,7 +53,6 @@ becomes a space, because collapsing block boundaries would buy a FALSE pass in e
 
 from __future__ import annotations
 
-import argparse
 import html
 import json
 import pathlib
@@ -67,6 +66,10 @@ from collections.abc import Callable
 # Same shim shape as `tools/promote.py:46`, and for the same reason: this file is
 # run as a script from the repo root, so the package is not importable without it.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+# Refusals speak the `Error: ` vocabulary this repo publishes rather than argparse's
+# `<prog>: error: ...`; the class docstring carries the argument.
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
 
 # The ONE locator rule in this product. This file used to spell its own, three times:
 # a `startswith` scheme test that ADMITS four shapes the ingest gate refuses (a bare
@@ -505,7 +508,7 @@ def verify(records: list[tuple[str, dict]], fetch: _FetchFn | None = None) -> in
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = PublishedErrorParser(description=__doc__.splitlines()[0])
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--gaps", type=pathlib.Path, help="a register directory")
     src.add_argument("--inbox", type=pathlib.Path, help="a candidate inbox")

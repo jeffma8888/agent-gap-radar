@@ -32,7 +32,6 @@ which belongs in tools/check_locators.py, out of band.
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import re
@@ -43,6 +42,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from agent_gap_radar.checks import Verdict, run_check  # noqa: E402
+# Refusals speak the `Error: ` vocabulary this repo publishes rather than argparse's
+# `<prog>: error: ...`; the class docstring carries the argument.
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
 from agent_gap_radar.models import Gap, is_resolvable_locator  # noqa: E402
 from agent_gap_radar.registry import load_all  # noqa: E402
 from agent_gap_radar.scoring import confidence, priority  # noqa: E402
@@ -511,7 +513,7 @@ def _promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool,
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = PublishedErrorParser(description=__doc__.splitlines()[0])
     ap.add_argument("--inbox", type=Path, required=True)
     ap.add_argument("--gaps", type=Path, default=Path("gaps"))
     ap.add_argument("--rejected", type=Path)

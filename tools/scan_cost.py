@@ -44,7 +44,6 @@ directory, a register that will not load, or a register holding zero records).
 
 from __future__ import annotations
 
-import argparse
 import contextlib
 import dataclasses
 import pathlib
@@ -54,6 +53,9 @@ from collections.abc import Callable, Iterator
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 
 from agent_gap_radar import checks, registry, render  # noqa: E402  (path set above)
+# Refusals speak the `Error: ` vocabulary this repo publishes rather than argparse's
+# `<prog>: error: ...`; the class docstring carries the argument.
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
 from agent_gap_radar.models import Gap  # noqa: E402
 from agent_gap_radar.registry import RegistryError  # noqa: E402
 from agent_gap_radar.scan import ScanResult, scan  # noqa: E402
@@ -397,7 +399,7 @@ def main(argv: list[str]) -> int:
     depending on where it ran, which would turn the determinism promise above into a claim
     about the shell.
     """
-    parser = argparse.ArgumentParser(
+    parser = PublishedErrorParser(
         prog="scan_cost.py",
         description="Count what one radar scan costs, in counts and never in seconds.")
     parser.add_argument("--target", default=".",

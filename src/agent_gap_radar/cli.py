@@ -96,9 +96,26 @@ EXIT_CODES: tuple[int, ...] = (EXIT_OK, EXIT_GAPS_PRESENT, EXIT_ERROR,
                                EXIT_BROKEN_PIPE)
 
 
-def _fail(msg: str) -> int:
+def fail(msg: str) -> int:
+    """Refuse in the vocabulary this repo publishes: one `Error: ` line, then code 2.
+
+    PUBLIC since iteration 206, because the promise is REPO-wide and not CLI-wide. The
+    quality bar and `docs/CONSUMER_CONTRACT.md` state one rule for any refusal here, and
+    the `tools/` scripts are held to it too -- four of them answered a mistyped invocation
+    in argparse's own `<prog>: error: ...` spelling instead. Exporting this name lets them
+    reach the ONE construction site of the prefix rather than grow a second one; the
+    message after the prefix stays each caller's own words.
+    """
     sys.stderr.write(f"Error: {msg}\n")
     return EXIT_ERROR
+
+
+#: The name this module's OWN refusals resolve at call time, kept deliberately rather than
+#: rewritten to `fail`: a committed test replaces `cli._fail` with a recording wrapper to
+#: prove a structural refusal routes through the single emitter, and that proof is live
+#: only while the call sites look THIS name up -- renaming them would leave the patch a
+#: silent no-op and the routing claim vacuous. One object under two names, never a copy.
+_fail = fail
 
 
 #: Marker appended to a row whose record sits below the confidence floor. A
@@ -331,7 +348,7 @@ def _citable_domain(gaps: list[Gap]) -> list[Gap]:
     return [gap for gap in gaps if gap.status in citable]
 
 
-class _PublishedErrorParser(argparse.ArgumentParser):
+class PublishedErrorParser(argparse.ArgumentParser):
     """An `ArgumentParser` whose refusals speak the vocabulary this tool publishes.
 
     argparse answers a STRUCTURAL refusal -- a missing positional, an unknown verb, an
@@ -353,6 +370,11 @@ class _PublishedErrorParser(argparse.ArgumentParser):
     to `type(self)`, so all eight verbs inherit the override with no per-verb edit and no
     second place to keep in sync -- and a verb added later inherits it by construction
     rather than by someone remembering.
+
+    PUBLIC since iteration 206. The same argument holds for every door this repo owns, and
+    the `tools/` scripts had four argparse parsers answering in argparse's spelling, so
+    they import THIS class instead of each restating the rule -- one override, one emitter,
+    seven scripts. Nothing about the class is CLI-specific: it names no verb and no `prog`.
     """
 
     def error(self, message: str) -> NoReturn:
@@ -374,8 +396,13 @@ class _PublishedErrorParser(argparse.ArgumentParser):
         raise SystemExit(_fail(message))
 
 
+#: The name iteration 109 introduced, kept so every committed reference to the class keeps
+#: resolving -- one class under two names, never a subclass and never a copy.
+_PublishedErrorParser = PublishedErrorParser
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = _PublishedErrorParser(
+    parser = PublishedErrorParser(
         prog="radar",
         description="Evidence-first gap radar for AI agent infrastructure.")
     parser.add_argument("--version", action="version", version=__version__)
