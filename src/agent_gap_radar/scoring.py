@@ -55,23 +55,41 @@ def priority(gap: Gap) -> float:
 _PROBE_LOCATOR = "urn:agent-gap-radar:promotion-probe"
 
 
+def _document_key(locator: str) -> str:
+    """The DOCUMENT a locator names: `#fragment` dropped, a trailing `/` (any run
+    of them) dropped, case-folded.
+
+    Extracted so this register has exactly ONE answer to "are these two locators
+    the same source". Both directions of the derivation call it: `_source_key`,
+    which is what `confidence()`'s independence test keys on, and
+    `confidence_without`, which VOIDS a source. So `.../p`, `.../p/` and `.../P#s2`
+    name one source in the score and in the retraction counterfactual by
+    construction, not because two copies of the rule happen to agree -- and two
+    independently written copies of one invariant is the shape this module has
+    already had to repair twice (the below-floor predicate, the strongest-source
+    ordering), each time after the copies had quietly stopped agreeing.
+    """
+    return locator.split("#", 1)[0].rstrip("/").casefold()
+
+
 def _source_key(citation: object) -> str:
     """Identity of the DOCUMENT a citation points at, for the independence test.
 
     A `#fragment` names a section of the same document and a trailing `/` is the
     same page, so both are dropped and the rest is case-folded: `.../p`, `.../p/`
     and `.../P#s2` are ONE source, which is how one URL arrives from three
-    different readers. Nothing beyond that is merged -- two paths in one repo, or
-    two DOIs on one host, stay DISTINCT sources deliberately, because collapsing
-    a host would WITHHOLD a corroboration point that was honestly earned.
+    different readers. The normalisation itself lives in `_document_key`, shared
+    with `confidence_without` so the two cannot drift apart. Nothing beyond that
+    is merged -- two paths in one repo, or two DOIs on one host, stay DISTINCT
+    sources deliberately, because collapsing a host would WITHHOLD a corroboration
+    point that was honestly earned.
 
     Total on purpose: a citation stand-in carrying no `locator` (see
     `_ClassOnly`) reads as the empty key instead of raising, so `confidence()`
     stays callable on any object with a `source_class`. That default can only
     withhold the point, never grant one, which keeps the failure direction safe.
     """
-    locator = getattr(citation, "locator", "")
-    return locator.split("#", 1)[0].rstrip("/").casefold()
+    return _document_key(getattr(citation, "locator", ""))
 
 
 def distinct_sources(gap: Gap) -> int:
@@ -255,6 +273,39 @@ def promotion_options(gap: Gap, confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
     cheapest = min(SOURCE_WEIGHTS[source_class] for source_class in reachable)
     return tuple(source_class for source_class in reachable
                  if SOURCE_WEIGHTS[source_class] == cheapest)
+
+
+def confidence_without(gap: Gap, locator: str) -> int:
+    """`confidence()` of `gap` as if the SOURCE DOCUMENT at `locator` were voided.
+
+    The LOSS direction of the derivation `promotion_options` answers in the ADD
+    direction, and it is derived the same honest way: drop every citation of that
+    document, wrap the remainder in `_EvidenceOnly`, and let the real
+    `confidence()` score it. No rung weight and no corroboration rule is restated
+    here, so a published fragility number cannot disagree with the score it is a
+    counterfactual about -- replacing `confidence` moves this answer with it.
+
+    Voids a DOCUMENT, not one citation: `_document_key` is the shared
+    normalisation, so three excerpts of one postmortem go together and the number
+    answers "that source was retracted" rather than "that excerpt was deleted".
+    Retraction is how this derivation actually moves in the field, and a record
+    resting on ONE document loses its entire evidentiary basis to a single one --
+    the hazard the report's `## Source concentration` section names and, until
+    this function existed, could not quantify.
+
+    Total and pure like its neighbours: reads no file, opens no socket, raises for
+    no input. A `locator` matching no citation returns `confidence(gap)` unchanged,
+    and a record left with no evidence -- or holding none to begin with -- scores
+    0, which is `confidence()`'s own answer to an empty tuple rather than a special
+    case invented here.
+
+    Feeds no score and enters no ordering: like `distinct_sources`, it is a
+    published FACT about a record, and a fragility number read as a target is the
+    Goodhart shape this register forbids by name.
+    """
+    voided = _document_key(locator)
+    kept = tuple(e for e in gap.evidence if _source_key(e) != voided)
+    return confidence(_EvidenceOnly(kept))
 
 
 def _partition(

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-204
+    lenses: new-capability -- iteration 204, hardening/DX -- iteration 204
+    - Candidate A1 -- `radar prd --with-fixtures`: the PRD orders a failing test and withholds the bytes that prove one fails
+    - Candidate A2 -- the demotion counterfactual: what a record's confidence BECOMES if one cited source is voided
+    - Candidate A3 -- the per-gap brief cannot be produced for a SET, so the layer a builder is about to work in is 28 invocations away
+    - Candidate B1 -- one file over 512 KiB flips the partial-mitigation verdict into the only verdict that claims safety
+    - Candidate B2 -- the harness that proves this suite can fail scores exit 5 and exit 2 as CAUGHT (roadmap row 89)
+    - Candidate B3 -- the ingest door type-checks the `globs` LIST and never an element, so `""` and `/etc/**` are schema-valid (roadmap rows 61 + 62)
+    winner: A2
+    ship: pending (not yet decided)
   iter-203
     lenses: narrative-and-docs, new-capability (iteration 203)
     - Candidate A1 -- the front door's census enumeration is missing the row iteration 202 shipped, and the gate that owned the item declined it in writing
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar report` publishes a 100-row tag census and no verb can select on it
     - Candidate B3 -- the build-loop PRD hands the loop a locator and drops the quote the register already validated
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED 617e331
   iter-202
     lenses: performance-and-throughput (iteration 202)
     - Candidate A1 -- one import block serves eight verbs, so `radar taxonomy` pays 93 ms of pydantic for a document derived from a stdlib-only module
@@ -911,4 +921,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-92 scouted iterations
+93 scouted iterations

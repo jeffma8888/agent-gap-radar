@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 
-from .models import Check, Gap, detectability
-from .scoring import (aged_records, below_floor, confidence, distinct_register_sources,
-                      distinct_sources, distinct_tags, priority, promotion_options, rank,
+from .models import Check, Evidence, Gap, detectability
+from .scoring import (CONFIDENCE_FLOOR_DEFAULT, aged_records, below_floor, confidence,
+                      confidence_without, distinct_register_sources, distinct_sources,
+                      distinct_tags, priority, promotion_options, rank,
                       records_on_shared_source, register_anchor_date, shared_sources,
                       sole_source_records, strongest_source, tag_coverage)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
@@ -516,6 +517,33 @@ def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
+def _without_line(gap: Gap, citation: Evidence) -> str:
+    """The retraction counterfactual for ONE citation: `<N>`, plus a floor warning.
+
+    The register's protected rule is that confidence is DERIVED from evidence, and
+    this register published only the ADD direction of that derivation: what a
+    further source would BUY (`promotion_options`, and the report's `Needs`
+    column). The LOSS direction was nowhere, so the fragility the report's own
+    `## Source concentration` prose names -- a record whose entire evidentiary
+    basis one retraction voids -- could only be found by hand-editing the register.
+    Beside the locator that carries it is where a reader is already looking.
+
+    The number comes from `scoring.confidence_without`, which reaches it only
+    through `confidence()`: this function formats, it does not derive. The floor is
+    read from `CONFIDENCE_FLOOR_DEFAULT` rather than typed in, so the annotation
+    cannot outlive a change to the floor -- the same reason `promotion_options`,
+    `rank` and `below_floor` default to that constant in the scorer. The
+    parenthetical marks ONLY the below-floor case: the bare number is already the
+    full answer for a citation whose loss leaves the record admissible, and a
+    suffix on every line would bury the one thing the annotation exists to make
+    visible, which is the crossing.
+    """
+    without = confidence_without(gap, citation.locator)
+    if without < CONFIDENCE_FLOOR_DEFAULT:
+        return f"{without} (below floor {CONFIDENCE_FLOOR_DEFAULT})"
+    return str(without)
+
+
 def gap_brief(gap: Gap) -> str:
     """The single-gap deep view: everything a builder needs to act on it."""
     lines = [f"# {gap.id}: {gap.title}", ""]
@@ -554,6 +582,7 @@ def gap_brief(gap: Gap) -> str:
                   f"- Source class: `{ev.source_class}`",
                   f"- Date: {ev.date}",
                   f"- Locator: {ev.locator}",
+                  f"- Confidence without this source document: {_without_line(gap, ev)}",
                   "", f"> {ev.quote}", ""]
         if ev.note:
             lines += [ev.note, ""]
