@@ -794,7 +794,11 @@ def evaluate(rule: dict, target: pathlib.Path,
         # repo established seam convention: a test substitutes the extractor to
         # prove that a skip is this guard decision rather than an accident
         # somewhere in the regex path.
-        literals = required_literals(rule["pattern"])
+        #
+        # A DNF, not a flat set: the accessor proves ALL mandatory runs of each
+        # alternative, so `\s+git\s+push\b` skips a file missing EITHER `git`
+        # or `push` where a flat set could only ever test the longer one.
+        literal_sets = required_literal_sets(rule["pattern"])
         # Decided ONCE, above the loop: neither operand can change inside it, and
         # this loop is the exact cost term the flag exists to reduce, so paying for
         # the test per file would spend part of the saving on computing it.
@@ -803,17 +807,25 @@ def evaluate(rule: dict, target: pathlib.Path,
             text = _read(path)
             if text is None:
                 continue
-            if literals is not None:
+            if literal_sets is not None:
                 # Folded once into a local: the membership test below runs once per
                 # literal, and re-deriving the fold inside that loop would pay for
                 # it per literal instead of per file.
                 folded = _folded(path, text)
-                if not any(literal in folded for literal in literals):
-                    # A text holding no member of a MANDATORY set cannot match, so
+                if not any(all(literal in folded for literal in conjunction)
+                           for conjunction in literal_sets):
+                    # `any` over the alternatives and `all` within one of them, and
+                    # neither may be swapped. Top-level alternation is a disjunction,
+                    # so ONE satisfied conjunction is enough to keep the file; the
+                    # members of a single conjunction are each mandatory for that
+                    # alternative, so one missing member rules that alternative out.
+                    #
+                    # A text completing NO conjunction cannot match, so
                     # the regex pass over it is provably wasted. The one-directional
                     # guarantee is the entire safety argument: a match IMPLIES some
-                    # member is present, so a MISSING member is decisive while a
-                    # present one proves nothing. This skip can therefore only ever
+                    # alternative's whole conjunction is present, so an INCOMPLETE
+                    # conjunction is decisive while a complete one proves nothing.
+                    # This skip can therefore only ever
                     # drop a pass that would have found nothing; it cannot turn a
                     # match into a non-match, which is the inverted verdict -- the
                     # false claim of safety -- that this module exists to prevent.
@@ -1333,3 +1345,131 @@ def required_literals(pattern: str) -> frozenset[str] | None:
     `if literals is not None:` would treat as "skip everything".
     """
     return _prove_literals(pattern, 0, False)
+
+
+def _maximal_runs(alternative: str, fold: bool) -> frozenset[str] | None:
+    r"""EVERY mandatory literal run of ONE alternative, redundant ones dropped.
+
+    `_longest_literal_run` proves the same runs and then throws all but one away.
+    Its own docstring states the premise this function acts on: "the two runs of
+    `\s+git\s+push\b` are `git` and `push`, and both are mandatory". Keeping both
+    turns one disjunctive test into a CONJUNCTION -- the file is skipped when
+    EITHER is missing -- and 75.3% of the register's content patterns carry two or
+    more mandatory runs in an alternative, so the discarded runs were most of the
+    filter's reach.
+
+    Every claim is a value `_leading_literal_run` returned for a suffix of this
+    same alternative, which is the whole safety argument: the escape whitelist,
+    the non-ASCII stop, the optional-quantifier drop and the `(?i)` fold stay ONE
+    policy with one copy, and the offsets come from `_run_start_offsets`, which
+    already refuses a group interior, a character class and a `{m,n}` body.
+
+    Two rules shape the set, both about redundancy rather than soundness:
+
+    * A run another kept run strictly CONTAINS is dropped. Every offset of `foo`
+      yields a run (`foo`, `oo`, `o`), and testing the suffixes buys nothing: a
+      text holding `foo` holds all three. Without this the set for a 10-character
+      literal would carry 10 members and pay 10 substring searches per file.
+    * The LEADING run is then re-added unconditionally. `required_literals`
+      answers with the leading run whenever it proves anything, and a leading run
+      can be a proper substring of a later one (`ab\wxaby`), so dropping it as
+      redundant would make this function's answer no longer a refinement of the
+      shipped one -- the monotonicity `required_literal_sets` relies on, held by
+      construction here rather than argued about.
+
+    Returns `None` when nothing is provable, never an empty set: an empty
+    conjunction is satisfied by every text and would read as "skip nothing" from
+    one caller and "skip everything" from another.
+    """
+    candidates: set[str] = set()
+    leading = _leading_literal_run(alternative, fold)
+    if leading:
+        candidates.add(leading)
+    for offset in _run_start_offsets(alternative):
+        run = _leading_literal_run(alternative[offset:], fold)
+        if run:
+            candidates.add(run)
+    kept = {run for run in candidates
+            if not any(run != other and run in other for other in candidates)}
+    if leading:
+        kept.add(leading)
+    return frozenset(kept) if kept else None
+
+
+def _prove_literal_sets(pattern: str, depth: int,
+                        fold: bool) -> tuple[frozenset[str], ...] | None:
+    """One level of the DNF walk, carrying the fold state down exactly as `_prove_literals`.
+
+    Deliberately the same shape as `_prove_literals`, level for level: the same
+    flag strip, the same single-wrapper strip, the same depth-0 split and the same
+    `_MAX_ALTERNATION_DEPTH` stack bound. That parallel is what makes the two
+    answers comparable at all -- `required_literal_sets` refuses to publish a DNF
+    whose sets do not intersect the shipped extractor's answer, and it can only
+    make that check if both walks decompose a pattern into the same alternatives.
+
+    Nested alternation FLATTENS: `(a|b)|c` yields three sets, not two, because a
+    match still goes through exactly one leaf and the caller's rule reads a flat
+    disjunction. `None` from any alternative makes the WHOLE pattern unprovable,
+    for the same reason it does in `_prove_literals`: a text completing no other
+    alternative's conjunction can still match through the unproved one, so no set
+    would be decisive and skipping the file would be a false ABSENT.
+    """
+    if depth > _MAX_ALTERNATION_DEPTH:
+        return None
+    stripped, folded = _strip_inline_flags(pattern)
+    fold = fold or folded
+    stripped = _strip_full_wrapper(stripped)
+    alternatives = _split_alternatives(stripped)
+    if len(alternatives) == 1 and stripped == pattern:
+        conjunction = _maximal_runs(pattern, fold)
+        return None if conjunction is None else (conjunction,)
+    sets: list[frozenset[str]] = []
+    for alternative in alternatives:
+        proved = _prove_literal_sets(alternative, depth + 1, fold)
+        if proved is None:
+            return None
+        sets.extend(proved)
+    return tuple(sets) if sets else None
+
+
+def required_literal_sets(pattern: str) -> tuple[frozenset[str], ...] | None:
+    r"""Mandatory literal CONJUNCTIONS, one per alternative, or None when unprovable.
+
+    The published guarantee, and the only thing a caller may rely on:
+
+        If it returns a tuple `T`, then `T` is non-empty, every member is a
+        non-empty frozenset, and for every text `t`, if
+        `re.compile(pattern, re.MULTILINE).search(t)` is not `None`, then some set
+        `S` in `T` has EVERY member of `S` a substring of `t.lower()`.
+
+    So the skip rule a caller uses, and the only one this proves: a file may be
+    skipped iff for EVERY set in `T`, at least one of its literals is ABSENT from
+    the folded text. `any` across the tuple, `all` within a set -- swap either and
+    the rule skips a file the regex matches, which is the INVERTED verdict (a
+    PRESENT reported ABSENT) this whole module exists to prevent.
+
+    This is a REFINEMENT of `required_literals`, never a replacement: that
+    function answers with ONE literal per alternative, this one with every
+    mandatory run of each, so `\s+git\s+push\b` returns a single set holding both
+    `git` and `push` and skips a file missing either. Only ONE direction is
+    proved, exactly as there: a missing literal is decisive, a present one proves
+    nothing, and `None` means "run the regex", so an unproved pattern costs a
+    regex pass and can never cost a verdict.
+
+    The shipped extractor is consulted FIRST and is the floor, which is a
+    soundness device and not deference. Its answer decides provability, so
+    `required_literals(p) is not None` implies this returns a tuple; and if any
+    set fails to intersect that answer, the DNF is not provably at-least-as-strong
+    as the audited one, so the audited one is published instead as singletons --
+    the weaker filter, which costs regex passes and never a verdict. Both walks
+    read the same alternatives through the same primitive, so the fallback is
+    unreachable for every pattern in the live register; it exists so that a future
+    divergence degrades instead of inverting.
+    """
+    proved = required_literals(pattern)
+    if proved is None:
+        return None
+    sets = _prove_literal_sets(pattern, 0, False)
+    if sets is None or not all(conjunction & proved for conjunction in sets):
+        return tuple(frozenset({literal}) for literal in sorted(proved))
+    return sets

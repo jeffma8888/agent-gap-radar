@@ -25,7 +25,7 @@ replace, and it would decay silently, because nothing recomputes it.
 THE LIBRARY IS OBSERVED, NEVER CHANGED. The counters are installed by rebinding four
 module globals that `agent_gap_radar.checks` already reaches through a CALL-TIME global
 lookup, which is this repo's settled substitution convention (`evaluate`, `_read`,
-`required_literals`, `iter_files`), and restored in a `finally`, so a scan that
+`required_literal_sets`, `iter_files`), and restored in a `finally`, so a scan that
 raises cannot leave a counting wrapper installed for the rest of the process. That
 `finally` is not politeness: under `pytest -n auto` a leaked wrapper would keep counting
 into a dead census while every later test in that worker ran through it.
@@ -175,7 +175,8 @@ def _observing(counters: _Counters) -> Iterator[None]:
 
     The wrappers are installed as MODULE GLOBALS of `checks`, which is this repo's settled
     substitution convention (`checks.py` names it at its own call sites): the content
-    branch looks `_read` and `required_literals` up at call time, and `evaluate` recurses
+    branch looks `_read` and `required_literal_sets` up at call time, and `evaluate`
+    recurses
     through its own global, so a combinator's children are counted too without this module
     knowing anything about the recursion.
 
@@ -189,7 +190,7 @@ def _observing(counters: _Counters) -> Iterator[None]:
     """
     original_evaluate = checks.evaluate
     original_read = checks._read
-    original_literals = checks.required_literals
+    original_literals = checks.required_literal_sets
     original_iter_files = checks.iter_files
 
     def counting_evaluate(rule: dict, target: pathlib.Path,
@@ -233,7 +234,7 @@ def _observing(counters: _Counters) -> Iterator[None]:
             counters.content_domain_files += len(files)
         return files
 
-    def counting_literals(pattern: str) -> frozenset[str] | None:
+    def counting_literals(pattern: str) -> tuple[frozenset[str], ...] | None:
         counters.literal_proofs += 1
         proved = original_literals(pattern)
         if proved is not None:
@@ -242,14 +243,14 @@ def _observing(counters: _Counters) -> Iterator[None]:
 
     checks.evaluate = counting_evaluate
     checks._read = counting_read
-    checks.required_literals = counting_literals
+    checks.required_literal_sets = counting_literals
     checks.iter_files = counting_iter_files
     try:
         yield
     finally:
         checks.evaluate = original_evaluate
         checks._read = original_read
-        checks.required_literals = original_literals
+        checks.required_literal_sets = original_literals
         checks.iter_files = original_iter_files
 
 

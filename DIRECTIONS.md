@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-207
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- one `Error: ` emitter, 20 hand-spelled sites across all 7 `tools/` scripts, two dialects
+    - Candidate A2 -- one register-path rule, not five: every tool hand-resolves "where is the register"
+    - Candidate A3 -- one PRD-eligibility predicate, not two: `scan --prd` never applies the terminal-status exclusion `radar prd` does
+    - Candidate B1 -- row 106's per-alternative literal DNF, re-measured at HEAD: the prize grew 9.8% and the committed figures are stale
+    - Candidate B2 -- the committed cost instrument prices the PROOF and never the PASS, so the 85.2% term has no committed number and I hand-rolled the third throwaway script to get one
+    - Candidate B3 -- placeholder, see refinement
+    winner: B1
+    ship: pending (not yet decided)
   iter-206
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `list --json` publishes the retraction counterfactual iteration 204 stranded on the one verb with no machine surface
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the quality bar's `Error: ` rule has ONE canonical emitter and 20 hand-spelled copies in `tools/`, in two dialects
     - Candidate B3 -- three of the seven tools hand-parse `sys.argv` instead of using the argparse the other four already use
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 5e8127a
   iter-205
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `radar scan` executes a command the SCANNED repository chooses
@@ -941,4 +951,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-95 scouted iterations
+96 scouted iterations

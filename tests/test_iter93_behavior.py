@@ -116,7 +116,7 @@ PRE_EXISTING_PUBLIC_CHECKS_FUNCTIONS = [
     "read_cache_scope", "run_check", "tracked_files",
 ]
 PUBLIC_CHECKS_FUNCTIONS = sorted(
-    PRE_EXISTING_PUBLIC_CHECKS_FUNCTIONS + ["required_literals"])
+    PRE_EXISTING_PUBLIC_CHECKS_FUNCTIONS + ["required_literals", "required_literal_sets"])
 
 #: Behavior 9. The verbs the spec names as keeping their exact surface.
 SHIPPED_VERBS = ("scan", "report", "list", "show", "prd", "validate", "diff", "taxonomy")

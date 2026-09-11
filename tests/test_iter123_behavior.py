@@ -593,7 +593,7 @@ def test_b7_main_returns_zero_on_success(fixture, capsys):
 # Behavior 8: the library is observed, never changed, and every seam is restored.
 # --------------------------------------------------------------------------
 
-SEAMS = ("evaluate", "_read", "required_literals")
+SEAMS = ("evaluate", "_read", "required_literal_sets")
 
 
 def _seam_ids(module) -> dict[str, int]:

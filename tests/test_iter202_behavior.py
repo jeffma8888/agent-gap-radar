@@ -287,7 +287,7 @@ def test_b1_the_seams_are_untouched_by_a_refused_census(tmp_path, monkeypatch):
     """
     from agent_gap_radar import checks
 
-    seams = ("evaluate", "_read", "required_literals", "iter_files")
+    seams = ("evaluate", "_read", "required_literal_sets", "iter_files")
     sentinels = {}
     for name in seams:
         original = getattr(checks, name)
