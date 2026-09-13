@@ -19,6 +19,46 @@ def gaps_dir(root: pathlib.Path | str) -> pathlib.Path:
     return pathlib.Path(root) / "gaps"
 
 
+def unreadable(d: pathlib.Path | str) -> RegistryError:
+    """The ONE constructor for "this register directory cannot be read".
+
+    Two sites raise it -- `_record_paths` when the listing itself fails, and
+    `cli._resolve` when the nested-`gaps/` probe is unanswerable -- and neither may
+    spell the sentence: the text is pinned, so one failure keeps one dialect in the
+    published `Error: ` vocabulary no matter which door notices first. Returns the
+    exception instead of raising it, so each caller keeps its own `from exc` chain,
+    and the errno is deliberately not quoted -- `cli` publishes this string verbatim
+    and the directory already names itself.
+    """
+    return RegistryError(f"cannot read register directory: {d}")
+
+
+def _record_paths(d: pathlib.Path) -> list[pathlib.Path]:
+    """Every `*.json` entry of `d`, sorted, or refuse because `d` cannot be listed.
+
+    This exists because the obvious spelling -- `sorted(d.glob("*.json"))` -- is
+    FAIL-OPEN at the register's front door: `pathlib.Path.glob` swallows a
+    directory-level `OSError` and yields nothing, so a register whose DIRECTORY is
+    unreadable arrives at every caller as a register holding zero records. The
+    asymmetry that made it a defect rather than a taste question is measured in both
+    directions over the same files: unreadable FILES inside a readable directory are
+    already reported as problems below, one clause each, while the same files behind
+    an unreadable directory were a silent success. `d.is_dir()` cannot catch it --
+    it returns True on a mode-`0o000` directory -- so the listing must be ATTEMPTED,
+    which is why this enumerates with `iterdir()` and converts the failure instead of
+    inspecting `st_mode` bits or asking `os.access`: both answer a different question
+    than "can I list this".
+
+    Filtering on the `.json` suffix reproduces `glob("*.json")` exactly, hidden names
+    included, so no readable register's record set moves.
+    """
+    try:
+        entries = [path for path in d.iterdir() if path.name.endswith(".json")]
+    except OSError as exc:
+        raise unreadable(d) from exc
+    return sorted(entries)
+
+
 def load_all(directory: pathlib.Path | str) -> list[Gap]:
     """Load every *.json in `directory`, sorted by filename for determinism."""
     d = pathlib.Path(directory)
@@ -27,7 +67,7 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
 
     gaps: list[Gap] = []
     problems: list[str] = []
-    for path in sorted(d.glob("*.json")):
+    for path in _record_paths(d):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:

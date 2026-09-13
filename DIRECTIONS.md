@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-217
+    lenses: hardening/DX, integration-and-adoption -- iteration 217
+    - Candidate A1 -- an UNREADABLE register loads as an EMPTY register, so four verbs publish a zero-record document at exit 0 and three refuse for the wrong reason
+    - Candidate A2 -- one byte of file size flips the only verdict that claims safety: 524,288 B says MANUAL, 524,289 B says "mitigation positively identified" (roadmap row 114)
+    - Candidate A3 -- the harness that proves this suite can fail plants 19 of its 20 defects in `tools/`, and none at all in the module that derives the confidence `VISION.md` protects (roadmap row 87)
+    - Candidate B1 -- the byte-stable renderer has no committed consumer: 39,022 B of ranked register, and a PUBLIC repo where the ranking is unreadable without `uv sync`
+    - Candidate B2 -- `radar diff` has no consumer anywhere in the tree, and the only way to run it is to hand-materialise two register directories
+    - Candidate B3 -- the "Part of a pipeline" join is published on the front door and reachable from no surface and no record
+    winner: A1
+    ship: pending (not yet decided)
   iter-216
     lenses: new-capability, hardening/DX -- iteration 216
     - Candidate A1 -- the register's own duplicate detector has never been run over the register: 93 of 120 records have a lookalike above the product's own threshold, and no verb reaches it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- placeholder, see refinement
     - Candidate B3 -- placeholder, see refinement
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED e718714
   iter-215
     lenses: new-capability
     - Candidate B1 -- the majority verdict of a scan is invisible in the human brief and unfalsifiable in the machine one: 69 findings, one identical reason, no rule, no domain
@@ -972,4 +982,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-98 scouted iterations
+99 scouted iterations

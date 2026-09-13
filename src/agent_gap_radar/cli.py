@@ -62,12 +62,25 @@ def _resolve(path_arg: str) -> pathlib.Path:
 
     Local import per the module's import invariant: this is only ever reached
     under a verb that has already committed to loading records.
+
+    `Path.is_dir()` swallows only a fixed errno set (missing, not-a-directory, loop),
+    so `EACCES` propagates: stat-ing `<arg>/gaps` needs search permission on `<arg>`
+    itself. An unanswerable shape probe is REFUSED with the register's pinned
+    unreadable message, never guessed. Guessing "no nested `gaps/`" would resolve to
+    `<arg>`, whose OWN listing can succeed and yield zero records -- the silent
+    zero-record answer this door exists to close -- so the guess is fail-open, not
+    neutral. `registry.unreadable` is the single source of the sentence, and the
+    refusal names the argument as typed, which is the directory that could not be read.
     """
-    from .registry import gaps_dir
+    from .registry import gaps_dir, unreadable
 
     p = pathlib.Path(path_arg).expanduser()
     candidate = gaps_dir(p)
-    return candidate if candidate.is_dir() else p
+    try:
+        nested = candidate.is_dir()
+    except OSError as exc:
+        raise unreadable(p) from exc
+    return candidate if nested else p
 
 
 #: Every exit code `main()` can return, each named so no call site spells an
@@ -643,8 +656,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "scan":
-        directory = _resolve(args.gaps)
         try:
+            # `_resolve` is INSIDE the guard because it, too, can refuse in this
+            # vocabulary: an unreadable argument makes the nested-`gaps/` probe
+            # unanswerable, and that refusal must reach `_fail`, not a traceback.
+            directory = _resolve(args.gaps)
             # Load and narrow inside ONE guard, because both halves refuse in the
             # same published vocabulary and the narrowing's own miss (`no such gap`)
             # is a `RegistryError` for exactly that reason. Narrowing here, before
@@ -751,9 +767,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
         if args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
 
-    directory = _resolve(args.path)
-
     try:
+        # Inside the guard for the same reason as `scan`'s: `_resolve` refuses an
+        # unreadable argument with a `RegistryError`, which `except` below publishes.
+        directory = _resolve(args.path)
+
         if args.command == "show":
             sys.stdout.write(gap_brief(load_one(directory, args.gap_id)))
             return EXIT_OK
