@@ -21,6 +21,6 @@ build-backend = "hatchling.build"
 packages = ["src/agent_gap_radar"]
 
 [tool.pytest.ini_options]
-addopts = "-q -n auto"
+addopts = "-q -n auto --dist worksteal"
 filterwarnings = ["error"]
 testpaths = ["tests"]

@@ -1,6 +1,13 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-215
+    lenses: new-capability
+    - Candidate B1 -- the majority verdict of a scan is invisible in the human brief and unfalsifiable in the machine one: 69 findings, one identical reason, no rule, no domain
+    - Candidate B2 -- the confidence axis has saturated at 118 of 120 records, and the one number that still separates them is computed, published per-record only, and aggregated nowhere
+    - Candidate B3 -- both coverage censuses now read "complete" while 38 of the 88 taxonomy cells have never held a record
+    winner: B1
+    ship: pending (not yet decided)
   iter-207
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one `Error: ` emitter, 20 hand-spelled sites across all 7 `tools/` scripts, two dialects
@@ -10,7 +17,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the committed cost instrument prices the PROOF and never the PASS, so the 85.2% term has no committed number and I hand-rolled the third throwaway script to get one
     - Candidate B3 -- placeholder, see refinement
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED e4eda92
   iter-206
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `list --json` publishes the retraction counterfactual iteration 204 stranded on the one verb with no machine surface
@@ -143,6 +150,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- half of every regex pass in a scan is UNPREFILTERABLE, because the literal extractor reads only the LEADING run of an alternative
     - Candidate B2 -- roadmap row 92, measured at last: the suite wall is 171.83 s and 57.6% of the slowest 40 tests is ONE recomputed live scan
     - Candidate B3 -- `required_literals` is the one hot helper in `checks.py` with no memo, and roadmap row 35's premise has DECAYED to 13.2%
+    stubs: 2 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: B1
     ship: PUSHED 526edd6
   iter-116
@@ -203,6 +211,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- every `radar` invocation imports all eight modules, so the exit-2 refusal path costs 3.8x a bare interpreter to do nothing
     - Candidate B2 -- row 47 bite 2: a boolean-only `content_matches` node scans 44.6% of its files after its answer is decided (3,271.9 ms)
     - Candidate B3 -- (measurement in flight)
+    stubs: 1 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: B1
     ship: PUSHED 80e9b6a
   iter-110
@@ -410,7 +419,7 @@ foundry directions -- agent-gap-radar
     - Candidate A -- `radar report` publishes evidence AGE, so a record can be old without anyone noticing (roadmap row 10)
     - Candidate B -- a shared-source view, so 13 records resting on ONE blog post stop reading as 13 independent findings (roadmap row 56)
     - Candidate C -- ask the COMMITTED register which of its own records duplicate each other (roadmap row 11)
-    winner: unknown
+    winner: B1
     ship: PUSHED e617f64
   iter-82
     lenses: performance-and-throughput, narrative-and-docs
@@ -869,6 +878,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- one read per file per scan: 173 MB decoded to cover a 2 MB repo
     - Candidate B2 -- the tracked set is re-projected to relative paths on every rule
     - Candidate B3 -- placeholder, being measured
+    stubs: 1 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: A1
     ship: PUSHED 1e00bfe
   iter-08
@@ -919,6 +929,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- the consumer contract tells a release gate the register has ten records; it has sixteen
     - Candidate B2 -- PRODUCT.md lost iteration 03, and still marks a shipped row as "currently landing"
     - Candidate B3 -- three documents rest on GAP-010 scoring confidence 1, and no test defends it
+    stubs: 1 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: B2
     ship: PUSHED b91ceef
   iter-03
@@ -951,4 +962,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-96 scouted iterations
+97 scouted iterations
