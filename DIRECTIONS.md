@@ -1,13 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-216
+    lenses: new-capability, hardening/DX -- iteration 216
+    - Candidate A1 -- the register's own duplicate detector has never been run over the register: 93 of 120 records have a lookalike above the product's own threshold, and no verb reaches it
+    - Candidate A2 -- 58% of a scan's verdicts are one byte-identical sentence, and the machine surface cannot say what the check looked for: the `--json`-only slice
+    - Candidate A3 -- a closed gap ranks #1 in the report and looks identical to open work on `radar list`, while `radar prd` refuses to build it and cites nothing
+    - Candidate B1 -- placeholder, see refinement
+    - Candidate B2 -- placeholder, see refinement
+    - Candidate B3 -- placeholder, see refinement
+    winner: A1
+    ship: pending (not yet decided)
   iter-215
     lenses: new-capability
     - Candidate B1 -- the majority verdict of a scan is invisible in the human brief and unfalsifiable in the machine one: 69 findings, one identical reason, no rule, no domain
     - Candidate B2 -- the confidence axis has saturated at 118 of 120 records, and the one number that still separates them is computed, published per-record only, and aggregated nowhere
     - Candidate B3 -- both coverage censuses now read "complete" while 38 of the 88 taxonomy cells have never held a record
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 734a21e
   iter-207
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- one `Error: ` emitter, 20 hand-spelled sites across all 7 `tools/` scripts, two dialects
@@ -962,4 +972,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-97 scouted iterations
+98 scouted iterations

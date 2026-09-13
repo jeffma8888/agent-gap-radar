@@ -101,8 +101,8 @@ MUTATIONS: list[Mutation] = [
     (
         "advisory_becomes_blocking",
         "tools/promote.py",
-        "    for line in _advisory_lookalikes([g for _, g in accepted]):",
-        "    for line in _advisory_lookalikes([g for _, g in accepted]):\n"
+        "    for line in _advisory_lookalikes([g for _, g in accepted], existing):",
+        "    for line in _advisory_lookalikes([g for _, g in accepted], existing):\n"
         '        refused.append((Path("x.json"), f"lookalike: {line}"))\n'
         "    for line in []:",
         "tests/test_promote_twins.py",

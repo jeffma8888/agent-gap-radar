@@ -37,6 +37,7 @@ import json
 import re
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -290,7 +291,21 @@ def _lookalike_tokens(gap: Gap) -> set[str]:
     return {t for t in _LOOKALIKE_TOKEN.findall(text) if t not in _LOOKALIKE_STOP}
 
 
-def _advisory_lookalikes(gaps: list[Gap]) -> list[str]:
+def _containment(ta: set[str], tb: set[str]) -> float:
+    """Shared prose as a fraction of the SMALLER token set; 0.0 if either side is empty.
+
+    Extracted rather than spelled twice: the batch pass and the register pass in
+    `_advisory_lookalikes` have to agree on what "resembles" means, and two copies of
+    one arithmetic line are two things to keep in step. An empty side scores 0.0,
+    which is below every threshold this module ships, so a record whose prose is all
+    stop-words is never anyone's partner.
+    """
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / min(len(ta), len(tb))
+
+
+def _advisory_lookalikes(gaps: list[Gap], known: Sequence[Gap] = ()) -> list[str]:
     """ADVISORY, never blocking: each record's CLOSEST lookalike, if it has one.
 
     Reported because the behavioural gate is deliberately conservative -- it
@@ -313,22 +328,46 @@ def _advisory_lookalikes(gaps: list[Gap]) -> list[str]:
     prints once. That is bounded by the number of records, never chains, and
     answers the question a reviewer actually has: which other record do I need to
     read next to this one?
+
+    `gaps` are the SUBJECTS -- the records this run is deciding about. `known` is
+    extra CORPUS: records already in the register, which can be NAMED as a partner
+    but never get a line of their own. Both blocking gates at this door are seeded
+    from the register and this comparison was not, so a candidate restating a
+    committed record produced no line at all, and the ordinary one-candidate batch
+    was vacuous by construction -- a one-element list has no pairs. Widening the
+    CORPUS and not the subjects keeps the output bounded by the batch rather than by
+    the register, which is the anti-flood property the rejected "every pair" shape
+    above lacks, and a committed partner is marked so a curator can tell "read these
+    two together" from "you may be re-recording that record". The register's own
+    internal pairs are a census over what is already landed, a different job from
+    this door's, and deliberately not reported here.
     """
-    toks = {g.id: _lookalike_tokens(g) for g in gaps}
-    by_id = {g.id: g for g in gaps}
+    toks = {g.id: _lookalike_tokens(g) for g in [*gaps, *known]}
+    by_id = {g.id: g for g in [*gaps, *known]}
+    committed = {g.id for g in known}
 
     best: dict[str, tuple[float, str]] = {}
     for i, a in enumerate(gaps):
         for b in gaps[i + 1:]:
-            ta, tb = toks[a.id], toks[b.id]
-            if not ta or not tb:
-                continue
-            overlap = len(ta & tb) / min(len(ta), len(tb))
+            overlap = _containment(toks[a.id], toks[b.id])
             if overlap < _LOOKALIKE_AT:
                 continue
             for x, y in ((a.id, b.id), (b.id, a.id)):
                 if overlap > best.get(x, (0.0, ""))[0]:
                     best[x] = (overlap, y)
+
+    # Only `gaps` is iterated on the OUTSIDE, which is what makes a register record
+    # corpus and never a subject. Partners are walked in id order so that two equally
+    # strong candidates resolve to the lower id rather than to whatever order the
+    # caller happened to load the register in: the line has to be the same on a
+    # second run.
+    for a in gaps:
+        for k in sorted(known, key=lambda g: g.id):
+            overlap = _containment(toks[a.id], toks[k.id])
+            if overlap < _LOOKALIKE_AT:
+                continue
+            if overlap > best.get(a.id, (0.0, ""))[0]:
+                best[a.id] = (overlap, k.id)
 
     seen: set[frozenset[str]] = set()
     out: list[str] = []
@@ -337,7 +376,8 @@ def _advisory_lookalikes(gaps: list[Gap]) -> list[str]:
         if pair in seen:
             continue
         seen.add(pair)
-        out.append(f"{overlap:.2f}  {gid} most resembles {partner}: "
+        mark = " (already in the register)" if partner in committed else ""
+        out.append(f"{overlap:.2f}  {gid} most resembles {partner}{mark}: "
                    f"{by_id[gid].title[:56]!r} / {by_id[partner].title[:56]!r}")
     return out
 
@@ -500,7 +540,7 @@ def _promote(inbox: Path, gaps_dir: Path, rejected: Path, apply: bool,
             )
             path.replace(rejected / path.name)
 
-    for line in _advisory_lookalikes([g for _, g in accepted]):
+    for line in _advisory_lookalikes([g for _, g in accepted], existing):
         print(f"NOTE    advisory lookalike, nothing was refused for this: {line}")
 
     untouched = len(candidates) - len(accepted) - len(refused)
