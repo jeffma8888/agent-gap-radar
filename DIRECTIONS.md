@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-219
+    lenses: simplification-and-deletion -- iteration 219, performance-and-throughput -- iteration 219
+    - Candidate A1 -- retire the `not` rule kind: 12 of its 13 sites are a hand-spelled `content_absent` that throws away the scope note
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- one operation is the whole cost of this product: a live `radar scan` is 11.60 s while every other verb is under 0.03 s, and the suite pays it dozens of times
+    - Candidate B2 -- the committed cost instrument prices ONE scan in counts, and nothing counts how many scans the suite runs, so row 92's "nothing has measured WHERE it goes" survives a suite-scheduling iteration
+    - Candidate B3 -- the file-domain cache is keyed on the whole glob SET, so one scan re-matches `**/*.py` against every tracked path 88 times: 0.910 s, 7.3 % of the operation that dominates this product
+    stubs: 2 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: B3
+    ship: pending (not yet decided)
   iter-218
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A2 -- the wheel ships the tool WITHOUT the register, so the only supported on-ramp is a clone
@@ -10,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the roadmap every stage reads is 288,037 B, and 94 shipped rows own most of it
     - Candidate B3 -- two public census families in `scoring.py`, 128 lines and 8 exported names, that no test, tool or doc ever calls
     winner: B3
-    ship: pending (not yet decided)
+    ship: PUSHED 0356b8b
   iter-217
     lenses: hardening/DX, integration-and-adoption -- iteration 217
     - Candidate A1 -- an UNREADABLE register loads as an EMPTY register, so four verbs publish a zero-record document at exit 0 and three refuse for the wrong reason
@@ -992,4 +1003,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-100 scouted iterations
+101 scouted iterations

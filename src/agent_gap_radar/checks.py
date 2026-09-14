@@ -462,6 +462,52 @@ def _enumerate_files(target: pathlib.Path, globs: list[str],
     return _iter_walked(target, globs, exclude_tests)
 
 
+def _memoised_domain(frame: dict[_FileDomainKey, list[pathlib.Path]],
+                     target: pathlib.Path, globs: list[str],
+                     exclude_tests: bool) -> list[pathlib.Path]:
+    """The frame's OWN list for one domain, a multi-glob one assembled per glob.
+
+    Recurses so that a glob asked for by many rules is MATCHED once per scan rather
+    than once per set that mentions it. Measured on this repo as its own target
+    against the committed register: one `radar scan` asks for 68 distinct glob sets
+    spanning 675 glob mentions, which resolve to only 159 distinct
+    `(target, one glob, exclude_tests)` triples -- 4.25x fewer glob passes.
+
+    The prize is stated as that COUNT and never as seconds, the doctrine
+    `tools/scan_cost.py` already carries, because the two disagree: splitting a set
+    into its globs RAISES `_enumerate_files` calls from 88 to 159 and every one of
+    them rebuilds the target-relative path list and re-`resolve()`s the root, so the
+    per-call fixed cost eats most of the regex saving and the wall-clock prize is a
+    prototyped 1.5% of an 11.6s scan. Hoisting that fixed cost is a separate,
+    unmeasured change and is filed as an open roadmap row, deliberately not bundled.
+
+    The base case is a set of at most ONE glob, where the set key IS its own per-glob
+    key: a single-glob ask therefore stores exactly one entry and enumerates exactly
+    once, which is the shape every pin in `tests/test_file_cache_unit.py` asserts.
+
+    Returns the frame's own list rather than a copy: `iter_files` is the sole caller
+    and it owns the copy that keeps a snapshot from being aliased by a consumer.
+    Copying here would cost one list per glob per set and buy nothing, and the union
+    loop below only READS what it is handed.
+    """
+    key: _FileDomainKey = (str(target), tuple(globs), exclude_tests)
+    if key in frame:
+        return frame[key]
+    if len(globs) <= 1:
+        frame[key] = _enumerate_files(target, globs, exclude_tests)
+        return frame[key]
+    # `set` then `sorted` is not a normalisation choice, it is a REPRODUCTION of what
+    # `_match_globs` does across its own glob loop -- it accumulates every match into
+    # a `set` and returns `sorted(seen)` -- and that is exactly why the union of the
+    # per-glob domains IS the set's domain. `tests/test_iter219_domain_union_unit.py`
+    # carries the identity over every glob set the committed register asks for.
+    union: set[pathlib.Path] = set()
+    for glob in globs:
+        union.update(_memoised_domain(frame, target, [glob], exclude_tests))
+    frame[key] = sorted(union)
+    return frame[key]
+
+
 def iter_files(target: pathlib.Path, globs: list[str],
                exclude_tests: bool = False) -> list[pathlib.Path]:
     """`_enumerate_files`, memoised if and only if a `file_cache_scope()` is open.
@@ -484,27 +530,36 @@ def iter_files(target: pathlib.Path, globs: list[str],
     enumeration and can never return another target's files -- the safe direction
     for a cache in a tool whose whole value is that its verdicts are honest.
 
-    The globs are keyed in the ORDER ASKED and are neither sorted nor deduped.
-    Normalising would buy a few more hits by ASSERTING that order and repetition
-    cannot change the answer. That happens to be true of `_match_globs` today,
-    which accumulates into a set, but a key that encodes an invariant belonging
-    to another function starts answering wrongly the day that function changes,
-    and the failure would be silent. The cost of not normalising is a redundant
-    enumeration; the cost of normalising wrongly is a wrong file list.
+    The globs are still keyed in the ORDER ASKED and are neither sorted nor deduped,
+    and the SET-LEVEL key remains this function's API: two rules asking for the same
+    globs in different orders get their own entry, and a consumer reading the frame
+    sees the question it asked. Normalising that key would buy a few more hits by
+    ASSERTING through the key that order and repetition cannot change the answer, and
+    a key that encodes an invariant belonging to another function starts answering
+    wrongly the day that function changes, silently.
+
+    What changed is the ASSEMBLY behind that key, not the key: a multi-glob domain is
+    now built by `_memoised_domain` as the union of its per-glob domains, memoised in
+    the same frame under the same key type, so the invariant is no longer argued in
+    this docstring but EXERCISED on every ask and asserted over every glob set the
+    committed register holds by `tests/test_iter219_domain_union_unit.py`. The union
+    is an internal step: it adds per-glob entries beside the set entry and removes
+    none, so the cost of not normalising the key is now one dictionary entry instead
+    of a redundant enumeration.
     """
     if not _FILE_CACHE_STACK:
         return _enumerate_files(target, globs, exclude_tests)
     frame = _FILE_CACHE_STACK[-1]
-    key: _FileDomainKey = (str(target), tuple(globs), exclude_tests)
-    if key not in frame:
-        frame[key] = _enumerate_files(target, globs, exclude_tests)
+    cached = _memoised_domain(frame, target, globs, exclude_tests)
     # A FRESH list on every hand-out, including the first, so the snapshot is
     # never aliased by a caller. `evaluate` slices this list today, but a caller
     # that sorted or truncated it in place would silently narrow the domain of
     # every later rule asking the same question -- the same fail-open one layer
     # down, arriving through an aliased list rather than through a bad rule.
-    # A shallow copy suffices: `pathlib.Path` is immutable.
-    return list(frame[key])
+    # A shallow copy suffices: `pathlib.Path` is immutable. It is taken for BOTH key
+    # kinds, because a single-glob ask is answered from the very entry a later
+    # multi-glob union will read.
+    return list(cached)
 
 
 #: Read frames, innermost last. A STACK rather than one dict because the scope
