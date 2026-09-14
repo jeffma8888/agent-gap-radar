@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-218
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A2 -- the wheel ships the tool WITHOUT the register, so the only supported on-ramp is a clone
+    - Candidate A3 -- the register-path DEFAULT is `.`, so a register-less directory answers as a clean register
+    - Candidate A1 -- the only process that writes the register never hands `radar diff` the two states it needs
+    - Candidate B1 -- two DNF literal provers walk every pattern twice, and the divergence branch they exist for fires on ZERO of the register's 506 patterns
+    - Candidate B2 -- the roadmap every stage reads is 288,037 B, and 94 shipped rows own most of it
+    - Candidate B3 -- two public census families in `scoring.py`, 128 lines and 8 exported names, that no test, tool or doc ever calls
+    winner: B3
+    ship: pending (not yet decided)
   iter-217
     lenses: hardening/DX, integration-and-adoption -- iteration 217
     - Candidate A1 -- an UNREADABLE register loads as an EMPTY register, so four verbs publish a zero-record document at exit 0 and three refuse for the wrong reason
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar diff` has no consumer anywhere in the tree, and the only way to run it is to hand-materialise two register directories
     - Candidate B3 -- the "Part of a pipeline" join is published on the front door and reachable from no surface and no record
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 31e5864
   iter-216
     lenses: new-capability, hardening/DX -- iteration 216
     - Candidate A1 -- the register's own duplicate detector has never been run over the register: 93 of 120 records have a lookalike above the product's own threshold, and no verb reaches it
@@ -982,4 +992,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-99 scouted iterations
+100 scouted iterations

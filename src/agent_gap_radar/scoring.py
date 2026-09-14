@@ -41,6 +41,29 @@ _MAX_WEIGHTED = 5 * (W_SEVERITY + W_FREQUENCY + W_TRACTABILITY)
 
 CONFIDENCE_FLOOR_DEFAULT = 2
 
+#: The supported import surface, matching what `docs/CONSUMER_CONTRACT.md` publishes for a
+#: pydantic-less consumer: the two derived scores, what they are derived FROM, the
+#: below-floor prescription, and the floor's own default. Every other callable here is an
+#: internal step of ONE report section and carries a leading underscore, so a reader does
+#: not have to triage the whole module to find the names that carry the invariant.
+#: Written as an EXPLICIT literal rather than computed from `globals()`, because a computed
+#: surface silently absorbs the next export: a hand-written tuple is the form a reviewer can
+#: diff, and the committed literal-set test reds the suite the moment a name appears here
+#: without a decision behind it.
+__all__ = (
+    "CONFIDENCE_FLOOR_DEFAULT",
+    "below_floor",
+    "confidence",
+    "confidence_without",
+    "distinct_sources",
+    "distinct_tags",
+    "priority",
+    "promotion_options",
+    "rank",
+    "strongest_source",
+    "tag_coverage",
+)
+
 
 def priority(gap: Gap) -> float:
     """0.0-10.0, rounded to one decimal. Higher = fix this sooner."""
@@ -386,7 +409,7 @@ def below_floor(gaps: list[Gap], confidence_floor: int = CONFIDENCE_FLOOR_DEFAUL
 # count read as a target is the Goodhart shape this register forbids.
 
 
-def distinct_register_sources(gaps: list[Gap]) -> int:
+def _distinct_register_sources(gaps: list[Gap]) -> int:
     """How many DISTINCT DOCUMENTS the whole register rests on.
 
     The denominator of the concentration census: `distinct_sources` answers this per
@@ -394,13 +417,13 @@ def distinct_register_sources(gaps: list[Gap]) -> int:
     which is the exact quantity this view exists to expose. So the union is taken over
     `_source_key` directly, the same normalisation, one level up.
 
-    Total, matching `aged_records`: an empty register returns 0 rather than raising, so
+    Total, matching `_aged_records`: an empty register returns 0 rather than raising, so
     a renderer may print the number without first asking whether any record exists.
     """
     return len({_source_key(citation) for gap in gaps for citation in gap.evidence})
 
 
-def shared_sources(gaps: list[Gap]) -> list[tuple[str, list[str]]]:
+def _shared_sources(gaps: list[Gap]) -> list[tuple[str, list[str]]]:
     """`(source key, ids of the records citing it)` for sources carrying MORE than one.
 
     Ordered by record count DESCENDING with ties broken on the source key ASCENDING, so
@@ -427,10 +450,10 @@ def shared_sources(gaps: list[Gap]) -> list[tuple[str, list[str]]]:
     return rows
 
 
-def records_on_shared_source(gaps: list[Gap]) -> list[str]:
+def _records_on_shared_source(gaps: list[Gap]) -> list[str]:
     """Ids of records resting on at least one source some OTHER record also cites.
 
-    DERIVED from `shared_sources` rather than re-deciding what "shared" means, so the
+    DERIVED from `_shared_sources` rather than re-deciding what "shared" means, so the
     census line and the table printed under it cannot disagree: a source that qualifies
     for the table is exactly a source that puts its records in this list. Written as a
     second predicate over the same data, the two could drift apart silently, which is
@@ -438,10 +461,10 @@ def records_on_shared_source(gaps: list[Gap]) -> list[str]:
 
     Ascending ids, and `[]` for an empty register.
     """
-    return sorted({gap_id for _, ids in shared_sources(gaps) for gap_id in ids})
+    return sorted({gap_id for _, ids in _shared_sources(gaps) for gap_id in ids})
 
 
-def sole_source_records(gaps: list[Gap]) -> list[Gap]:
+def _sole_source_records(gaps: list[Gap]) -> list[Gap]:
     """Records whose citations rest on exactly ONE distinct document, id ascending.
 
     The actionable half of concentration, and the reason it is worth printing beside the
@@ -480,7 +503,7 @@ def sole_source_records(gaps: list[Gap]) -> list[Gap]:
 EVIDENCE_AGE_THRESHOLD_DAYS = 365
 
 
-def newest_citation_date(gap: Gap) -> str:
+def _newest_citation_date(gap: Gap) -> str:
     """The record's most recent citation date, as the stored `YYYY-MM-DD` string.
 
     Max over the ISO strings rather than over parsed dates, and that is a fact about
@@ -492,7 +515,7 @@ def newest_citation_date(gap: Gap) -> str:
     return max(citation.date for citation in gap.evidence)
 
 
-def register_anchor_date(gaps: list[Gap]) -> str | None:
+def _register_anchor_date(gaps: list[Gap]) -> str | None:
     """The newest citation date anywhere in the register -- this product's "now".
 
     WHY THE DATA AND NOT A CLOCK. `radar report` output is committable and pinned as
@@ -505,11 +528,11 @@ def register_anchor_date(gaps: list[Gap]) -> str | None:
     missing one: with zero records there is no citation to anchor on, and publishing an
     age against an invented anchor is the one thing this view must not do.
     """
-    dates = [newest_citation_date(gap) for gap in gaps]
+    dates = [_newest_citation_date(gap) for gap in gaps]
     return max(dates) if dates else None
 
 
-def evidence_age_days(newest: str, anchor: str) -> int:
+def _evidence_age_days(newest: str, anchor: str) -> int:
     """Whole days from `newest` to `anchor`, both `YYYY-MM-DD` strings.
 
     `date.fromisoformat` is arithmetic over a STORED value, not a clock read -- it
@@ -520,7 +543,7 @@ def evidence_age_days(newest: str, anchor: str) -> int:
     return (date.fromisoformat(anchor) - date.fromisoformat(newest)).days
 
 
-def aged_records(
+def _aged_records(
     gaps: list[Gap], threshold_days: int = EVIDENCE_AGE_THRESHOLD_DAYS
 ) -> list[tuple[Gap, str, int]]:
     """`(gap, newest citation date, age in days)` for records past the threshold.
@@ -532,16 +555,16 @@ def aged_records(
     the threshold is NOT listed. Stating it here makes the edge decidable from one
     comparison instead of from a reader's guess about inclusivity.
 
-    Returns `[]` for an empty register, matching `register_anchor_date`'s `None`: no
+    Returns `[]` for an empty register, matching `_register_anchor_date`'s `None`: no
     anchor means no age is knowable, which is not the same claim as "nothing is old".
     """
-    anchor = register_anchor_date(gaps)
+    anchor = _register_anchor_date(gaps)
     if anchor is None:
         return []
     rows: list[tuple[Gap, str, int]] = []
     for gap in gaps:
-        newest = newest_citation_date(gap)
-        age = evidence_age_days(newest, anchor)
+        newest = _newest_citation_date(gap)
+        age = _evidence_age_days(newest, anchor)
         if age > threshold_days:
             rows.append((gap, newest, age))
     rows.sort(key=lambda row: (-row[2], row[0].id))
@@ -574,7 +597,7 @@ def distinct_tags(gaps: list[Gap]) -> int:
     rows, so both halves of that subtraction have to mean the same thing by construction.
     A record naming one tag twice contributes it once, since the union is over a set.
 
-    Total, matching `distinct_register_sources`: an empty register returns 0 rather than
+    Total, matching `_distinct_register_sources`: an empty register returns 0 rather than
     raising, so a renderer may print the number without first asking whether any record
     exists.
     """

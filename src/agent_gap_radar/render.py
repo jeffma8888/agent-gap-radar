@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 
 from .models import Check, Evidence, Gap, detectability
-from .scoring import (CONFIDENCE_FLOOR_DEFAULT, aged_records, below_floor, confidence,
-                      confidence_without, distinct_register_sources, distinct_sources,
+from .scoring import (CONFIDENCE_FLOOR_DEFAULT, _aged_records,
+                      _distinct_register_sources, _records_on_shared_source,
+                      _register_anchor_date, _shared_sources, _sole_source_records,
+                      below_floor, confidence, confidence_without, distinct_sources,
                       distinct_tags, priority, promotion_options, rank,
-                      records_on_shared_source, register_anchor_date, shared_sources,
-                      sole_source_records, strongest_source, tag_coverage)
+                      strongest_source, tag_coverage)
 from .taxonomy import LAYERS, SOURCE_WEIGHTS
 
 
@@ -138,13 +139,13 @@ def _evidence_age_section(gaps: list[Gap]) -> list[str]:
     is old", which is why the two cases do not share their prose.
     """
     lines = [EVIDENCE_AGE_HEADING, ""]
-    anchor = register_anchor_date(gaps)
+    anchor = _register_anchor_date(gaps)
     if anchor is None:
         lines += ["None found.", ""]
         return lines
     lines += [_EVIDENCE_AGE_ANCHOR.format(anchor=anchor), "",
               EVIDENCE_AGE_PURPOSE, ""]
-    rows = aged_records(gaps)
+    rows = _aged_records(gaps)
     if rows:
         lines += table(["ID", "Newest citation", "Age (days)", "Title"],
                        [[gap.id, newest, str(age), gap.title]
@@ -220,13 +221,13 @@ def _source_concentration_section(gaps: list[Gap]) -> list[str]:
     if not gaps:
         lines += ["None found.", ""]
         return lines
-    # Computed ONCE and read three times below. `records_on_shared_source` derives its
+    # Computed ONCE and read three times below. `_records_on_shared_source` derives its
     # answer from this same function rather than from a second predicate, so the census
     # count and the table under it agree by construction rather than by review.
-    shared = shared_sources(gaps)
+    shared = _shared_sources(gaps)
     lines += [_SOURCE_CENSUS.format(shared=len(shared),
-                                    sources=distinct_register_sources(gaps),
-                                    resting=len(records_on_shared_source(gaps)),
+                                    sources=_distinct_register_sources(gaps),
+                                    resting=len(_records_on_shared_source(gaps)),
                                     records=len(gaps)), "",
               SOURCE_CONCENTRATION_PURPOSE, ""]
     if shared:
@@ -238,7 +239,7 @@ def _source_concentration_section(gaps: list[Gap]) -> list[str]:
         # than as a register whose sources happen not to overlap.
         lines.append("None found.")
     lines.append("")
-    sole = sole_source_records(gaps)
+    sole = _sole_source_records(gaps)
     lines += [_SOLE_SOURCE_PREFIX + (", ".join(gap.id for gap in sole)
                                      if sole else "none."), ""]
     return lines
@@ -306,8 +307,8 @@ def _tag_coverage_section(gaps: list[Gap]) -> list[str]:
         return lines
     # Both computed ONCE. `omitted` is the SUBTRACTION rather than a second pass over the
     # data, so behavior 2's `distinct == listed + omitted` identity holds by construction
-    # instead of by review -- the same reason `records_on_shared_source` derives from
-    # `shared_sources` rather than re-deciding what "shared" means.
+    # instead of by review -- the same reason `_records_on_shared_source` derives from
+    # `_shared_sources` rather than re-deciding what "shared" means.
     distinct = distinct_tags(gaps)
     rows = tag_coverage(gaps)
     lines += [_TAG_CENSUS.format(distinct=distinct, listed=len(rows),

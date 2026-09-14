@@ -66,12 +66,12 @@ class Evidence(BaseModel):
 
         The shape check alone is not enough, because the stored value is arithmetic
         input: `2026-02-30` is a plausible research-pass typo that matches the pattern,
-        and any consumer that parses it -- `scoring.evidence_age_days` is the first --
+        and any consumer that parses it -- `scoring._evidence_age_days` is the first --
         raises on it. This product puts every other quality rule at the ingest door, so
         the parse belongs here too: `radar validate` then names the offending record for
         the curator who can fix it, instead of `radar report` dying with a raw traceback
         on the primary human surface. It is also what makes the LEXICAL max in
-        `scoring.newest_citation_date` correct by validation instead of by convention.
+        `scoring._newest_citation_date` correct by validation instead of by convention.
         """
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError(f"date must be YYYY-MM-DD, got {v!r}")
