@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-221
+    lenses: new-capability
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- the PRD tells a loop how to REPRODUCE the gap and never how to prove it CLOSED: `mitigated_when` exists on 114 of 120 records and `prd.py` reads it zero times
+    - Candidate B2 -- the 213 lookalike pairs already IN the register have no reader: the detector runs only at the door, and the record `radar prd` builds from has three partners nobody can see
+    - Candidate B3 -- the register ships 181 KB of its own two-sided proof corpus as DATA, and no verb can run it: a pulled register is schema-checkable and never behaviour-checkable
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: B1
+    ship: pending (not yet decided)
   iter-220
     lenses: performance-and-throughput, narrative-and-docs (iteration 220)
     - Candidate A1 -- being measured
@@ -11,7 +22,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- placeholder, being measured
     stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: unknown
-    ship: pending (not yet decided)
+    ship: PUSHED 7a32d85
   iter-219
     lenses: simplification-and-deletion -- iteration 219, performance-and-throughput -- iteration 219
     - Candidate A1 -- retire the `not` rule kind: 12 of its 13 sites are a hand-spelled `content_absent` that throws away the scope note
@@ -1014,4 +1025,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-102 scouted iterations
+103 scouted iterations

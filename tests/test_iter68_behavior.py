@@ -56,6 +56,8 @@ import pytest
 
 from agent_gap_radar.cli import main
 
+from _appended_fragment import appended_item_fragment, appended_key_fragment
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACT = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
 
@@ -452,11 +454,38 @@ def test_b3_the_document_is_exactly_the_rename_shorter_than_the_recorded_pre_byt
     assert out.count(pair) == 1, (
         f"premise: the appended pair occurs exactly once in the emitted bytes, so its "
         f"length measures this document's real growth; found {out.count(pair)}")
-    assert len(out) == PRE_ITERATION_BYTES - delta + len(pair), (
-        f"emitted {len(out)} bytes; expected {PRE_ITERATION_BYTES - delta + len(pair)} "
+    # RE-BASELINED BY ITERATION 221 on the same terms as iteration 92's, and for the same
+    # reason: it APPENDED `sourceGap.check.closure` and one US-002 acceptance criterion, so
+    # the document legitimately grew by two fragments. Both are DERIVED from the emitted
+    # values rather than pinned as fresh literals, because both are chosen by register DATA
+    # -- which arm the closure declaration takes depends on whether the record carries a
+    # `check.mitigated_when` rule -- so a register change must move this expectation with
+    # it instead of redding a pin no code change touched. `PRE_ITERATION_BYTES` stays
+    # intact, so the one historical witness is still the authority. Nothing the pin refuses
+    # is surrendered: only these two fragments' own lengths may vary, each is asserted to
+    # occur EXACTLY once first (a mis-reconstructed fragment counts zero and reds), and a
+    # third new key or a byte moved anywhere else still reds it.
+    check = source_gap["check"]
+    assert "closure" in check, (
+        "premise: iteration 221 APPENDED `sourceGap.check.closure`. With the key gone the "
+        "growth term below is void, so the size claim would pass while the payload "
+        "regressed.")
+    closure_bytes = appended_key_fragment("closure", check, 6)
+    criterion = _doc(out)["stories"][1]["acceptanceCriteria"][-1]
+    criterion_bytes = appended_item_fragment(criterion, 8)
+    for label, fragment in (("closure", closure_bytes), ("criterion", criterion_bytes)):
+        assert out.count(fragment) == 1, (
+            f"premise: iteration 221's appended {label} occurs exactly once in the emitted "
+            f"bytes, so its length measures this document's real growth; found "
+            f"{out.count(fragment)} for {fragment!r}")
+    expected = (PRE_ITERATION_BYTES - delta + len(pair)
+                + len(closure_bytes) + len(criterion_bytes))
+    assert len(out) == expected, (
+        f"emitted {len(out)} bytes; expected {expected} "
         f"(the pre-iteration {PRE_ITERATION_BYTES} recorded in the spec, less the rename's "
-        f"{delta}, plus iteration 92's appended status pair at {len(pair)}). "
-        "Either another byte moved, or the register data changed.")
+        f"{delta}, plus iteration 92's appended status pair at {len(pair)}, plus iteration "
+        f"221's closure object at {len(closure_bytes)} and its US-002 criterion at "
+        f"{len(criterion_bytes)}). Either another byte moved, or the register data changed.")
 
 
 # ---------------------------------------------------------------------------

@@ -38,6 +38,14 @@ PRE-CHANGE implementation at HEAD `e718714` extracted with `git archive` -- they
 not re-rendered from the working tree, so a rendering regression cannot re-baseline
 itself.  Verified byte-identical between pre-change and post-change for all six
 verbs before being written here.
+
+RE-BASELINED BY ITERATION 221 for `prd` ONLY, and by SUBTRACTION rather than by
+re-capture: that iteration APPENDS `sourceGap.check.closure` and one US-002
+acceptance criterion, so the document legitimately GREW and the six-verb identity
+above now holds for five of them verbatim and for `prd` once those two fragments are
+removed.  The pinned constants stay exactly as captured at `e718714` -- the
+historical witness is never re-rendered from the working tree.  See
+`_without_iteration_221_appends`.
 """
 
 from __future__ import annotations
@@ -50,6 +58,8 @@ import pytest
 
 from agent_gap_radar import registry
 from agent_gap_radar.cli import build_parser, main
+
+from _appended_fragment import appended_item_fragment, appended_key_fragment
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -244,15 +254,67 @@ def test_b6_a_repo_root_whose_gaps_subdir_is_blocked_names_the_subdir(
 
 
 # --------------------------------------------------------------------------- b7
+def _without_iteration_221_appends(name: str, out: str) -> str:
+    """`out` with iteration 221's two APPENDED `prd` fragments removed; other verbs as-is.
+
+    RE-BASELINED BY ITERATION 221 on the terms iteration 92 set (see
+    `test_iter68_behavior.test_b3_the_payload_is_byte_identical_to_the_pre_rename_document`):
+    the iteration APPENDS `sourceGap.check.closure` and one US-002 acceptance criterion, so
+    the document legitimately GREW and the behaviour it ships cannot be delivered without
+    those bytes.  The honest update keeps the historical witness -- `PINNED["prd"]` remains
+    the PRE-CHANGE sha256 and length captured at `e718714`, untouched -- and accounts for
+    the growth as a MEASURED term, instead of re-capturing the digest from the working
+    tree, which is the one move that would let a rendering regression re-baseline itself.
+
+    Both fragments are DERIVED from the emitted document rather than pinned as fresh
+    literals, because which arm the closure declaration takes is chosen by register DATA
+    (whether the record carries a `check.mitigated_when` rule -- this module's `RECORD`
+    carries no `check` at all, so it exercises the REFUSAL arm).  Nothing the pin refuses
+    is surrendered: only these two fragments' own lengths may vary, each is asserted to
+    occur EXACTLY once before it is removed -- a fragment reconstructed with the wrong
+    indent, separators or value occurs ZERO times and reds -- and a third new key or a byte
+    moved anywhere else still reds the digest below.  Removing exactly 244 + 141 bytes here
+    reproduces the pinned 2527 and its sha256, which is simultaneously the proof that zero
+    bytes moved OUTSIDE the appended region.
+    """
+    if name != "prd":
+        return out
+    doc = json.loads(out)
+    story = doc["stories"][1]
+    assert story["id"] == "US-002", (
+        f'premise: iteration 221 appended its criterion to US-002, which is `stories[1]`; '
+        f'found {story["id"]!r}')
+    check = doc["sourceGap"]["check"]
+    assert "closure" in check, (
+        "premise: iteration 221 APPENDED `sourceGap.check.closure`. With the key gone the "
+        "subtraction below is void, so the pin would compare the wrong two documents.")
+    fragments = (
+        ("closure", appended_key_fragment("closure", check, 6)),
+        ("criterion", appended_item_fragment(story["acceptanceCriteria"][-1], 8)),
+    )
+    for label, fragment in fragments:
+        assert out.count(fragment) == 1, (
+            f"premise: iteration 221's appended {label} occurs exactly once in the emitted "
+            f"bytes, so removing it recovers the pre-change document; found "
+            f"{out.count(fragment)} for {fragment!r}")
+        out = out.replace(fragment, "", 1)
+    return out
+
+
 @pytest.mark.parametrize("name", sorted(READABLE_VERBS))
 def test_b7_readable_register_stdout_is_byte_identical_to_pre_change(
         name, readable, capsys):
-    """Pinned pre-change bytes: zero rendered bytes may move on a readable register."""
+    """Pinned pre-change bytes: zero rendered bytes may move on a readable register.
+
+    Five verbs are compared verbatim; `prd` is compared with iteration 221's two APPENDED
+    fragments subtracted, which is the same claim about every byte it did not append.
+    """
     expected_sha, expected_len = PINNED[name]
     code, out, err = _run(READABLE_VERBS[name](readable), capsys)
     assert (code, err) == (0, ""), name
-    assert len(out.encode("utf-8")) == expected_len, (name, out)
-    assert hashlib.sha256(out.encode("utf-8")).hexdigest() == expected_sha, (name, out)
+    pinned = _without_iteration_221_appends(name, out)
+    assert len(pinned.encode("utf-8")) == expected_len, (name, out)
+    assert hashlib.sha256(pinned.encode("utf-8")).hexdigest() == expected_sha, (name, out)
 
 
 def test_b7_the_two_short_documents_match_verbatim(readable, capsys):
