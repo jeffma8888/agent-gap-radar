@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-220
+    lenses: performance-and-throughput, narrative-and-docs (iteration 220)
+    - Candidate A1 -- being measured
+    - Candidate A2 -- being measured
+    - Candidate A3 -- being measured
+    - Candidate B1 -- placeholder, being measured
+    - Candidate B2 -- placeholder, being measured
+    - Candidate B3 -- placeholder, being measured
+    stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: unknown
+    ship: pending (not yet decided)
   iter-219
     lenses: simplification-and-deletion -- iteration 219, performance-and-throughput -- iteration 219
     - Candidate A1 -- retire the `not` rule kind: 12 of its 13 sites are a hand-spelled `content_absent` that throws away the scope note
@@ -11,7 +22,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- the file-domain cache is keyed on the whole glob SET, so one scan re-matches `**/*.py` against every tracked path 88 times: 0.910 s, 7.3 % of the operation that dominates this product
     stubs: 2 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: B3
-    ship: pending (not yet decided)
+    ship: REVERTED
   iter-218
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A2 -- the wheel ships the tool WITHOUT the register, so the only supported on-ramp is a clone
@@ -1003,4 +1014,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-101 scouted iterations
+102 scouted iterations

@@ -12,18 +12,23 @@ expectation comes from the spec's Expected Behaviors, from the conventions of
 `tests/test_file_cache_unit.py`, or from RUNNING the product.
 
 PROVENANCE OF THE PINNED BYTES -- behavior 1 is proved against the PRE-CHANGE
-tree, not against a re-derived expectation.  The pre-change implementation was
+implementation, not against a re-derived expectation.  That implementation was
 materialised out-of-repo with `git archive 0356b8b src | tar -x -C <tmp>` and run
-from its own `PYTHONPATH` with the repo root as cwd (`scan` echoes its target, so
-the relative form is what is pinned).  The six documents below were captured from
-THAT tree; four of them (`report`, `list`, `list --json`, `validate`) reproduce
-iteration 218's independently pinned digests byte for byte, which is what makes
-the capture's provenance checkable rather than merely asserted.
+from its own `PYTHONPATH` (`scan` echoes its target, so the relative form is what
+is pinned).  The four REGISTER-side documents in `PRECHANGE_DOCUMENTS` were
+captured with the repo root as cwd and reproduce iteration 218's independently
+pinned digests byte for byte, which is what makes the capture's provenance
+checkable rather than merely asserted.  The two `scan` documents in
+`FROZEN_TREE_DOCUMENTS` are captured against a FROZEN COPY of the pre-change tree
+rather than the live checkout, because a digest of a document rendered from the
+live checkout is a function of every file this repo later tracks -- see that
+constant for the measurement.
 
 Costs, stated as COUNTS not seconds, per `tools/scan_cost.py`'s doctrine: this
-module runs two full repo scans (behavior 1, the only end-to-end oracle available
-for a change whose whole promise is that nothing moved) and ten unmemoised
-enumerations of this repo (behavior 9, bounded to the widest register sets since
+module runs two full scans of a 267-file frozen COPY of this repo, extracted once
+per module (behavior 1, the only end-to-end oracle available for a change whose
+whole promise is that nothing moved), and ten unmemoised enumerations of this repo
+(behavior 9, bounded to the widest register sets since
 `tests/test_iter219_domain_union_unit.py` carries the register-wide census).
 Everything else runs against a five-file `tmp_path` tree.
 
@@ -38,6 +43,7 @@ import io
 import json
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -48,13 +54,18 @@ from agent_gap_radar.cli import main
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS_DIR = REPO / "gaps"
 
-#: argv -> (stdout byte length, sha256), captured from the pre-change tree at HEAD
-#: `0356b8b`.  All six exited 0 with EMPTY stderr and one trailing newline.
+#: The commit whose TREE the two `scan` pins are measured against:
+#: `0356b8b7e638eb22c011d794f77fb78b74a9d6e5`, the parent of the change this
+#: module tests.  Abbreviated because the docstrings and the capture recipe name
+#: it that way; `git archive` resolves either spelling.
+PRECHANGE_COMMIT = "0356b8b"
+
+#: argv -> (stdout byte length, sha256) for the REGISTER-side verbs, captured from
+#: the pre-change tree with the repo root as cwd.  Their only input is `gaps/`, so
+#: the live checkout is a legitimate corpus for them and iteration 218 pinned the
+#: same four digests independently.  All four exit 0 with EMPTY stderr and one
+#: trailing newline.
 PRECHANGE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
-    ("scan", ".", "--gaps", "gaps"):
-        (25117, "9b9130e76d6509a592e3821d652346a8045a189d08263de4ecc7785ebf28ba22"),
-    ("scan", ".", "--gaps", "gaps", "--json"):
-        (129743, "3ac20b9941de1af3cc8db2623e7787fca3203404891b1a4d0b9dee13c7c6f47c"),
     ("report", "gaps"):
         (39022, "be4bd4e983356c8b705e3e7c026ca2bc713912c0ac89ad7fe0c1d5587be0165f"),
     ("list", "gaps"):
@@ -63,6 +74,34 @@ PRECHANGE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
         (50218, "0a6abac448d375df019b45f6af1a9770998a27d445c2d43d565903a776374468"),
     ("validate", "gaps"):
         (29, "5320bce7a70985f99078db703925a635926e4f1fff9dfe908cd5e57b6b930720"),
+}
+
+#: argv -> (stdout byte length, sha256) for the two `scan` surfaces, rendered from
+#: the FROZEN tree of `PRECHANGE_COMMIT` (see `frozen_target`).
+#:
+#: WHY NOT THE LIVE CHECKOUT.  `scan` enumerates its target with `git ls-files`, so
+#: a digest taken against this repo scanning ITSELF is a function of every file the
+#: repo later tracks -- the pin rots by construction, and it rots with news about
+#: the CORPUS while claiming to be news about THROUGHPUT.  Measured the day this
+#: module became tracked: three lines moved, and not one of them was a rendering
+#: change.  `(+77 more matches, 77 in test files)` became `78` (this module and its
+#: unit twin joined the corpus), and two evidence locators slid down `checks.py`
+#: (`:1250` -> `:1305`, `:971` -> `:1026`) because the iteration added 79 lines
+#: ABOVE them.  The `:971` -> `:1026` slide is also the whole of the one-byte
+#: length change, which is why the length assertion still passed while the digest
+#: did not.
+#:
+#: WHAT THE FROZEN PIN IS WORTH.  Both implementations render this tree to the same
+#: bytes: the pre-change `src` (materialised as above) and the post-change `src`
+#: were each run over this extracted tree, and md/json came back
+#: 25116 B / `7dc7c366...` and 129742 B / `36cb0e85...` from BOTH.  That is a
+#: STRICTLY stronger reading of behavior 1 than the original pin could give, since
+#: the original compared two implementations over two different corpora.
+FROZEN_TREE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
+    ("scan", ".", "--gaps", "gaps"):
+        (25116, "7dc7c366b3575024ca75a37db24547b9b985128457e3b91f42a3517fdd38a966"),
+    ("scan", ".", "--gaps", "gaps", "--json"):
+        (129742, "36cb0e856bea0b29acc2ca3425c45d070fd1dc5aa94c8ccef8f74692bddfa838"),
 }
 
 PY = "**/*.py"
@@ -88,6 +127,52 @@ def target(tmp_path: pathlib.Path) -> pathlib.Path:
     return tmp_path
 
 
+@pytest.fixture(scope="module")
+def frozen_target(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
+    """The pre-change tree, materialised out of this repo's own object store.
+
+    Module-scoped because both `scan` pins read it and extracting 267 files twice
+    would buy nothing.  Three details are load-bearing:
+
+    * The directory is NAMED `agent-gap-radar`, because the document echoes the
+      target's resolved BASE NAME (`# Gap scan: <name>`); a `tmp_path` name would
+      move the pinned bytes.  The tests enter it and spell the target `.`, because
+      the document echoes the caller's SPELLING too.
+    * It is deliberately NOT a git repo, so `tracked_files` answers `None` and the
+      WALK enumerates it.  The archive holds exactly the tracked paths of
+      `PRECHANGE_COMMIT` and none of `SKIP_DIRS`, so the walk sees that same
+      census -- and taking this route keeps the pin out of reach of a
+      contributor's ambient git config (a global `core.excludesFile` would change
+      what `git add` tracked, and with it the corpus).
+    * `git archive` reads the object store, so this needs a checkout that has the
+      commit, not a shallow clone.  The module already assumes a checkout (behavior
+      9 enumerates `REPO`; the acceptance-criterion test stats files under it), and
+      failing loudly beats a skip that would quietly retire an oracle.
+    """
+    root = tmp_path_factory.mktemp("frozen") / "agent-gap-radar"
+    root.mkdir()
+    archive = subprocess.run(
+        ["git", "-C", str(REPO), "archive", PRECHANGE_COMMIT],
+        capture_output=True, timeout=120)
+    assert archive.returncode == 0, (
+        f"`git archive {PRECHANGE_COMMIT}` failed in {REPO}; the frozen corpus "
+        f"behind the `scan` pins needs that commit: "
+        f"{archive.stderr.decode('utf-8', 'replace')[:400]!r}")
+    extract = subprocess.run(
+        ["tar", "-x", "-C", str(root)], input=archive.stdout,
+        capture_output=True, timeout=120)
+    assert extract.returncode == 0, (
+        f"extracting the frozen corpus failed: "
+        f"{extract.stderr.decode('utf-8', 'replace')[:400]!r}")
+    assert (root / "src" / "agent_gap_radar" / "checks.py").is_file(), (
+        "the frozen corpus has no source tree, so a scan of it would be vacuous")
+    assert (root / "gaps").is_dir(), (
+        "the frozen corpus has no register, so a scan of it would be vacuous")
+    assert not (root / ".git").exists(), (
+        "the frozen corpus became a git repo, which changes the enumeration route")
+    return root
+
+
 def _spy(monkeypatch) -> list[tuple[str, tuple[str, ...], bool]]:
     """Record every ACTUAL enumeration, then delegate.  Returns the growing log."""
     seen: list[tuple[str, tuple[str, ...], bool]] = []
@@ -111,18 +196,28 @@ def _key(target: pathlib.Path, globs: tuple[str, ...],
     return (str(target), globs, exclude_tests)
 
 
-def _run(argv: tuple[str, ...], monkeypatch) -> tuple[int, bytes, str]:
-    """Run the CLI in-process with the repo root as cwd, capturing stdout as BYTES."""
-    monkeypatch.chdir(REPO)
+def _run(argv: tuple[str, ...], monkeypatch,
+         cwd: pathlib.Path | None = None) -> tuple[int, bytes, str]:
+    """Run the CLI in-process from `cwd` (default the repo root), stdout as BYTES."""
+    monkeypatch.chdir(cwd if cwd is not None else REPO)
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         code = main(list(argv))
     return code, out.getvalue().encode("utf-8"), err.getvalue()
 
 
-def _document_is_unchanged(argv: tuple[str, ...], monkeypatch) -> None:
-    expected_len, expected_sha = PRECHANGE_DOCUMENTS[argv]
-    code, out, err = _run(argv, monkeypatch)
+def _document_is_unchanged(
+        argv: tuple[str, ...], monkeypatch, *,
+        pins: dict[tuple[str, ...], tuple[int, str]] | None = None,
+        cwd: pathlib.Path | None = None) -> None:
+    """Assert one document against its pin: exit code, stderr, length, sha, newline.
+
+    `pins`/`cwd` travel together -- a digest only means anything alongside the
+    corpus it was taken from, so naming one without the other is the mistake this
+    iteration fixed.
+    """
+    expected_len, expected_sha = (pins or PRECHANGE_DOCUMENTS)[argv]
+    code, out, err = _run(argv, monkeypatch, cwd)
     assert code == 0, f"{' '.join(argv)} exited {code}; stderr={err!r}"
     assert err == "", f"{' '.join(argv)} wrote to stderr: {err!r}"
     assert len(out) == expected_len, (
@@ -135,15 +230,23 @@ def _document_is_unchanged(argv: tuple[str, ...], monkeypatch) -> None:
 
 
 # ------------------------------------------------------------------ behavior 1
-def test_b1_scan_is_byte_identical_to_the_prechange_document(monkeypatch):
-    """The end-to-end oracle: a throughput change must move ZERO published bytes."""
-    _document_is_unchanged(("scan", ".", "--gaps", "gaps"), monkeypatch)
+def test_b1_scan_is_byte_identical_to_the_prechange_document(
+        frozen_target, monkeypatch):
+    """The end-to-end oracle: a throughput change must move ZERO published bytes.
+
+    Scanned target is the FROZEN pre-change tree, not the live checkout, so the
+    only thing this digest can report on is the rendering code.
+    """
+    _document_is_unchanged(("scan", ".", "--gaps", "gaps"), monkeypatch,
+                           pins=FROZEN_TREE_DOCUMENTS, cwd=frozen_target)
 
 
-def test_b1_scan_json_is_byte_identical_to_the_prechange_document(monkeypatch):
+def test_b1_scan_json_is_byte_identical_to_the_prechange_document(
+        frozen_target, monkeypatch):
     """The release-gate projection of the same scan, pinned separately: it renders
     locators and per-gap verdicts the markdown brief summarises away."""
-    _document_is_unchanged(("scan", ".", "--gaps", "gaps", "--json"), monkeypatch)
+    _document_is_unchanged(("scan", ".", "--gaps", "gaps", "--json"), monkeypatch,
+                           pins=FROZEN_TREE_DOCUMENTS, cwd=frozen_target)
 
 
 @pytest.mark.parametrize("argv", [
