@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-242
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- the door every contributor and CI runs names ONE of N schema problems and never the field, while the ingest gate on the same models publishes all of them
+    - Candidate A2 -- `radar report` derives five register-health censuses and publishes none of them to a machine: there is no `report --json`
+    - Candidate A3 -- the no-install on-ramp the contract prescribes has no runnable artifact: nothing carries a reader from `gaps/*.json` to a ranking
+    - Candidate B1 -- finish iteration 218's job: 18 public names in `src/` that nothing outside their own module names, and the brake iteration 218 shipped is blind to 7 of them because it only looks at callables
+    - Candidate B2 -- two scan-scoped cache scopes, entered on ONE line in production, kept apart for a reason only tests exercise
+    - Candidate B3 -- the roadmap every stage reads is 302,742 B, and 83.9% of it is the history of work already shipped
+    winner: A1
+    ship: pending (not yet decided)
   iter-221
     lenses: new-capability
     - Candidate A1 -- placeholder, being measured
@@ -11,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- the register ships 181 KB of its own two-sided proof corpus as DATA, and no verb can run it: a pulled register is schema-checkable and never behaviour-checkable
     stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 4284f49
   iter-220
     lenses: performance-and-throughput, narrative-and-docs (iteration 220)
     - Candidate A1 -- being measured
@@ -1025,4 +1035,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-103 scouted iterations
+104 scouted iterations

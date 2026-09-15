@@ -59,6 +59,56 @@ def _record_paths(d: pathlib.Path) -> list[pathlib.Path]:
     return sorted(entries)
 
 
+#: Rendered in place of an EMPTY error `loc`. pydantic reports a RECORD-level failure
+#: -- a `model_validator`, e.g. `_one_citation_is_resolvable` -- with `loc == ()`,
+#: because the whole record is at fault rather than one of its fields. Without a token
+#: that item would begin `": Value error, ..."`, and a consumer splitting an item on its
+#: first `": "` could not tell a record-level failure from a field whose name is blank.
+_RECORD_LEVEL_LOC = "<record>"
+
+#: Separates the rendered errors of ONE record. Deliberately not `"; "`, which already
+#: separates per-FILE blocks below AND occurs inside pydantic's own messages
+#: (`unknown status 'opne'; allowed: (...)`): reusing it would make a nesting level
+#: invisible instead of merely unsplittable.
+_ITEM_JOIN = " | "
+
+
+def _dotted_loc(loc: tuple[int | str, ...]) -> str:
+    """One pydantic error `loc` as a dotted field path, or the record-level token.
+
+    `("evidence", 0, "excerpt")` -> `evidence.0.excerpt`. List indices are rendered as
+    BARE digits rather than `[0]` so the whole path stays one `.`-splittable token; every
+    field name in this schema is an identifier, so a bare integer between two dots is
+    unambiguously an index and needs no brackets to be read as one.
+    """
+    return ".".join(str(part) for part in loc) or _RECORD_LEVEL_LOC
+
+
+def _schema_problem(exc: ValidationError) -> str:
+    """EVERY error in a refused record, each named with the FIELD it occurred at.
+
+    The ONE construction site of this product's schema-refusal sentence -- deliberately
+    the only place its words are spelled, so a census over `src/` finds it once and a fix
+    cannot become a second private copy. It exists because the obvious spelling --
+    `error_count()` plus `errors()[0]["msg"]` -- was FAIL-QUIET at the door the register
+    grows through: it printed a count it then contradicted, dropping every error after the
+    first and, worse, dropping every `loc`. So `severity` going missing refused with a
+    bare `Field required` naming no field, and an unknown key inside a citation refused
+    with `Extra inputs are not permitted` -- a sentence that names neither the key, nor
+    the field, nor which citation. `radar validate` is what CI gates and unattended
+    research passes run, and neither can ask a follow-up question, so a fixer had to
+    re-run the door once per error to discover errors two and three.
+
+    The count is `len(items)` rather than `exc.error_count()` on purpose: head and body are
+    then derived from the SAME list, so the number can never again disagree with what
+    follows it. Messages are pydantic's own, verbatim -- this renderer adds the locator and
+    nothing else, because paraphrasing a validator's words is how the two dialects
+    (`tools/promote.py` prints the full multi-error string) drifted apart in the first place.
+    """
+    items = [f"{_dotted_loc(err['loc'])}: {err.get('msg', '?')}" for err in exc.errors()]
+    return f"{len(items)} schema error(s): {_ITEM_JOIN.join(items)}"
+
+
 def load_all(directory: pathlib.Path | str) -> list[Gap]:
     """Load every *.json in `directory`, sorted by filename for determinism."""
     d = pathlib.Path(directory)
@@ -76,8 +126,7 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
         try:
             gaps.append(Gap.model_validate(raw))
         except ValidationError as exc:
-            problems.append(f"{path.name}: {exc.error_count()} schema error(s): "
-                            f"{exc.errors()[0].get('msg', '?')}")
+            problems.append(f"{path.name}: {_schema_problem(exc)}")
 
     ids = [g.id for g in gaps]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
