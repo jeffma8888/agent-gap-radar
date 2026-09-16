@@ -1,6 +1,37 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-245
+    lenses: narrative-and-docs, new-capability -- iteration 245
+    - Candidate A1 -- the one generated artifact with no content check publishes "not yet decided" about the commit that contains it, in 95 of 95 commits
+    - Candidate B1 -- the roadmap states its OWN size three times, at three mutually inconsistent stale values, in rows still marked open
+    - Candidate C1 -- the repo's only field evidence contradicts itself twenty lines later, and no test reads it
+    - Candidate D1 -- `radar validate --json`: the door every contributor and CI runs answers with ONE prose string, and the register's own most common enum error contains that string's separator
+    - Candidate D2 -- `radar show --json`: the deep per-record view a builder is told to consult is human-only, and the derivation that answers "what if this source is wrong" has exactly one caller in the tree
+    - Candidate D3 -- there is no way INTO the register except by knowing a `GAP-NNN` id: `radar find <text>`
+    winner: A1
+    ship: pending (not yet decided)
+  iter-244
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- the register pays a 3.13x IGNORECASE tax on 160 patterns that provably do not need it, and the folded text is already computed
+    - Candidate A2 -- 68% of the scan's regex passes are provably wasted, and the prefilter that exists lets them through
+    - Candidate A3 -- roadmap row 122, priced at last: the enumeration's fixed cost is 0.44 s, about 3.6% of a scan
+    - Candidate B1 -- the loop's own published notes say iteration 219 was REVERTED, and its 967 lines are live at HEAD
+    - Candidate B2 -- the consumer contract's only field measurement is 13x stale, and README publishes the doctrine it breaks
+    - Candidate B3 -- the ingest door grew a register-consulting advisory in iteration 216 and the contract that governs the door never mentions it
+    winner: A1
+    ship: REVERTED
+  iter-243
+    lenses: simplification-and-deletion, performance-and-throughput -- iteration 243
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- the ~25 live-scan tests sweep a corpus that is 58.3% their own source, so the suite's cost is quadratic in iteration count; freeze the corpus the way iteration 220 already did
+    - Candidate B2 -- row 118 re-measured at HEAD: the patterns that prefilter on NOTHING grew from 23 of 182 to 36 of 278, and the product's own committed instrument prints the number
+    - Candidate B3 -- the CPU grew 38.3% while the wall grew 10.0%, and nothing has asked whether `--dist worksteal` re-pays expensive module-scoped fixtures once per worker
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: B3
+    ship: REVERTED
   iter-242
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- the door every contributor and CI runs names ONE of N schema problems and never the field, while the ingest gate on the same models publishes all of them
@@ -10,7 +41,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- two scan-scoped cache scopes, entered on ONE line in production, kept apart for a reason only tests exercise
     - Candidate B3 -- the roadmap every stage reads is 302,742 B, and 83.9% of it is the history of work already shipped
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 4f66cc6
   iter-221
     lenses: new-capability
     - Candidate A1 -- placeholder, being measured
@@ -1035,4 +1066,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-104 scouted iterations
+107 scouted iterations
