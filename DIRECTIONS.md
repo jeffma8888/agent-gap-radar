@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-246
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- the scan asks 29 distinct questions per run and there is nowhere to put the answer
+    - Candidate A2 -- the scan publishes locators with no quoted line, in a product whose own rule is that a locator without a verbatim quote is not evidence
+    - Candidate A3 -- the register's only cross-layer axis is an ungoverned 275-value vocabulary, and 175 of those values are invisible by design
+    - Candidate B1 -- a duplicate JSON key silently rewrites a record's evidence ladder, and both doors call the register clean
+    - Candidate B2 -- the harness that proves this suite can fail mutates `src/` exactly once, and never the three modules holding the invariant
+    - Candidate B3 -- the register's refusal joins files with a separator its own comment says appears inside the messages
+    winner: B1
+    ship: pending (not yet decided)
   iter-245
     lenses: narrative-and-docs, new-capability -- iteration 245
     - Candidate A1 -- the one generated artifact with no content check publishes "not yet decided" about the commit that contains it, in 95 of 95 commits
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate D2 -- `radar show --json`: the deep per-record view a builder is told to consult is human-only, and the derivation that answers "what if this source is wrong" has exactly one caller in the tree
     - Candidate D3 -- there is no way INTO the register except by knowing a `GAP-NNN` id: `radar find <text>`
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 927dc38
   iter-244
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- the register pays a 3.13x IGNORECASE tax on 160 patterns that provably do not need it, and the folded text is already computed
@@ -1066,4 +1076,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-107 scouted iterations
+108 scouted iterations
