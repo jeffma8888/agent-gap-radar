@@ -1,6 +1,27 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-248
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar validate --json`: the door every contributor and CI runs answers 4 problems with ONE 680-byte prose line whose two separators are outnumbered by the same characters inside its own payload
+    - Candidate A2 -- no machine payload names its producer: 0 of 4 JSON surfaces carry a tool or register version, so a consumer that pins keys cannot attribute a change to a release
+    - Candidate A3 -- the bridge artifact has no stand-in consumer in this repo: `prd_status` appears in zero tracked files, so `prd.json` is only ever checked by its own emitter
+    - Candidate B1 -- roadmap row 129, OPEN: six hand-rolled `json.loads` at the ingest doors, and the strict reader they should call has been published and unused for two iterations
+    - Candidate B2 -- delete the LAST hand-spelled locator rule: `tools/check_locators.py:92` still asks `url.startswith("http")` while every other consumer imports `models.is_resolvable_locator`
+    - Candidate B3 -- collapse the twin literal provers: production reads only the DNF walk, and the older public walk now runs on every pattern purely to check it
+    winner: B2
+    ship: pending (not yet decided)
+  iter-247
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- roadmap row 129, OPEN: iteration 246 shut the forged-ladder door at `radar validate` and left it open at the two evidence gates the README names by path
+    - Candidate A2 -- the same two gates CRASH where the product REFUSES: `KeyError: 'locator'`, exit 1, 10 stderr lines, over bytes `radar validate` rejects in one clean sentence
+    - Candidate A3 -- nothing binds a record's filename to its `id`, and three surfaces already treat the filename AS the id
+    - Candidate B1 -- placeholder, being measured
+    - Candidate B2 -- placeholder, being measured
+    - Candidate B3 -- placeholder, being measured
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: A1
+    ship: unknown
   iter-246
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the scan asks 29 distinct questions per run and there is nowhere to put the answer
@@ -10,7 +31,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the harness that proves this suite can fail mutates `src/` exactly once, and never the three modules holding the invariant
     - Candidate B3 -- the register's refusal joins files with a separator its own comment says appears inside the messages
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED d0fd819
   iter-245
     lenses: narrative-and-docs, new-capability -- iteration 245
     - Candidate A1 -- the one generated artifact with no content check publishes "not yet decided" about the commit that contains it, in 95 of 95 commits
@@ -1076,4 +1097,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-108 scouted iterations
+110 scouted iterations

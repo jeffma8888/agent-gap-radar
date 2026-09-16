@@ -64,7 +64,7 @@ PUBLISHED_EXIT_CODES = {0, 1, 2}
 
 #: Every summary line this file observes, so the arithmetic pin can be a whole-file property.
 _SUMMARY_RE = re.compile(
-    r"^(\d+) distinct locator\(s\): (\d+) checked, (\d+) skipped \(non-http\), (\d+) broken$",
+    r"^(\d+) distinct locator\(s\): (\d+) checked, (\d+) skipped \(not resolvable\), (\d+) broken$",
     re.MULTILINE,
 )
 
@@ -563,12 +563,12 @@ def test_iter79_the_arithmetic_guard_in_this_file_is_not_vacuous() -> None:
     inconsistent one.
     """
     consistent = (
-        "  SKIP  x1  doi:10.0000/x (non-http locator)\n"
-        "2 distinct locator(s): 1 checked, 1 skipped (non-http), 0 broken\n"
+        "  SKIP  x1  doi:10.0000/x (not a resolvable locator)\n"
+        "2 distinct locator(s): 1 checked, 1 skipped (not resolvable), 0 broken\n"
     )
     _assert_counts_reconcile(consistent)  # must not raise
     assert _summary_of(consistent) == (2, 1, 1, 0)
 
-    inconsistent = "9 distinct locator(s): 1 checked, 1 skipped (non-http), 0 broken\n"
+    inconsistent = "9 distinct locator(s): 1 checked, 1 skipped (not resolvable), 0 broken\n"
     with pytest.raises(AssertionError):
         _assert_counts_reconcile(inconsistent)
