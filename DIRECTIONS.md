@@ -1,6 +1,15 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-253
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- the src-wide no-network ban cannot see `http.*`: its `http.client` entry is unreachable by construction, and the only check that CAN see it covers 1 of 11 files at import time
+    - Candidate A2 -- `filterwarnings = ["error"]` is the suite's loudest brake and it is silent for all 103 out-of-process CLI runs
+    - Candidate A3 -- the configured `-n auto --dist worksteal` costs a flat ~13.5s on every narrow selection: 13.908s vs 0.419s on a 12-test file, 33x
+    - Candidate B1 -- `list --json` names the strongest evidence CLASS and no way to reach the citation, so the declared consumer's own block spec cannot be built on it
+    - Candidate B2 -- the record file surface is the contract's blessed read path and has no machine schema: `model_json_schema` occurs ZERO times in this repo
+    winner: A1
+    ship: pending (not yet decided)
   iter-252
     lenses: new-capability, hardening/DX
     - Candidate A1 -- 52.1% of every scan's findings claim safety with ZERO locators and one identical eight-word reason: `NOT_APPLICABLE` has no witness
@@ -10,7 +19,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- 30 `pytest.skip` sites in 19 test files: a brake that stands down is invisible in the configured `-q` run
     - Candidate B3 -- the falsifiability harness still plants 1 of 20 defects in `src/`, and 0 in the modules holding the invariant
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 60db604
   iter-251
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- the prd `check` object emits five keys and the contract that exists to be the machine consumer's complete key list names four of them ZERO times
@@ -1137,4 +1146,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-114 scouted iterations
+115 scouted iterations
