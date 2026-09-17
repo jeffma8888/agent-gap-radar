@@ -984,6 +984,61 @@ def evaluate(rule: dict, target: pathlib.Path,
     raise ValueError(f"unknown rule kind: {kind!r}")
 
 
+def _render_rule(rule: dict) -> str:
+    """Describe an `applies_when` rule AS AUTHORED, for a NOT_APPLICABLE reason.
+
+    A `NOT_APPLICABLE` verdict is this product's largest published claim about a
+    target -- 52.1% of a scan of this repo -- and it is the one claim that shipped
+    with no witness at all: one identical eight-word sentence, no rule, no glob, no
+    pattern.  A reader told a gap "cannot apply" could not distinguish a gap that
+    genuinely does not apply from an `applies_when` glob that is simply wrong, which
+    is the fail-open family this module's own `exclude_tests` comment exists to
+    prevent.  Naming the predicate makes the claim falsifiable by hand.
+
+    Describes the rule, never a result.  `all_of` fails as a whole while some arms
+    matched, so no sub-render may claim `(no match)` -- that would be a per-leaf
+    verdict this function cannot know and did not measure.
+
+    Total by construction: a pure function of the dict, it reads no file, raises
+    nothing and names an unrecognised kind rather than dropping it.  A raising
+    renderer would turn a describable non-match into an `UNKNOWN`, spending a
+    verdict on a formatting concern.
+    """
+    kind = rule.get("kind")
+
+    if kind in ("any_of", "all_of", "not"):
+        # Authored order, never sorted: the register's order is the author's
+        # reading order, and reordering would describe a rule nobody wrote.
+        subs = ([rule["rule"]] if kind == "not" and rule.get("rule") is not None
+                else rule.get("rules", []))
+        return f"{kind}({', '.join(_render_rule(sub) for sub in subs)})"
+
+    if kind in ("content_matches", "content_absent"):
+        return f"{kind} /{rule.get('pattern')}/ in {_render_scope(rule.get('globs', []))}"
+
+    if kind in ("file_exists", "file_absent"):
+        return f"{kind} {_render_scope(rule.get('globs', []))}"
+
+    return f"unknown rule kind: {kind!r}"
+
+
+def _render_scope(globs: list[str]) -> str:
+    """Name a searched scope under the same cap `_scope_note` uses.
+
+    `globs[:4]` keeps the two negative-witness renderings agreeing on how much of a
+    wide glob list a reader is shown.  The suppressed remainder is COUNTED rather
+    than dropped, because 61 of this register's 140 glob-bearing `applies_when`
+    leaves carry more than four globs (max 19), so a silent cut would hide most of
+    the scope on the majority of them -- naming the number is what keeps the render
+    checkable.  The denominator is LEAVES (129 `content_matches` + 11 `file_exists`),
+    not the 116 records that carry an `applies_when`: the 21 `all_of` and 3 `any_of`
+    nodes hold no globs, so records is the wrong population for a glob-width claim.
+    """
+    head = ", ".join(globs[:4])
+    suppressed = len(globs) - 4
+    return f"{head}, +{suppressed} more" if suppressed > 0 else head
+
+
 def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     """Decide one check against a target. Fail-CLOSED by construction.
 
@@ -1008,8 +1063,9 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
             # `RuleHit.__bool__` is ever read and the location list cannot escape
             # into the `CheckOutcome` returned below.
             if not evaluate(applies, target, boolean_only=True):
-                return CheckOutcome(Verdict.NOT_APPLICABLE,
-                                    reason="applies_when did not match")
+                return CheckOutcome(
+                    Verdict.NOT_APPLICABLE,
+                    reason=f"applies_when did not match: {_render_rule(applies)}")
         except ValueError as exc:
             return CheckOutcome(Verdict.UNKNOWN, reason=f"applies_when: {exc}")
 

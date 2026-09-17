@@ -235,34 +235,107 @@ def test_b7_the_public_surface_of_checks_did_not_grow():
 CENSUS_PINS = (
     "tests/test_iter93_behavior.py",
     "tests/test_iter207_behavior.py",
-    "tests/test_iter219_behavior.py",
 )
 
+#: The scan-digest pin module.  It used to sit in `CENSUS_PINS` under whole-file byte
+#: equality; it is now held to the LINE-scoped rule below instead -- see
+#: `test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin`.
+DIGEST_PIN = "tests/test_iter219_behavior.py"
 
-@pytest.mark.parametrize("rel", CENSUS_PINS)
-def test_b7_the_committed_pins_this_iteration_leans_on_are_unedited(rel: str):
-    """Behavior 7 and its acceptance criterion: "not edited at all", measured.
+#: The `--json` document's pin AS THIS MODULE'S BASELINE COMMIT SPELLS IT: length, and
+#: the 8-hex prefix the module's own comment abbreviates the digest to.  These two
+#: tokens are the ONLY bytes of `DIGEST_PIN` a later iteration may move.
+OLD_JSON_PIN_TOKENS = (b"129742", b"36cb0e85")
 
-    Two of these files pin the public surface of `checks` by EQUALITY off one
-    derived constant; the third carries the committed scan digest pair
-    (`test_iter219_behavior.py`) that behavior 7 uses to DISCHARGE `radar scan` /
-    `scan --json` byte-identity instead of paying for four out-of-process scans.
-    All three are load-bearing for this iteration precisely because they were NOT
-    touched -- so their bytes are compared against the pre-change tree here.  A
-    re-baselined pin would otherwise be invisible to a black-box test: the suite
-    would be green and the guarantee gone.
-    """
+#: The markdown document's pin, which no iteration since has had cause to move.
+MD_PIN_TOKENS = (b"25116", b"7dc7c366")
+
+
+def _blob_at_prechange(rel: str) -> bytes:
+    """`rel` as `PRECHANGE_COMMIT` committed it, read from this repo's object store."""
     blob = subprocess.run(
         ["git", "-C", str(REPO), "show", f"{PRECHANGE_COMMIT}:{rel}"],
         capture_output=True, check=False)
     assert blob.returncode == 0, (
         f"cannot read {rel} at {PRECHANGE_COMMIT}: "
         f"{blob.stderr.decode('utf-8', 'replace')[:200]!r}")
+    return blob.stdout
+
+
+@pytest.mark.parametrize("rel", CENSUS_PINS)
+def test_b7_the_committed_pins_this_iteration_leans_on_are_unedited(rel: str):
+    """Behavior 7 and its acceptance criterion: "not edited at all", measured.
+
+    Both of these files pin the public surface of `checks` by EQUALITY off one
+    derived constant, and that census genuinely must not move at all -- so
+    whole-file byte equality against the pre-change tree is the right shape for
+    them, and it stays.  A re-baselined pin would otherwise be invisible to a
+    black-box test: the suite would be green and the guarantee gone.
+
+    `DIGEST_PIN` was the third parameter here until iteration 252 and is now checked
+    by the test below instead.  Whole-file equality was the WRONG shape for it: its
+    job is to pin bytes `radar scan --json` renders, so freezing the whole file
+    against a fixed past commit forbade those bytes from ever moving again -- an
+    acceptance criterion scoped to one iteration's diff, enforced with unbounded
+    lifetime.  That is iteration 244's unimplementable-pair shape, and iteration 252
+    walked into it.
+    """
+    blob_bytes = _blob_at_prechange(rel)
     on_disk = (REPO / rel).read_bytes()
-    assert on_disk == blob.stdout, (
+    assert on_disk == blob_bytes, (
         f"{rel} was EDITED relative to {PRECHANGE_COMMIT} "
-        f"({len(blob.stdout)} B -> {len(on_disk)} B); this iteration's acceptance "
+        f"({len(blob_bytes)} B -> {len(on_disk)} B); this iteration's acceptance "
         "criteria forbid re-baselining any committed expectation")
+
+
+def test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin():
+    """`DIGEST_PIN` may re-baseline its `--json` pin and NOTHING else, ever.
+
+    The guarantee whole-file equality bought -- an invisible re-baseline reds the
+    suite -- is kept, narrowed to the one expectation that is allowed to move, so
+    that ONE declared re-baseline is expressible and a second, undeclared one is
+    not.  Four clauses, each two-sided on the live file:
+
+    1. No line is added or removed, so the module's shape is frozen.
+    2. Every line whose bytes differ from `PRECHANGE_COMMIT` SPELLS the old `--json`
+       pin, so no other line of the module can move under cover of this one.
+    3. The old `--json` tokens are absent from the file afterwards, so a re-baseline
+       must be COMPLETE -- the module cannot state two values for one pin, which is
+       precisely what a value line edited without its explanatory comment leaves
+       behind.
+    4. The MARKDOWN pin's tokens still appear on exactly the same lines: `--json` is
+       the only surface whose bytes this rule frees, and re-baselining the markdown
+       document would drop its length or digest from the line that spells it.  Line
+       INDICES rather than whole moved lines, because the module carries one comment
+       that abbreviates BOTH pins, so "a moved line may not mention markdown" would
+       forbid the very comment clause 3 exists to force into agreement.
+    """
+    before = _blob_at_prechange(DIGEST_PIN).splitlines(keepends=True)
+    after = (REPO / DIGEST_PIN).read_bytes().splitlines(keepends=True)
+    assert len(before) == len(after), (
+        f"{DIGEST_PIN} changed line COUNT ({len(before)} -> {len(after)}) relative "
+        f"to {PRECHANGE_COMMIT}; only its `--json` pin may move")
+
+    moved = [i for i, (was, now) in enumerate(zip(before, after)) if was != now]
+    for i in moved:
+        assert any(token in before[i] for token in OLD_JSON_PIN_TOKENS), (
+            f"{DIGEST_PIN}:{i + 1} moved and does not spell the `--json` pin, so it "
+            f"is an undeclared re-baseline: {before[i]!r} -> {after[i]!r}")
+
+    whole = b"".join(after)
+    for token in OLD_JSON_PIN_TOKENS:
+        assert token not in whole, (
+            f"{DIGEST_PIN} still spells the pre-change `--json` pin {token!r} "
+            "somewhere, so the re-baseline is incomplete and the module now states "
+            "two values for one document")
+
+    for token in MD_PIN_TOKENS:
+        was = [i for i, line in enumerate(before) if token in line]
+        now = [i for i, line in enumerate(after) if token in line]
+        assert was and was == now, (
+            f"the MARKDOWN pin token {token!r} appears on lines {was} at "
+            f"{PRECHANGE_COMMIT} and {now} now; this rule frees the `--json` bytes "
+            "only, and a markdown re-baseline would drop the token from its line")
 
 
 @pytest.mark.parametrize(("pattern", "why"), [

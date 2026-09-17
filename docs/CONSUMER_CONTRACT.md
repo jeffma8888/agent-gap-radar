@@ -382,6 +382,24 @@ period, which is why the prose around it may backtick a word like `score`
 without joining the list. Output is byte-stable across runs of one INVOCATION;
 two spellings of one directory agree key-for-key except in `target`.
 
+A `NOT_APPLICABLE` finding NAMES THE RULE THAT FAILED. Its `reason` is
+`applies_when did not match: ` followed by a render of that record's own
+`applies_when` rule as AUTHORED, so the largest claim a scan publishes -- 62 of
+119 findings on this repo, 2.7x more than the only other verdict that asserts
+safety -- is checkable by hand instead of resting on one identical eight-word
+sentence repeated once per record. The form is the rule, never a result: a leaf
+reads `content_matches /PATTERN/ in GLOB, GLOB`, `content_absent /PATTERN/ in
+<scope>`, `file_exists <scope>` or `file_absent <scope>`; a combinator reads
+`any_of(...)`, `all_of(...)` or `not(...)` over its sub-rules in authored order,
+joined `, `. A scope names the first four globs in authored order and then
+`, +N more` for the count it suppressed, the same cap the absent-witness
+rendering uses. No per-arm outcome is asserted, because an `all_of` fails as a
+whole while some of its arms matched, and a render claiming otherwise would
+publish a verdict the tool never measured. This adds NO key and moves no other
+verdict's `reason`; `locations` stays empty and `question` stays empty, because a
+rule that did not match has no matched line to cite and inventing one beside a
+non-match is the opposite of the point.
+
 ## The prd payload -- the five top-level keys, published
 
 Both prd surfaces -- the prd verb, and the scan verb run with its prd flag -- emit ONE

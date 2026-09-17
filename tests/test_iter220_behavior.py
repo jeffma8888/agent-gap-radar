@@ -189,10 +189,19 @@ def grown_clone(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
 
     Full history and no `--depth`, which is what the pre-ship gate does, because
     `git archive PRECHANGE_COMMIT` reads the object store.  The working-tree copies
-    of this iteration's two test modules are laid over the clone's checkout so the
-    clone is the world as it will exist AFTER the ship, and `GROWTH_PROBE` is
-    committed on top so the corpus is strictly larger than iteration 219's
-    unconditionally -- before the ship and after it.
+    of this iteration's two test modules AND of `src/` are laid over the clone's
+    checkout so the clone is the world as it will exist AFTER the ship, and
+    `GROWTH_PROBE` is committed on top so the corpus is strictly larger than
+    iteration 219's unconditionally -- before the ship and after it.
+
+    `src/` is part of that overlay and was NOT when this fixture was written, which
+    made the oracle incoherent for any iteration that moves both a pin and the code
+    behind it: `git clone` copies HEAD, so the render ran the COMMITTED
+    implementation while `FROZEN_TREE_DOCUMENTS` was read from the WORKING TREE.
+    Iteration 252 hit exactly that -- HEAD's 129742 B measured against the working
+    tree's re-baselined pin -- and the failure was a property of the fixture, not of
+    the change.  A pin and the implementation that renders it must come from the
+    same tree; "the world as it will exist AFTER the ship" includes `src/`.
     """
     clone = tmp_path_factory.mktemp("grown") / "clone"
     done = subprocess.run(["git", "clone", "--quiet", str(REPO), str(clone)],
@@ -203,6 +212,9 @@ def grown_clone(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
         source = REPO / name
         if source.is_file():
             shutil.copyfile(source, clone / name)
+    shutil.rmtree(clone / "src")
+    shutil.copytree(REPO / "src", clone / "src",
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (clone / GROWTH_PROBE).write_text(GROWTH_PROBE_BODY, encoding="utf-8")
 
     _git("add", "-A", cwd=clone)

@@ -1,6 +1,46 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-252
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- 52.1% of every scan's findings claim safety with ZERO locators and one identical eight-word reason: `NOT_APPLICABLE` has no witness
+    - Candidate A2 -- the register ships 207,075 B of its own two-sided proof corpus and no verb can execute it: `radar selftest`
+    - Candidate A3 -- 97.5% of the register sits in a priority tie, the largest tie is 42 records deep, and no machine surface publishes the three numbers that produced the tie
+    - Candidate B1 -- the ingest door's malformed-file behaviour is unmeasured: BOM, invalid UTF-8, 0-byte and CRLF records
+    - Candidate B2 -- 30 `pytest.skip` sites in 19 test files: a brake that stands down is invisible in the configured `-q` run
+    - Candidate B3 -- the falsifiability harness still plants 1 of 20 defects in `src/`, and 0 in the modules holding the invariant
+    winner: A1
+    ship: pending (not yet decided)
+  iter-251
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- the prd `check` object emits five keys and the contract that exists to be the machine consumer's complete key list names four of them ZERO times
+    - Candidate A2 -- the contract publishes ONE of the scan's three domain-narrowing caps, under the one verdict that claims safety, and the other two appear in zero tracked documents
+    - Candidate A3 -- the README's "ported verbatim" claim about `tools/check_locators.py` went stale on the very commit that byte-pinned the sentence
+    - B1 -- 24% of every scan's findings are outside the gate's domain BY CONSTRUCTION, and the target has nowhere to answer them: `radar scan --answers <file>`
+    - B2 -- `scan --exit-code` is all-or-nothing, so a target with a real backlog can never adopt it: `radar scan --baseline <file>`
+    - B3 -- the 213 lookalike pairs already IN the register still have no reader: the detector runs only at the ingest door (roadmap row 119, OPEN)
+    winner: B1
+    ship: REVERTED
+  iter-250
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- 75.7% of every live scan matches the register's own tests/, a corpus growing 22.7% per 8 iterations
+    - Candidate A2 -- 278 leaf evaluations for 221 distinct patterns: the repeats are re-searched at full price
+    - Candidate A3 -- the per-scan cost is flat, so the remaining lever is the corpus, not the pattern
+    - Candidate B1 -- HEAD's own commit rewrote `tools/check_locators.py`, and two tests now guard a README claim whose stated premise that commit destroyed
+    - Candidate B2 -- the ingest door prints a line kind its governing contract does not know exists, and the contract's claims about its output are stated as exhaustive
+    - Candidate B3 -- the repo's two loop-generated narrative artifacts disagree about what iteration 245 shipped, and nothing compares them
+    winner: A2
+    ship: unknown
+  iter-249
+    lenses: simplification-and-deletion, performance-and-throughput (iteration 249)
+    - Candidate A1 -- delete the minority `Error: ` dialect: 7 sites, all in the 3 tools that already import `cli`, each one 2 lines that become 1
+    - Candidate A2 -- `render.py` exports 6 constants that nothing outside the file names, and the same file already spells the private form for the same kind of sentence
+    - Candidate A3 -- the strict record parser iteration 246 published has ZERO callers outside its own file, three iterations later
+    - Candidate B1 -- roadmap row 122, priced at last: `pathlib.relative_to` alone is 0.768 s of the 8.51 s scan, 46,489 calls for 276 distinct answers
+    - Candidate B2 -- the literal prefilter asks the same (path, literal) membership question many times per scan: 152,789 generator frames, 1.156 s
+    - Candidate B3 -- the regex phase is invisible to the profiler and is the whole remaining wall: `evaluate`'s own frame holds 6.994 s of 8.51 s
+    winner: B1
+    ship: REVERTED
   iter-248
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar validate --json`: the door every contributor and CI runs answers 4 problems with ONE 680-byte prose line whose two separators are outnumbered by the same characters inside its own payload
@@ -10,7 +50,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- delete the LAST hand-spelled locator rule: `tools/check_locators.py:92` still asks `url.startswith("http")` while every other consumer imports `models.is_resolvable_locator`
     - Candidate B3 -- collapse the twin literal provers: production reads only the DNF walk, and the older public walk now runs on every pattern purely to check it
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 2987dea
   iter-247
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- roadmap row 129, OPEN: iteration 246 shut the forged-ladder door at `radar validate` and left it open at the two evidence gates the README names by path
@@ -1097,4 +1137,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-110 scouted iterations
+114 scouted iterations

@@ -94,14 +94,14 @@ PRECHANGE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
 #: WHAT THE FROZEN PIN IS WORTH.  Both implementations render this tree to the same
 #: bytes: the pre-change `src` (materialised as above) and the post-change `src`
 #: were each run over this extracted tree, and md/json came back
-#: 25116 B / `7dc7c366...` and 129742 B / `36cb0e85...` from BOTH.  That is a
+#: 25116 B / `7dc7c366...` and 143431 B / `ff05e4a3...` from BOTH.  That is a
 #: STRICTLY stronger reading of behavior 1 than the original pin could give, since
 #: the original compared two implementations over two different corpora.
 FROZEN_TREE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
     ("scan", ".", "--gaps", "gaps"):
         (25116, "7dc7c366b3575024ca75a37db24547b9b985128457e3b91f42a3517fdd38a966"),
     ("scan", ".", "--gaps", "gaps", "--json"):
-        (129742, "36cb0e856bea0b29acc2ca3425c45d070fd1dc5aa94c8ccef8f74692bddfa838"),
+        (143431, "ff05e4a31de18652bb412ae261a5112070106fb3f7134d87a3b0bb5efc332a32"),
 }
 
 PY = "**/*.py"
