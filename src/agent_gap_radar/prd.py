@@ -20,6 +20,15 @@ from .scoring import confidence, priority
 #: surface (roadmap row 45), so a loop may read it without racing a writer.
 _RECORD_DIR = "gaps"
 
+#: The two keys `--with-fixtures` APPENDS inside `reproductionSample`, each a
+#: `{relative path: file content}` object. APPENDED rather than substituted for the
+#: `badFiles`/`goodFiles` name lists, and nested one level below the key set
+#: `tests/test_iter221_behavior.py`'s `PRECEDING_KEYS` pins, so the flag adds bytes and
+#: moves none: the default arm stays the pointer iteration 23 shipped, and a consumer
+#: that pinned the sample's shape still finds every key it pinned where it pinned it.
+_BAD_FIXTURES_KEY = "badFixtures"
+_GOOD_FIXTURES_KEY = "goodFixtures"
+
 #: Closed three-value vocabulary, one deterministic sentence each. Every sentence
 #: states what the REGISTER HOLDS towards a reproduction -- never a judgement about
 #: the gap itself, which `priority` and `confidence` already publish as separate,
@@ -64,7 +73,20 @@ def _slug(text: str) -> str:
     return slug.strip("-")[:48]
 
 
-def _check_payload(gap: Gap) -> dict:
+def _inlined(files: dict[str, str]) -> dict[str, str]:
+    """One side of the reproduction sample as `{relative path: content}`, name-sorted.
+
+    Sorted by filename for the same reason the sibling name lists are: a register holds
+    a fixture tree as a mapping, and Python preserves insertion order, so emitting it
+    unsorted would make the document depend on the order a JSON record happened to be
+    written in. The bytes are copied verbatim -- no normalisation, no trailing-newline
+    repair -- because the suite proves the check discriminates on exactly these bytes,
+    and a "tidied" copy is a different sample that may not.
+    """
+    return {name: files[name] for name in sorted(files)}
+
+
+def _check_payload(gap: Gap, *, with_fixtures: bool = False) -> dict:
     """What the register holds towards reproducing this gap, and towards closing it.
 
     Emitted for every record, including one with no check: a MISSING key reads as
@@ -76,6 +98,14 @@ def _check_payload(gap: Gap) -> dict:
     make the gap PRESENT, and the appended `closure` key says what the register would
     accept as ABSENT. A loop handed only the first half can go green with the gap it
     was built from still reproducing.
+
+    `with_fixtures` is OPT-IN and defaults to the POINTER, which is the shape iteration
+    23 measured and chose: a PRD enters a build loop's prompt on every iteration, and
+    this register's own GAP-005 cites a growing required-reading file killing a loop on
+    a step cap. It exists because the pointer names bytes on the far side of a repo
+    boundary the PRD is built to cross -- see `_closure_payload`, which records that
+    `prd` is handed a REGISTER path and never a TARGET path -- so a consumer that
+    cannot read this register's files can ask for the sample itself instead.
     """
     check = gap.check
     kind = detectability(check)
@@ -108,6 +138,12 @@ def _check_payload(gap: Gap) -> dict:
             "badFiles": sorted(fixtures.bad),
             "goodFiles": sorted(fixtures.good),
         }
+        if with_fixtures:
+            # The pointer keys above are KEPT, not replaced: `recordGlob` still says
+            # which record these bytes came from, which is what makes an inlined sample
+            # auditable against the register rather than a detached copy of it.
+            payload["reproductionSample"][_BAD_FIXTURES_KEY] = _inlined(fixtures.bad)
+            payload["reproductionSample"][_GOOD_FIXTURES_KEY] = _inlined(fixtures.good)
     elif kind == "manual":
         # Carried ONLY on a manual check, where the question IS the reproduction
         # instruction. On an automated check the same string is `scan`'s
@@ -156,16 +192,28 @@ def _reproduction_criterion(check_payload: dict) -> str:
     file tree the suite proves yields PRESENT, transcription beats invention; where
     it holds none, the honest instruction is to STATE the judgement the test rests
     on before writing it, so a later reader can see what the reproduction assumed.
+
+    Which sentence a loop is handed is read off the PAYLOAD -- whether the inlined keys
+    are there -- and never off a second copy of the `--with-fixtures` flag. The machine
+    block and the human instruction have to describe the same document, so an
+    instruction to transcribe inlined bytes can only be emitted where the bytes are.
     """
     sample = check_payload["reproductionSample"]
     if sample is None:
         return ("No static signature for this gap exists in the register: state the "
                 "judgement the reproduction rests on before the test is written")
-    record_glob = sample["recordGlob"]
     n_bad, n_good = len(sample["badFiles"]), len(sample["goodFiles"])
-    return (f"Transcribe the two-sided sample named by {record_glob} "
-            f"({n_bad} bad file(s) that must yield PRESENT, {n_good} good file(s) "
-            "that must not) rather than inventing a reproduction")
+    sizes = (f"({n_bad} bad file(s) that must yield PRESENT, {n_good} good file(s) "
+             "that must not)")
+    if _BAD_FIXTURES_KEY in sample:
+        # The KEY PATH, not the glob: these bytes are in the document being read, so
+        # sending a loop to another repo for them would be false. Spelled as a JSON
+        # path from the root a consumer parsed, because that is the only address it has.
+        return (f"Transcribe the two-sided sample carried inline at "
+                f"sourceGap.check.reproductionSample.{_BAD_FIXTURES_KEY} and "
+                f".{_GOOD_FIXTURES_KEY} {sizes} rather than inventing a reproduction")
+    return (f"Transcribe the two-sided sample named by {sample['recordGlob']} "
+            f"{sizes} rather than inventing a reproduction")
 
 
 def _closure_criterion(check_payload: dict, gap_id: str) -> str:
@@ -194,18 +242,24 @@ def _closure_criterion(check_payload: dict, gap_id: str) -> str:
             f"{rule['field']} in {rule['recordGlob']}")
 
 
-def prd_for(gap: Gap, project: str = "agent-gap-radar") -> dict:
+def prd_for(gap: Gap, project: str = "agent-gap-radar", *,
+            with_fixtures: bool = False) -> dict:
     """Build a prd.json-shaped dict for one gap.
 
     Story 1 is always a failing reproduction of the gap. A build loop that
     starts from a spec instead of a red test optimises the spec.
+
+    `with_fixtures` inlines the reproduction sample's bytes; it defaults to False, so
+    every caller that predates it emits the same document it always did. Keyword-only
+    on purpose: `project` is already positional at two call sites, and a third
+    positional would let a caller pass a project name into the flag.
     """
     branch = f"ralph/{_slug(gap.title)}"
     criteria_tail = ["Full test suite passes", "No new runtime dependency"]
     # Built ONCE and read twice: the machine payload below and story US-001's
     # derived criterion must describe the same register, so they cannot be two
     # independent derivations that drift apart.
-    check_payload = _check_payload(gap)
+    check_payload = _check_payload(gap, with_fixtures=with_fixtures)
 
     stories = [
         {
@@ -281,5 +335,6 @@ def prd_for(gap: Gap, project: str = "agent-gap-radar") -> dict:
     }
 
 
-def render_prd(gap: Gap, project: str = "agent-gap-radar") -> str:
-    return json_document(prd_for(gap, project))
+def render_prd(gap: Gap, project: str = "agent-gap-radar", *,
+               with_fixtures: bool = False) -> str:
+    return json_document(prd_for(gap, project, with_fixtures=with_fixtures))

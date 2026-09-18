@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-257
+    lenses: narrative-and-docs -- iteration 257, new-capability
+    - Candidate A1 -- the rule that decides `ABSENT` is published in three documents as "test files", and its real 4-branch vocabulary silently turns a mitigated target into `PRESENT`
+    - Candidate A2 -- roadmap row 50, OPEN: the research contract is the ingest door's only instruction sheet, and the flag that makes the door WRITE appears in zero tracked documents
+    - Candidate A3 -- `--floor` occurs zero times in README.md, the only user-facing document, and since iteration 255 it is the argument that decides the CI verdict README teaches
+    - Candidate B1 -- roadmap row 54, OPEN: the bridge artifact hands the build loop a GLOB into another repo instead of the 364 sample files the register already holds inline
+    - Candidate B2 -- confidence is blind to DATE by construction, so 49 of 120 records rest on nothing newer than six months and the register cannot name one of them
+    - Candidate B3 -- the register's primary key is now load-bearing on four verbs, and nothing maps a word a user has to a `GAP-NNN`
+    winner: B1
+    ship: pending (not yet decided)
   iter-256
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- 36 of 282 content evaluations enter the scan with NO literal prefilter, and the census counts them without attributing one file to them
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- roadmap row 52, OPEN: the contract's stable-surface table publishes NONE of the CLI's defaults, and the one that now decides a CI verdict is published in no document at all
     - Candidate B3 -- rows 64 and 70, OPEN: the roadmap that steers this loop is 6.28x its budget, and all three size figures those rows publish are stale by 2.3x to 5.5x
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 38628c4
   iter-255
     lenses: simplification-and-deletion (iteration 255), performance-and-throughput (iteration 255)
     - Candidate A1 -- placeholder, being measured
@@ -1177,4 +1187,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-118 scouted iterations
+119 scouted iterations

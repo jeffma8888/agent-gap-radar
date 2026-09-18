@@ -464,6 +464,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_prd.add_argument("--gap", dest="gap_id", default=None,
                        help="gap id (default: the top-ranked gap)")
     p_prd.add_argument("--project", default="agent-gap-radar")
+    # Registered LAST so the argument order `tests/test_iter111_behavior.py`'s
+    # `EXPECTED_ARGUMENTS["prd"]` reads is extended rather than reshuffled, and OPT-IN so
+    # the pointer iteration 23 measured stays the default: a PRD enters a build loop's
+    # prompt on every iteration, and this register's own GAP-005 cites a growing
+    # required-reading file killing a loop on a step cap. Deliberately NOT added to
+    # `scan --prd`: that surface is byte-compared against this one by
+    # `tests/test_iter221_behavior.py`, and a flag on only one of them is what keeps the
+    # two emitters one emitter.
+    p_prd.add_argument("--with-fixtures", action="store_true",
+                       help="inline the reproduction sample's file CONTENTS, not just "
+                            "a pointer to the record that holds them")
 
     p_scan = sub.add_parser(
         "scan", help="Apply the register's checks to a target repo or service.")
@@ -898,7 +909,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
                 if not ranked:
                     return _fail("no gap clears the confidence floor")
                 gap = ranked[0][0]
-            sys.stdout.write(render_prd(gap, args.project))
+            sys.stdout.write(render_prd(gap, args.project,
+                                        with_fixtures=args.with_fixtures))
             return EXIT_OK
 
     except RegistryError as exc:

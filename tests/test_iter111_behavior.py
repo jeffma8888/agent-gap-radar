@@ -148,7 +148,9 @@ DOCUMENT_INVOCATIONS = [
 EXPECTED_SURFACE = {
     "diff": (["--exit-code", "--json"], 2, ["new", "old"], ["old", "new"]),
     "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
-    "prd": (["--gap", "--project"], 1, [], ["path"]),
+    # Iteration 257 added `--with-fixtures`; the list is SORTED, so it lands last
+    # here and its registration index is asserted separately below.
+    "prd": (["--gap", "--project", "--with-fixtures"], 1, [], ["path"]),
     "report": (["--floor"], 1, [], ["path"]),
     # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
     # `report` do; the sorted list is the inventory, not a ranking.
@@ -182,6 +184,10 @@ EXPECTED_ARGUMENTS = {
         ("path", [], False, ".", "?"),
         ("gap_id", ["--gap"], False, None, None),
         ("project", ["--project"], False, "agent-gap-radar", None),
+        # Iteration 257: the opt-in inlined reproduction sample. `nargs=0` and a `False`
+        # default, which is why `docs/CONSUMER_CONTRACT.md`'s `## Defaults` table owes it
+        # no row -- `tests/_surface_contract.py` excludes both by construction.
+        ("with_fixtures", ["--with-fixtures"], False, False, 0),
     ],
     "report": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
