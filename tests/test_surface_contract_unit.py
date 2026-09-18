@@ -1,12 +1,13 @@
 """Unit tests for the seams of `tests/_surface_contract.py`.
 
-SCOPE. This file tests the ORACLE's helpers: the parser introspector, the table
-parser, and the invocation tokenizer. The six specified behaviors of iteration 10 --
-including the four planted known-bads and the per-verb message assertions -- belong to
-`tests/test_iter10_behavior.py`, which is the test engineer's file. This one exists so
-that no helper ships unproven: a guard nobody watches fire is decoration, and a
-document-oracle that has only ever been run against a passing document has never
-demonstrated it can say no.
+SCOPE. This file tests the ORACLE's helpers: the parser introspector, the table parser,
+the invocation tokenizer, and the defaults reader. Iteration 10's six specified
+behaviors belong to `tests/test_iter10_behavior.py`, the test engineer's file, and so
+does the defaults table's per-BEHAVIOR numbering; but the assertions that the SHIPPED
+document agrees with the parser sit HERE deliberately, because a brake living only in a
+behavior module is a brake that can fail to land, as this iteration's own did. So no
+helper ships unproven: a guard nobody watches fire is decoration, and an oracle only
+ever run against a passing document has never demonstrated it can say no.
 
 Every test builds its input in memory. Nothing here edits a file, runs a subprocess,
 touches the network, or reads anything under `gaps/`, so a research pass writing
@@ -19,10 +20,13 @@ import argparse
 
 import pytest
 
-from _surface_contract import (STABLE_SURFACE_HEADING, DocumentedInvocation,
-                               SurfaceContractError, contract_text,
-                               documented_invocation, documented_tokens, gfm_table,
-                               invocation_verb, parser_surface,
+from _surface_contract import (DEFAULTS_COLUMNS, DEFAULTS_HEADING,
+                               STABLE_SURFACE_HEADING, ArgumentDefault,
+                               DocumentedInvocation, SurfaceContractError,
+                               contract_text, defaults_violations,
+                               documented_defaults, documented_invocation,
+                               documented_tokens, gfm_table, invocation_verb,
+                               parser_defaults, parser_surface,
                                surface_table_cells, surface_violations)
 
 #: A minimal well-formed stable-surface section, used to plant structural defects.
@@ -337,3 +341,203 @@ def test_the_cell_zero_reader_delegates_to_the_one_table_parser():
     document = contract_text()
     assert surface_table_cells(document) == [
         row[0] for row in gfm_table(document).rows]
+
+
+# --- the defaults reader ------------------------------------------------------
+#
+# The SEAMS only, per the scope note above: that the parser side skips what it must and
+# fails closed when it would otherwise hand back an empty expectation, that the document
+# side refuses a shape it cannot trust, and that the comparison reports a difference in
+# BOTH directions. Which defaults the shipped CLI actually has, and which rows the
+# shipped document must carry, are the behavior module's assertions.
+
+#: A minimal well-formed defaults section, used to plant structural defects. Deliberately
+#: NOT derived from the real table: a synthetic document can be made ill-shaped in ways
+#: the tracked one must never be.
+_MINIMAL_DEFAULTS = "\n".join([
+    "# Doc",
+    "",
+    DEFAULTS_HEADING,
+    "",
+    "| " + " | ".join(DEFAULTS_COLUMNS) + " |",
+    "|---|---|---|",
+    "| `probe` | `--floor` | `2` |",
+    "",
+    "trailing prose",
+    "",
+])
+
+
+def _one_verb_parser(*arguments: tuple[tuple[str, ...], dict[str, object]]):
+    """A `radar`-shaped parser with one `probe` verb carrying `arguments`.
+
+    Built here rather than shared with the real CLI because every fail-closed path below
+    -- a verb that defaults nothing, a default that cannot be published -- is a parser
+    the shipped CLI must never be, so it can only be shown against a synthetic one.
+    """
+    parser = argparse.ArgumentParser(prog="radar")
+    sub = parser.add_subparsers(dest="command")
+    probe = sub.add_parser("probe")
+    for names, options in arguments:
+        probe.add_argument(*names, **options)
+    return parser
+
+
+def test_parser_defaults_fails_closed_when_no_subcommands_are_registered():
+    """The shared lookup: one fail-closed message, not two copies of it."""
+    with pytest.raises(SurfaceContractError) as exc:
+        parser_defaults(argparse.ArgumentParser(prog="radar"))
+    assert "no subcommands" in str(exc.value)
+
+
+def test_parser_defaults_fails_closed_when_nothing_carries_a_default():
+    """An empty expectation would let the table say anything and still pass."""
+    parser = _one_verb_parser((("target",), {}), (("--json",), {"action": "store_true"}))
+    with pytest.raises(SurfaceContractError) as exc:
+        parser_defaults(parser)
+    assert "no value-bearing default" in str(exc.value)
+
+
+def test_a_zero_argument_flag_is_not_published_as_a_default():
+    """`store_true` defaults to off, which the surface table's `[--json]` already says."""
+    defaults = parser_defaults()
+    assert defaults, "the real CLI defaults nothing"
+    assert not [entry for entry in defaults if entry.argument == "--json"]
+
+
+def test_the_help_option_argparse_adds_for_itself_is_not_published():
+    for entry in parser_defaults():
+        assert entry.argument not in {"-h", "--help"}, entry
+
+
+def test_an_argument_is_named_by_its_longest_spelling_alphabetically_broken():
+    """Not the first-registered spelling: that is registration-order luck, not a name."""
+    parser = _one_verb_parser((("--bbb", "--aaa", "-b"), {"default": "x"}))
+    assert {entry.argument for entry in parser_defaults(parser)} == {"--aaa"}
+
+
+def test_a_positional_is_named_by_its_dest_because_it_has_no_typed_name():
+    parser = _one_verb_parser((("path",), {"nargs": "?", "default": "."}))
+    assert parser_defaults(parser) == frozenset({ArgumentDefault("probe", "path", ".")})
+
+
+def test_a_default_that_renders_blank_is_refused_rather_than_published():
+    """A blank cell would compare equal to another blank cell for the wrong reason."""
+    parser = _one_verb_parser((("--label",), {"default": "  "}))
+    with pytest.raises(SurfaceContractError) as exc:
+        parser_defaults(parser)
+    assert "blank" in str(exc.value)
+
+
+def test_a_default_carrying_a_pipe_is_refused_because_the_row_would_break():
+    parser = _one_verb_parser((("--label",), {"default": "a|b"}))
+    with pytest.raises(SurfaceContractError) as exc:
+        parser_defaults(parser)
+    assert "'|'" in str(exc.value)
+
+
+def test_the_documented_header_is_compared_whole_so_a_fourth_column_is_refused():
+    """Resolving three columns by name would pass a table carrying a fourth.
+
+    A fourth column is where a second, unread opinion about a default would live.
+    """
+    document = _replace_once(
+        _MINIMAL_DEFAULTS,
+        "| Verb | Argument | Default |\n|---|---|---|\n| `probe` | `--floor` | `2` |",
+        "| Verb | Argument | Default | Note |\n|---|---|---|---|\n"
+        "| `probe` | `--floor` | `2` | ignored |")
+    with pytest.raises(SurfaceContractError) as exc:
+        documented_defaults(document)
+    assert "expected exactly ['Verb', 'Argument', 'Default']" in str(exc.value)
+
+
+def test_a_renamed_column_is_refused_rather_than_read_by_position():
+    document = _replace_once(_MINIMAL_DEFAULTS, "| Argument |", "| Flag |")
+    with pytest.raises(SurfaceContractError):
+        documented_defaults(document)
+
+
+def test_a_cell_that_is_not_a_single_backticked_value_is_refused():
+    """`.` is a value only a code span can tell from a full stop."""
+    document = _replace_once(_MINIMAL_DEFAULTS, "| `2` |", "| `2` (see below) |")
+    with pytest.raises(SurfaceContractError) as exc:
+        documented_defaults(document)
+    assert "not a single backticked value" in str(exc.value)
+
+
+def test_the_rows_are_returned_in_document_order_so_a_duplicate_stays_visible():
+    document = _replace_once(
+        _MINIMAL_DEFAULTS, "| `probe` | `--floor` | `2` |",
+        "| `probe` | `--floor` | `2` |\n| `probe` | `--floor` | `2` |")
+    assert documented_defaults(document) == (
+        ArgumentDefault("probe", "--floor", "2"),
+        ArgumentDefault("probe", "--floor", "2"))
+
+
+def test_an_unreadable_defaults_table_is_reported_rather_than_raised():
+    """One call site can then assert "no disagreements" over a planted shape defect."""
+    problems = defaults_violations(_replace_once(_MINIMAL_DEFAULTS, DEFAULTS_HEADING,
+                                                 "## Something else"))
+    assert len(problems) == 1 and "occurs 0 time(s)" in problems[0], problems
+
+
+def test_the_shipped_document_agrees_with_the_parser_about_every_default():
+    assert defaults_violations(contract_text()) == []
+
+
+def test_the_published_scan_floor_is_the_constant_scoring_defaults_to():
+    """The table publishes the PARSER's `2`; this joins that value to `scoring`'s own.
+
+    `cli.py:502-506` hand-copies the literal instead of reading
+    `scoring.CONFIDENCE_FLOOR_DEFAULT`, deliberately -- the module's IMPORT INVARIANT
+    keeps `scoring` out of `build_parser()`, which runs on every refusal, `--help` and
+    `--version` path -- and that comment says outright that "The two are not asserted
+    equal by a reader". A TEST is free to import both: the invariant governs what
+    `build_parser()` pulls in at parse time, not what a reader may join afterwards. So
+    the drift that comment leaves to a byte comparison is asserted here instead, on the
+    DOCUMENTED value, which is the one a consumer reads.
+    """
+    from agent_gap_radar.scoring import CONFIDENCE_FLOOR_DEFAULT
+
+    row = ArgumentDefault("scan", "--floor", str(CONFIDENCE_FLOOR_DEFAULT))
+    assert row in documented_defaults(contract_text()), (
+        f"the published `scan --floor` default is not {CONFIDENCE_FLOOR_DEFAULT!r}")
+    assert row in parser_defaults(), "the parser's own default drifted from the constant"
+
+
+def test_a_default_the_parser_fills_in_and_no_row_names_is_reported():
+    document = contract_text()
+    dropped = _replace_once(document, "| `scan` | `--floor` | `2` |\n", "")
+    problems = defaults_violations(dropped)
+    assert problems, "an omitted default passed the reader"
+    assert any("scan --floor=2" in p and "no row says so" in p for p in problems), problems
+
+
+def test_a_row_for_a_default_the_parser_does_not_carry_is_reported():
+    document = contract_text()
+    invented = _replace_once(document, "| `validate` | `path` | `.` |",
+                             "| `validate` | `path` | `.` |\n| `taxonomy` | `--deep` | `9` |")
+    problems = defaults_violations(invented)
+    assert problems, "an invented default passed the reader"
+    assert any("taxonomy --deep=9" in p and "which the parser does not" in p
+               for p in problems), problems
+
+
+def test_a_documented_value_that_disagrees_is_reported_on_both_sides():
+    """A wrong VALUE is a missing triple AND a surplus one; both halves must say so."""
+    document = contract_text()
+    wrong = _replace_once(document, "| `scan` | `--floor` | `2` |",
+                          "| `scan` | `--floor` | `0` |")
+    problems = defaults_violations(wrong)
+    assert any("scan --floor=2" in p and "no row says so" in p for p in problems), problems
+    assert any("scan --floor=0" in p and "which the parser does not" in p
+               for p in problems), problems
+
+
+def test_a_duplicated_row_is_reported_because_set_equality_cannot_see_it():
+    """Two rows for one argument can disagree, with one stale, and both sets still match."""
+    document = contract_text()
+    doubled = _replace_once(document, "| `show` | `path` | `.` |",
+                            "| `show` | `path` | `.` |\n| `show` | `path` | `.` |")
+    problems = defaults_violations(doubled)
+    assert any("duplicated ['show path']" in p for p in problems), problems

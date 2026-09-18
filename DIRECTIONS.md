@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-256
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- 36 of 282 content evaluations enter the scan with NO literal prefilter, and the census counts them without attributing one file to them
+    - Candidate A2 -- roadmap row 122 is still OPEN, its winning iteration was REVERTED, and the term it names is now the LARGER one
+    - Candidate A3 -- every document verb pays one 6-module import block, and the ONE verb whose document is stdlib-only pays the whole pydantic graph for a 6-line join
+    - Candidate B1 -- 4 of the 8 tracked `tools/` scripts are named in ZERO hand-maintained document, including both doors that enforce a clause of the quality bar
+    - Candidate B2 -- roadmap row 52, OPEN: the contract's stable-surface table publishes NONE of the CLI's defaults, and the one that now decides a CI verdict is published in no document at all
+    - Candidate B3 -- rows 64 and 70, OPEN: the roadmap that steers this loop is 6.28x its budget, and all three size figures those rows publish are stale by 2.3x to 5.5x
+    winner: B2
+    ship: pending (not yet decided)
   iter-255
     lenses: simplification-and-deletion (iteration 255), performance-and-throughput (iteration 255)
     - Candidate A1 -- placeholder, being measured
@@ -11,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- the per-scan cost, re-priced: what a scan pays for the register's own corpus
     stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED de51ce8
   iter-254
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar diff` returns exit 0 over a register that LOST a record and DOWNGRADED another, so the non-regression half of the contract's own gate rule has a payload and no verdict
@@ -1167,4 +1177,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-117 scouted iterations
+118 scouted iterations

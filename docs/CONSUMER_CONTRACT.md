@@ -84,6 +84,57 @@ flushing sys.stdout` line -- on the stderr this document promises carries only
 `Error: `. The 141 path also points the process's stdout descriptor at the null
 device, so that shutdown flush cannot re-raise.
 
+## Defaults
+
+| Verb | Argument | Default |
+|---|---|---|
+| `list` | `--floor` | `2` |
+| `list` | `path` | `.` |
+| `prd` | `--project` | `agent-gap-radar` |
+| `prd` | `path` | `.` |
+| `report` | `--floor` | `2` |
+| `report` | `path` | `.` |
+| `scan` | `--floor` | `2` |
+| `scan` | `--gaps` | `.` |
+| `show` | `path` | `.` |
+| `validate` | `path` | `.` |
+
+Every value-bearing argument every VERB defaults is above, and nothing else.
+Like `## Exit codes`, this table is the contract and not a summary of one: a
+test reads it and asserts these triples EQUAL what `build_parser()` reports,
+in BOTH directions, so a default the CLI gained but the document omits fails,
+and so does a row for an argument the parser does not carry or a value it does
+not use. It sits immediately under its heading for the same reason `## Exit
+codes` does -- the reader fails closed on a table it cannot find, and prose
+between the two is enough to hide it. Rows are sorted by verb then argument,
+so a new default has exactly one correct place and arrives as a one-line diff.
+
+The value published is the PARSER's, which is what an invocation WITHOUT the flag
+actually meets: not a constant some module names, and not a count taken once and
+remembered. Roadmap row 52 remembered six defaults from the iteration that
+measured them; there are ten.
+
+`--floor 2` is the row a gate should read first. Since `scan --floor` arrived it
+decides three answers a consumer CONSUMES rather than displays: `--exit-code`'s
+verdict, `--prd`'s selection, and the `confidence_floor` / `below_floor` fields
+`--json` publishes. Until this table a consumer adopting that gate inherited the
+threshold from nothing it could read, so it could not tell a floor this project
+chose from one it had never been told about. The same `2` is `list` and `report`'s
+ranking floor, where it only orders a document.
+
+An argument is named the way the PARSER names it, because that is the only name
+both sides of the assertion can join on. An option is its longest spelling
+(`--floor`, never a short alias); a positional is its `dest` (`path`), which is
+why this table says `path` where the stable surface says `<repo>`. That
+consumer-facing spelling is prose inside a cell -- the surface table above is
+where it belongs, and it is why requiredness there is matched by position rather
+than by name.
+
+Boolean flags are deliberately absent. Every one of them defaults to off, which
+`[--json]` in the surface table already says, and rows of `False` would bury the
+three values that actually vary. What a flag DOES when it is passed is its
+Promise cell's job, not this table's.
+
 ## The record file surface
 
 The register is files in git, and that is the feature -- so reading a record file

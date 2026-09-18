@@ -67,6 +67,34 @@ resolves a named column, while `surface_table_cells()` stays the cell-0 reader t
 stable-surface comparison needs. One parser, two callers: a second GFM parser one
 directory over is the duplicated invariant this product has already paid three times
 to remove, and it would drift exactly the way the hand-copied table did.
+
+WHY A SECOND TABLE PUBLISHES THE DEFAULTS, AND NOT A THIRD COLUMN
+A stable-surface cell brackets an argument the CLI runs without and stops there: it
+cannot say WHAT the parse fills in. That was cosmetic until iteration 255, when
+`scan --floor` made one of those fill-ins -- the confidence floor, `2` -- decide
+`--exit-code`'s verdict, `--prd`'s selection and the fields `--json` publishes, and the
+document published the number nowhere. `## Defaults` therefore carries one row per
+value-bearing argument with a default, and `defaults_violations()` compares the set of
+(verb, argument, value) triples against `build_parser()` in BOTH directions. A separate
+table rather than a widened surface row on purpose: the surface comparison reads cell 0
+and nothing else (above), and a third column would either be invisible to it or drag it
+into the Promise prose that rule exists to keep out.
+
+WHY AN ARGUMENT IS NAMED THE WAY THE PARSER NAMES IT
+A surface cell spells positionals in the consumer's vocabulary (`<repo>`), which is
+exactly why requiredness above is matched by INDEX -- there is no name to join on. A
+per-row SET comparison has no index to fall back on, so this table publishes the name
+the parser knows: an option's longest spelling, a positional's `dest`. Longest rather
+than first because that is the spelling a document publishes, and a tie is broken
+alphabetically so the choice is deterministic rather than registration-order luck.
+
+WHY BOOLEAN FLAGS ARE NOT DEFAULTS HERE, AND WHY AN EMPTY-LOOKING VALUE RAISES
+`nargs == 0` is argparse's spelling for a flag that consumes nothing, and every one of
+them defaults to off -- which the surface table's `[--json]` already says. Publishing
+them would cost the table its signal, so they are skipped and the document says so.
+`_render_default()` then refuses a value that renders blank or carries a pipe, a
+backtick or a newline: such a value cannot be published in a GFM cell unambiguously, and
+a blank cell would compare equal to a blank cell for the wrong reason.
 """
 
 from __future__ import annotations
@@ -87,6 +115,22 @@ STABLE_SURFACE_HEADING = "## The stable surface"
 #: `pytest -n auto` no matter which directory a worker starts in.
 CONTRACT_PATH = (pathlib.Path(__file__).resolve().parent.parent
                  / "docs" / "CONSUMER_CONTRACT.md")
+
+#: The heading whose table publishes what an OMITTED argument is filled in with, and
+#: that table's exact header. The header is asserted whole rather than resolved column
+#: by column: an added or reordered column is a shape change, and a reader that shrugs
+#: at one reads some other cell as the value.
+DEFAULTS_HEADING = "## Defaults"
+DEFAULTS_COLUMNS = ("Verb", "Argument", "Default")
+
+#: One defaults cell: a single backticked value and nothing else. Prose around the value
+#: would let "`2` (see below)" satisfy an assertion about `2`, and `.` is a value only
+#: backticks can tell from a full stop.
+_BACKTICKED_CELL = re.compile(r"`([^`]+)`")
+
+#: Characters no published default may contain: a pipe ends the cell, a backtick ends the
+#: code span, a newline ends the row.
+_UNPUBLISHABLE_IN_A_CELL = "|`\n"
 
 #: A GFM alignment row: pipes, dashes, colons and whitespace only.
 _SEPARATOR_ROW = re.compile(r"\|[\s:|-]+\|")
@@ -183,6 +227,28 @@ class DocumentedToken:
     optional: bool
 
 
+@dataclass(frozen=True)
+class ArgumentDefault:
+    """One (verb, argument, default) triple, as a parser reports it or a row claims it.
+
+    The value is carried as the TEXT a table publishes, never as the Python object: the
+    document is the other side of every comparison here and it can only hold text.
+    Rendering happens in exactly one place (`_render_default()`), so the parser side and
+    the document side can never be compared through two different spellings of one value
+    -- which is the same one-reader rule the GFM parser above is built on.
+    """
+
+    verb: str
+    #: The name the PARSER knows: an option's longest spelling, a positional's `dest`.
+    argument: str
+    default: str
+
+    @property
+    def label(self) -> str:
+        """`verb argument=value` -- the one spelling every message below uses."""
+        return f"{self.verb} {self.argument}={self.default}"
+
+
 def contract_text() -> str:
     """The tracked contract document, decoded.
 
@@ -200,11 +266,25 @@ def parser_surface(
     `parser` is injectable so the fail-closed path can be exercised with a parser that
     has no subcommands; production callers pass nothing and get the real CLI.
     """
+    return {verb: _verb_surface(subparser)
+            for verb, subparser in _verb_subparsers(parser).items()}
+
+
+def _verb_subparsers(
+    parser: argparse.ArgumentParser | None = None,
+) -> dict[str, argparse.ArgumentParser]:
+    """Every verb the parser registers, mapped to the subparser that owns it.
+
+    Shared by `parser_surface()` and `parser_defaults()` rather than written twice: two
+    copies of a fail-closed lookup are two chances for one of them to start returning an
+    empty mapping quietly, and an empty mapping is what makes every comparison below two
+    empty sets agreeing with each other. The message is unchanged from when this lived
+    inside `parser_surface()`, so a caller asserting on it still reads the same words.
+    """
     parser = parser if parser is not None else build_parser()
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
-            return {verb: _verb_surface(subparser)
-                    for verb, subparser in action.choices.items()}
+            return dict(action.choices)
     raise SurfaceContractError(
         "parser registers no subcommands, so there is no surface to compare "
         "against; refusing to report agreement between two empty sets")
@@ -554,4 +634,166 @@ def _verb_set_violations(
         violations.append(
             f"verb set: {len(documented)} row(s) for {len(seen)} verb(s); "
             f"duplicated {duplicated}")
+    return violations
+
+
+def parser_defaults(
+    parser: argparse.ArgumentParser | None = None
+) -> frozenset[ArgumentDefault]:
+    """Every value-bearing argument `build_parser()` defaults, as publishable triples.
+
+    `parser` is injectable for the same reason `parser_surface()`'s is: the fail-closed
+    paths -- a parser with no subcommands, a parser whose verbs default nothing -- are
+    only reachable against a synthetic one, and a rule that cannot be shown failing is a
+    rule nobody can trust when it passes.
+
+    FAILS CLOSED on an empty result: a parser that defaults nothing would make the set
+    comparison two empty sets agreeing, so it raises instead of certifying a table that
+    could then say anything.
+    """
+    defaults = {
+        ArgumentDefault(verb, _default_argument_name(action),
+                        _render_default(action.default))
+        for verb, subparser in _verb_subparsers(parser).items()
+        for action in subparser._actions
+        if _publishes_a_default(action)
+    }
+    if not defaults:
+        raise SurfaceContractError(
+            "parser carries no value-bearing default, so there is nothing for the "
+            f"{DEFAULTS_HEADING!r} table to be compared against; refusing to report "
+            "agreement between two empty sets")
+    return frozenset(defaults)
+
+
+def _publishes_a_default(action: argparse.Action) -> bool:
+    """Is this argument one the defaults table publishes?
+
+    Three exclusions, each for its own reason. argparse's own `-h` is not part of any
+    published surface (its default is a sentinel, never a value). `nargs == 0` is a flag
+    that consumes nothing, and every one defaults to off -- which the surface table's
+    bracketing already says. A `None` default is argparse's "nothing was filled in", and
+    a row saying so would publish the absence of a default as a default.
+    """
+    if set(action.option_strings) & _IMPLICIT_OPTIONS:
+        return False
+    if action.nargs == 0:
+        return False
+    return action.default is not None
+
+
+def _default_argument_name(action: argparse.Action) -> str:
+    """The name the PARSER knows this argument by -- the join key for one table row.
+
+    Longest option spelling, ties broken alphabetically: a document publishes `--floor`
+    rather than a short alias, and a deterministic tie-break keeps the join key from
+    depending on the order the flags happened to be registered in. A positional has no
+    typed name at all, so its `dest` is the only thing both sides can name it by.
+    """
+    if not action.option_strings:
+        return action.dest
+    return sorted(action.option_strings, key=lambda option: (-len(option), option))[0]
+
+
+def _render_default(value: object) -> str:
+    """The TEXT a table cell publishes for `value`, or a refusal.
+
+    `str()` and not `repr()`: the cell is what a consumer types after the flag, and
+    `'.'` is not what anyone types. That makes the rendering lossy about TYPE, which is
+    deliberate -- a contract table publishes the value a consumer supplies, and the type
+    is the parser's business (`--floor` is `type=int`, and `2` is what a caller writes).
+
+    A value that renders blank, or that carries a pipe, a backtick or a newline, is
+    refused rather than published: none of the three can survive a GFM cell, and a blank
+    cell would compare equal to another blank cell for the wrong reason.
+    """
+    text = str(value)
+    if not text.strip():
+        raise SurfaceContractError(
+            f"default {value!r} renders as blank text, which cannot be published in a "
+            f"table cell distinguishably from an empty one")
+    bad = sorted({character for character in text
+                  if character in _UNPUBLISHABLE_IN_A_CELL})
+    if bad:
+        raise SurfaceContractError(
+            f"default {value!r} contains {bad} and so cannot be published in a GFM "
+            f"cell without breaking the row")
+    return text
+
+
+def documented_defaults(document: str) -> tuple[ArgumentDefault, ...]:
+    """Every row of the `## Defaults` table, in DOCUMENT order.
+
+    Order is preserved -- a tuple, not a set -- because set equality cannot see a
+    duplicated row, and two rows for one argument can disagree with one of them stale
+    while every other assertion passes. Same document-level blindness the unique-heading
+    rule closes, one level down; `defaults_violations()` is where it is reported.
+
+    The header is compared WHOLE. Resolving three columns by name would pass a table
+    that carried a fourth, and a fourth column is where a second, unread opinion about a
+    default would live.
+    """
+    table = gfm_table(document, DEFAULTS_HEADING)
+    if table.header != DEFAULTS_COLUMNS:
+        raise SurfaceContractError(
+            f"table under {DEFAULTS_HEADING!r} has header {list(table.header)}, "
+            f"expected exactly {list(DEFAULTS_COLUMNS)}")
+    return tuple(
+        ArgumentDefault(*(_cell_value(cell, column)
+                          for cell, column in zip(row, DEFAULTS_COLUMNS, strict=True)))
+        for row in table.rows)
+
+
+def _cell_value(cell: str, column: str) -> str:
+    """The one backticked value a defaults cell carries, or a refusal.
+
+    Backticks are required rather than merely stripped: `.` is a value only a code span
+    can tell from a full stop, and a cell allowed to carry prose beside its value lets
+    "`2` (see below)" answer an assertion about `2`.
+    """
+    match = _BACKTICKED_CELL.fullmatch(cell.strip())
+    if match is None:
+        raise SurfaceContractError(
+            f"{column} cell {cell!r} under {DEFAULTS_HEADING!r} is not a single "
+            f"backticked value")
+    return match.group(1)
+
+
+def defaults_violations(
+    document: str, parser: argparse.ArgumentParser | None = None
+) -> list[str]:
+    """Every way the published defaults table and the parser disagree.
+
+    An empty list means the document names exactly the arguments the parser defaults,
+    with exactly the values it fills in, once each. An unreadable table is RETURNED as a
+    violation rather than raised, mirroring `surface_violations()`, so one call site can
+    assert "no disagreements" over a document whose shape may itself be the planted
+    defect. The PARSER side still raises: a parser this module cannot introspect is not a
+    documentation defect, and swallowing it would report agreement with nothing.
+    """
+    try:
+        documented = documented_defaults(document)
+    except SurfaceContractError as exc:
+        return [str(exc)]
+
+    expected = parser_defaults(parser)
+    violations: list[str] = []
+
+    keys = [(entry.verb, entry.argument) for entry in documented]
+    duplicated = sorted(f"{verb} {argument}" for verb, argument in set(keys)
+                        if keys.count((verb, argument)) > 1)
+    if duplicated:
+        violations.append(
+            f"defaults table: {len(keys)} row(s) for {len(set(keys))} argument(s); "
+            f"duplicated {duplicated}")
+
+    claimed = frozenset(documented)
+    missing = sorted(entry.label for entry in expected - claimed)
+    surplus = sorted(entry.label for entry in claimed - expected)
+    if missing:
+        violations.append(
+            f"defaults table: the parser fills in {missing}, and no row says so")
+    if surplus:
+        violations.append(
+            f"defaults table: rows claim {surplus}, which the parser does not")
     return violations
