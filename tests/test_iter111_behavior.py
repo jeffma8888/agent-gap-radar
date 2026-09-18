@@ -146,7 +146,7 @@ DOCUMENT_INVOCATIONS = [
 #: (sorted option strings, positional count, sorted required dests, positional dests).
 #: Compared through the oracle in `tests/_surface_contract.py` rather than re-derived here.
 EXPECTED_SURFACE = {
-    "diff": (["--json"], 2, ["new", "old"], ["old", "new"]),
+    "diff": (["--exit-code", "--json"], 2, ["new", "old"], ["old", "new"]),
     "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
     "prd": (["--gap", "--project"], 1, [], ["path"]),
     "report": (["--floor"], 1, [], ["path"]),
@@ -166,6 +166,7 @@ EXPECTED_ARGUMENTS = {
         ("old", [], True, None, None),
         ("new", [], True, None, None),
         ("json", ["--json"], False, False, 0),
+        ("exit_code", ["--exit-code"], False, False, 0),
     ],
     "list": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

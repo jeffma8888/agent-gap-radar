@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-254
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `radar diff` returns exit 0 over a register that LOST a record and DOWNGRADED another, so the non-regression half of the contract's own gate rule has a payload and no verdict
+    - Candidate A2 -- iteration 252's `NOT_APPLICABLE` witness is a rendered rule expression inside a prose string, so the 51% of findings a gate must skip still cannot be attributed to a rule by machine
+    - Candidate A3 -- the confidence floor is settable exactly where it only changes DISPLAY, and hardcoded on both verbs where it decides whether a gate goes RED or what gets BUILT
+    - Candidate B1 -- HEAD shipped ONE reachable no-network vocabulary and left all FIVE hand-copied ones live, and the widest survivor still reports CLEAN on all 7 imports the new door catches
+    - Candidate B2 -- the public-repo bar is enforced by SIX disagreeing hand-assembled needle vocabularies over 1 file each, beside one committed 4-rule tool over 279 -- and three needle classes exist ONLY in the copies
+    - Candidate B3 -- the product's ONLY duplicated region is the twin literal provers' shared decomposition, and the docstring that depends on their being identical is the only thing enforcing it
+    winner: A1
+    ship: pending (not yet decided)
   iter-253
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the src-wide no-network ban cannot see `http.*`: its `http.client` entry is unreachable by construction, and the only check that CAN see it covers 1 of 11 files at import time
@@ -9,7 +19,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- `list --json` names the strongest evidence CLASS and no way to reach the citation, so the declared consumer's own block spec cannot be built on it
     - Candidate B2 -- the record file surface is the contract's blessed read path and has no machine schema: `model_json_schema` occurs ZERO times in this repo
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 83d19fc
   iter-252
     lenses: new-capability, hardening/DX
     - Candidate A1 -- 52.1% of every scan's findings claim safety with ZERO locators and one identical eight-word reason: `NOT_APPLICABLE` has no witness
@@ -1146,4 +1156,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-115 scouted iterations
+116 scouted iterations

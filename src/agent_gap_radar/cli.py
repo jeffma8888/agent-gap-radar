@@ -92,12 +92,18 @@ def _resolve(path_arg: str) -> pathlib.Path:
 #: `1` was held unused by iteration 25 for exactly one purpose, and this is it:
 #: `EXIT_GAPS_PRESENT` below. The reservation is now SPENT, not free.
 EXIT_OK = 0
-#: The floor-gated verdict `scan --exit-code` reports: this target exhibits at
-#: least one PRESENT gap whose EVIDENCE clears the confidence floor. OPT-IN, so
-#: no verb can return it unless a caller asked a verdict question -- a code that
-#: appeared by default would turn every existing `scan` consumer red on the day
-#: it shipped. Distinct from `EXIT_ERROR` because nothing went wrong: the tool
-#: answered, and the answer is that this target has an above-floor gap.
+#: The verdict code of BOTH gate surfaces, deliberately ONE integer rather than a
+#: code per verb: `scan --exit-code` reports that this target exhibits at least one
+#: PRESENT gap whose EVIDENCE clears the confidence floor, and `diff --exit-code`
+#: reports that the NEW register state lost a record or reopened a gap it had called
+#: done. `docs/CONSUMER_CONTRACT.md` binds a consumer to gate on honesty AND on
+#: non-regression, so the two halves of one published rule answer in one vocabulary:
+#: a consumer running both writes `|| exit 1` once, and a fifth code would have made
+#: the rule's second half look like a different KIND of answer.
+#: OPT-IN on both, so no verb can return it unless a caller asked a verdict question
+#: -- a code that appeared by default would turn every existing consumer red on the
+#: day it shipped. Distinct from `EXIT_ERROR` because nothing went wrong: the tool
+#: answered, and the answer is bad news about the target.
 EXIT_GAPS_PRESENT = 1
 EXIT_ERROR = 2
 #: The shell's own 128+SIGPIPE, so `head`, `grep -q` and `less` see the code they
@@ -518,11 +524,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_diff.add_argument("old", help="register state to compare FROM")
     p_diff.add_argument("new", help="register state to compare TO")
     # Same help wording as `scan --json` deliberately: one machine surface should not
-    # read as a different KIND of thing on a neighbouring verb. Not a verdict surface
-    # and not mutually exclusive with anything -- `diff` has no `--exit-code`, so
-    # there is no second floor-gated code vocabulary for this flag to contradict.
+    # read as a different KIND of thing on a neighbouring verb. Not mutually exclusive
+    # with anything: `--exit-code` below COMPOSES with it, because the verdict is about
+    # the comparison and `--json` only chooses how that comparison is spelled.
     p_diff.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
+    # NOT in a mutually exclusive group, unlike `scan`'s pair. That group exists there
+    # because `--prd` and `--exit-code` are two verdict surfaces with CONTRADICTORY
+    # code vocabularies; `diff` has no `--prd`, so there is no rival vocabulary for
+    # this flag to lose to silently. OPT-IN for the reason `scan`'s is: the flagless
+    # invocation must keep exiting 0 whatever it finds, or every consumer reading this
+    # verb today goes red on the day the flag ships.
+    p_diff.add_argument("--exit-code", action="store_true",
+                        help="exit 1 when the new state lost a record or reopened "
+                             "a gap, 0 when neither, 2 when the old side is an "
+                             "empty baseline; same document either way")
 
     sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     return parser
@@ -617,7 +633,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # Every name here is used by some branch below; the module-level helpers
     # import their own, because they are reachable from a caller other than this
     # function and must not depend on it having run.
-    from .diff import diff_json, diff_registers, render_diff
+    from .diff import (diff_json, diff_registers, regression_verdict,
+                       render_diff)
     from .prd import render_prd
     from .registry import RegistryError, load_all, load_one
     from .render import document, gap_brief, radar_report
@@ -744,7 +761,12 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # Both sides load BEFORE anything is written, so a failure on either side
         # leaves stdout empty rather than half a document.
         try:
-            old_gaps = load_all(_resolve(args.old))
+            # The OLD side's resolved path is BOUND rather than passed inline: the
+            # empty-baseline refusal below has to name the directory it actually
+            # read, and `_resolve` may have descended into a nested `gaps/`, so the
+            # argument as typed is not always that directory.
+            old_directory = _resolve(args.old)
+            old_gaps = load_all(old_directory)
             new_gaps = load_all(_resolve(args.new))
         except RegistryError as exc:
             return _fail(str(exc))
@@ -753,9 +775,24 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # serializers are then provably reading one object, which is what makes
         # "the markdown default is unchanged" a statement about the SURFACE only.
         comparison = diff_registers(old_gaps, new_gaps)
+        # Decided BEFORE a byte is written, exactly as `scan --exit-code` decides:
+        # a pair with no baseline is a refusal, and the published `2` row promises
+        # stdout stays empty on one. ONE call over the already-bound comparison and
+        # never a second `diff_registers`, so the code and the document cannot
+        # disagree. With the flag off the verdict is False and the return is
+        # `EXIT_OK`, so every invocation that works today keeps today's exit code
+        # and today's bytes.
+        verdict = regression_verdict(comparison) if args.exit_code else False
+        if verdict is None:
+            return _fail(
+                f"diff loaded 0 register records from {old_directory}, so "
+                "--exit-code has no baseline to regress from; against an empty "
+                "OLD side every record reads as ADDED and none as removed, which "
+                "publishes a CLEAN gate this pair never earned -- check the OLD "
+                "register path")
         sys.stdout.write(diff_json(comparison) if args.json
                          else render_diff(comparison))
-        return EXIT_OK
+        return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 
     # BEFORE `_resolve` and `load_all`, so an argument typo is diagnosable
     # independently of the register's health: `--layer <bogus>` over a path holding no

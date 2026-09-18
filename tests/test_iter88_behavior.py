@@ -84,7 +84,7 @@ EXPECTED_CELLS = [
     "`radar report [<repo>] [--floor N]`",
     "`radar prd [<repo>] [--gap <ID>] [--project NAME]`",
     "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--prd] [--exit-code]`",
-    "`radar diff <old> <new> [--json]`",
+    "`radar diff <old> <new> [--json] [--exit-code]`",
     "`radar taxonomy`",
 ]
 
@@ -358,7 +358,7 @@ def test_b5_this_direction_now_holds_for_a_row_iteration_11_never_checked():
     document = _replace_once(contract_text(), "`radar show <ID> [<repo>]`",
                              "`radar show [<ID>] [<repo>]`")
     assert requiredness_violations(parser_surface(), document) != []
-    untouched = "`radar diff <old> <new> [--json]`"
+    untouched = "`radar diff <old> <new> [--json] [--exit-code]`"
     assert document.count(untouched) == 1
 
 

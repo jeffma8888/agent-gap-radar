@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from .models import Gap
 from .render import document, json_document
 from .scoring import confidence, priority
+from .taxonomy import terminal_statuses
 
 #: The compared fields, in the ONE order the report emits them. A single tuple
 #: rather than a per-section decision, so the nested lines of every changed record
@@ -165,6 +166,66 @@ def diff_registers(old: list[Gap], new: list[Gap]) -> RegisterDiff:
         added=added,
         removed=removed,
         changed=tuple(changed),
+    )
+
+
+def regression_verdict(diff: RegisterDiff) -> bool | None:
+    """Did the NEW register state LOSE ground the OLD one had already recorded?
+
+    THE ONE PREDICATE, so a consumer never has to invent its own.
+    `docs/CONSUMER_CONTRACT.md` binds every consumer to gate "on non-regression (the
+    diff did not reintroduce a known gap)", and until now this verb published a
+    PAYLOAD and no verdict: every gate had to re-derive the rule by parsing our JSON,
+    and none of those private predicates would have been the register's. This function
+    is that rule, in one place, pure over a comparison that is already built -- so the
+    markdown report, the `--json` object and the exit code cannot tell three stories
+    about one pair of register states.
+
+    THREE-VALUED FOR THE REASON `scan.gate_verdict` IS
+    `None` says the OLD side held ZERO records, so there is no baseline to regress
+    FROM. Measured before this shipped: an OLD path that is empty, moved, or one level
+    too high loads 0 records with no error, every NEW record then reads as ADDED, and
+    `removed` is empty -- so a gate keyed on it reads CLEAN precisely when it has lost
+    its baseline. That is the fail-open direction, and the reassuring reading is the
+    wrong one, so the caller is handed a third answer rather than a comfortable False.
+
+    WHAT COUNTS AS A REGRESSION, AND WHAT DELIBERATELY DOES NOT
+    Two shapes only: a record the OLD side carried is GONE (`removed`), or a record
+    whose `status` moved OUT of the terminal set -- a gap that was called done and is
+    open again. Everything else is honest work: a record ADDED is the register growing,
+    and a FALLING `confidence` or `priority` is the evidence ladder being re-scored
+    after a source was voided. Reporting either as a regression would red a build for
+    telling the truth, which is the failure mode that teaches a loop to stop
+    re-scoring.
+
+    THE TERMINAL SET IS DERIVED, WHICH IS THE FAIL-CLOSED DIRECTION
+    `taxonomy.terminal_statuses()` is called rather than a pair of literals being
+    matched here, so a fifth status added to `STATUSES` later is NON-terminal by
+    construction and a move out of `addressed` into it counts as a reintroduction.
+    A hand-copied `{"addressed", "retired"}` would instead let the new status fall out
+    of the predicate silently -- a gap reopened into a vocabulary this function had
+    never heard of, reported as no regression at all.
+
+    ONE-DIRECTIONAL BY CONSTRUCTION: `open -> addressed` has `old` outside the terminal
+    set, so it cannot satisfy the test. Pure and repeatable -- no file is opened, no
+    clock is read, and nothing on `diff` is mutated -- so two calls on one
+    `RegisterDiff` answer identically, and a hand-built comparison answers with no
+    register on disk at all.
+    """
+    if diff.old_count == 0:
+        return None
+    if diff.removed:
+        return True
+    # Bound ONCE outside the walk: `terminal_statuses()` filters `STATUSES` on every
+    # call, and re-calling it per field would make this predicate's cost quadratic in
+    # a changed-record count that grows with the register.
+    terminal = terminal_statuses()
+    return any(
+        change.field == "status"
+        and change.old in terminal
+        and change.new not in terminal
+        for record in diff.changed
+        for change in record.changes
     )
 
 
