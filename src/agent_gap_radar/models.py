@@ -40,10 +40,126 @@ def is_resolvable_locator(locator: str) -> bool:
     return bool(RESOLVABLE_LOCATOR_RE.match(locator))
 
 
-class Evidence(BaseModel):
-    """One citation supporting a gap. Every field here is checkable by a reader."""
+def first_unencodable(text: str) -> str | None:
+    """The first codepoint of `text` that UTF-8 cannot encode, or `None`.
+
+    THE ONE definition of "text this register may not hold", and it is an ENCODE
+    rather than a codepoint-range test on purpose: the property being defended is
+    exactly "these bytes can leave the process", so the predicate IS the operation
+    that fails. A Python `str` may hold a UTF-16 surrogate -- `json.loads` builds one
+    from the legal JSON escape for a lone surrogate, so the file on disk is valid
+    UTF-8, valid JSON and schema-clean -- but `sys.stdout` cannot write one. Measured
+    at HEAD before this landed: one such codepoint in `title` made `radar list`,
+    `report`, `show` and `scan` exit 1 with ZERO document bytes and a bare
+    `UnicodeEncodeError` traceback, while `radar validate` certified the same
+    register at exit 0. The door that certifies the register could not see the
+    defect it was certifying.
+
+    SURROGATE-SCOPED BY CONSTRUCTION, never ascii-scoped: UTF-8 encodes every other
+    codepoint, so an em dash, `x` U+00D7 and an astral emoji all pass here. That is
+    load-bearing, not incidental -- 6 of the 120 committed records hold non-ASCII
+    text, and a register that refused a real quotation's own punctuation would be a
+    worse register. Control characters (NUL, an RTL override) encode fine and so stay
+    accepted; whether they SHOULD is a separate product decision, deliberately not
+    taken here.
+
+    Returns the offending CHARACTER rather than a bool so the refusal can name it.
+    `repr` of a surrogate is its backslash-u escape, which is what keeps the error
+    path from raising the very error it reports: a message that interpolates this
+    value stays pure ASCII even on the stderr stream that just rejected the bytes.
+    """
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        return text[exc.start]
+    return None
+
+
+def _unencodable_site(value: object, where: str = "") -> tuple[str, str] | None:
+    """`(path within the field, codepoint)` for the first unencodable text in `value`.
+
+    A record's strings are not all AT a field: `tags` and `existing` are `list[str]`,
+    `Check.fixtures.bad` is a `dict[str, str]`, and a rule's `pattern` and `globs` sit
+    inside a plain nested `dict`. One walk over the container kinds a field can hold
+    therefore covers EVERY string a record carries, which is what lets the rule be
+    spelled once instead of once per field.
+
+    Deliberately does NOT descend into a nested `BaseModel`. pydantic validates a
+    sub-model BEFORE the parent field it fills, so text inside a citation is already
+    refused at its own field and reported under the precise `evidence.0.quote`
+    locator; descending would report the same character a second time under a blunter
+    path. Dict KEYS are walked as well as values, because a key is published too --
+    `Fixtures.bad`'s keys are the filenames `prd --with-fixtures` writes.
+    """
+    if isinstance(value, str):
+        found = first_unencodable(value)
+        return None if found is None else (where, found)
+    if isinstance(value, dict):
+        for key, item in value.items():
+            for part, suffix in ((key, " (key)"), (item, "")):
+                site = _unencodable_site(part, f"{where}[{key!r}]{suffix}")
+                if site is not None:
+                    return site
+        return None
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            site = _unencodable_site(item, f"{where}[{index}]")
+            if site is not None:
+                return site
+        return None
+    return None
+
+
+class RecordModel(BaseModel):
+    """The base of every model a gap record is built from, holding the record-WIDE rules.
+
+    Two of them. `extra="forbid"` was already the rule, spelled once per class in four
+    places; the unencodable-text refusal below was spelled nowhere. Both belong here
+    for the same reason iteration 121 moved the locator predicate to one site: two
+    doors with two spellings of one rule is how this register grew two standards in
+    the first place, and a fifth model added later cannot forget a rule it inherits.
+    """
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def _refuse_unencodable_text(cls, v: object) -> object:
+        """Refuse any field holding text that could never be written to stdout.
+
+        AT THE SCHEMA, so every door inherits it from one line: `radar validate`,
+        `registry.load_all` (which is what the other seven verbs read through),
+        `tools/promote.py`'s ingest gate and the evidence gates all arrive through
+        `Gap.model_validate`. The quality bar's error sentence is atomic -- "Errors to
+        stderr prefixed 'Error: ' with exit 2; stdout carries only the document" -- and
+        text that only fails at WRITE time breaks both halves on the same bytes: exit 1
+        (a code `docs/CONSUMER_CONTRACT.md` reserves for a broken pipe) and a traceback
+        nobody prefixed. Refusing at the door converts that into this product's single
+        standard failure. `VISION.md`'s protected rule is that a record is never
+        silently dropped, and a renderer that dies mid-document drops all 120.
+
+        No message shape of its own, on purpose: `registry._schema_problem` already
+        names the file and the dotted field path, so this contributes the clause and
+        nothing else -- the same reason that formatter quotes pydantic verbatim.
+
+        `mode="after"` rather than `"before"`: the value has been coerced to its
+        declared type, so the walk sees a real `str`/`list`/`dict` rather than whatever
+        the JSON handed over, and a sub-model has already refused its own text under
+        its own locator.
+        """
+        site = _unencodable_site(v)
+        if site is None:
+            return v
+        where, codepoint = site
+        at = f" at {where}" if where else ""
+        raise ValueError(
+            f"must not hold text that UTF-8 cannot encode{at}: {codepoint!r} is a "
+            "UTF-16 surrogate, so a renderer writing this record to stdout would die "
+            "with no document instead of publishing it")
+
+
+class Evidence(RecordModel):
+    """One citation supporting a gap. Every field here is checkable by a reader."""
 
     source_class: str
     title: str
@@ -119,7 +235,7 @@ class Evidence(BaseModel):
         return v
 
 
-class Fixtures(BaseModel):
+class Fixtures(RecordModel):
     """Two-sided proof that a check actually discriminates.
 
     A detector is only trustworthy if it has been shown to FIRE on a known-bad
@@ -127,8 +243,6 @@ class Fixtures(BaseModel):
     monitor ends up reporting health forever. The test suite runs every check in
     the register against both fixtures, so a fail-open check cannot be merged.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     bad: dict[str, str] = Field(
         description="relative path -> file content; MUST yield PRESENT")
@@ -146,15 +260,13 @@ class Fixtures(BaseModel):
         return v
 
 
-class Check(BaseModel):
+class Check(RecordModel):
     """How to detect this gap in a concrete target repository.
 
     Rules are declarative data evaluated offline. `mitigated_when` is what makes
     an ABSENT verdict possible at all: without positive evidence of a fix, the
     honest answer is MANUAL, never "looks fine".
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     id: str
     applies_when: dict | None = None
@@ -350,10 +462,8 @@ def _validate_rule(rule: dict, depth: int = 0) -> None:
             raise ValueError(f"invalid regex {pattern!r}: {exc}") from exc
 
 
-class Gap(BaseModel):
+class Gap(RecordModel):
     """A single, ranked, evidence-backed gap in agent infrastructure."""
-
-    model_config = ConfigDict(extra="forbid")
 
     id: str
     title: str
