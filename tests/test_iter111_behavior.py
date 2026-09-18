@@ -150,8 +150,10 @@ EXPECTED_SURFACE = {
     "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
     "prd": (["--gap", "--project"], 1, [], ["path"]),
     "report": (["--floor"], 1, [], ["path"]),
-    "scan": (["--exit-code", "--gap", "--gaps", "--json", "--prd"], 1, ["target"],
-             ["target"]),
+    # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
+    # `report` do; the sorted list is the inventory, not a ranking.
+    "scan": (["--exit-code", "--floor", "--gap", "--gaps", "--json", "--prd"], 1,
+             ["target"], ["target"]),
     "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
     "taxonomy": ([], 0, [], []),
     "validate": ([], 1, [], ["path"]),
@@ -194,6 +196,11 @@ EXPECTED_ARGUMENTS = {
         # `prd`'s row above, which is the point -- one name for one concept.
         ("gap_id", ["--gap"], False, None, None),
         ("json", ["--json"], False, False, 0),
+        # Iteration 255: the floor the verdict surfaces apply, previously hard-coded
+        # at all three of them. Same dest, same spelling and the SAME DEFAULT as
+        # `list`/`report` above -- a row that reads `2` in three places is what makes
+        # a drift in one of them a failure here rather than a silent behavior change.
+        ("floor", ["--floor"], False, 2, None),
         ("prd", ["--prd"], False, False, 0),
         ("exit_code", ["--exit-code"], False, False, 0),
     ],

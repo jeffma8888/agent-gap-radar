@@ -491,6 +491,29 @@ def build_parser() -> argparse.ArgumentParser:
                              "unknown id is refused")
     p_scan.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
+    # The floor the three verdict surfaces below APPLY. Until iteration 255 it was
+    # hard-coded at all three sites while `list` / `report` took a `--floor` that only
+    # changes what is DISPLAYED -- so the threshold was adjustable exactly where it was
+    # free and fixed on the surfaces that decide a consumer's CI verdict and what gets
+    # built, neither of which has the escape hatch `prd --gap` gives the register side.
+    # A target whose only PRESENT gap sat at confidence 1 therefore got a GREEN gate
+    # with no way to ask for a stricter one.
+    #
+    # `2` is a LITERAL, mirroring the `list` / `report` flag above rather than reading
+    # `CONFIDENCE_FLOOR_DEFAULT`, because this module's IMPORT INVARIANT (module
+    # docstring) keeps `scoring` out of `build_parser()` -- which runs on every refusal,
+    # `--help` and `--version` path. The two are not asserted equal by a reader: a drift
+    # shows up as `scan T` and `scan T --floor 2` producing different bytes.
+    #
+    # No range or validity check, deliberately: `list --floor` has none, an unclearable
+    # floor is a legitimate question ("is anything here evidenced that well?"), and a
+    # second refusal dialect for one concept is what makes a CLI unlearnable. "confidence
+    # floor" leads the help text for the reason the group below says: argparse wraps on
+    # whitespace, so the phrase the docs promise must survive a narrow terminal.
+    p_scan.add_argument("--floor", type=int, default=2,
+                        help="confidence floor the verdict surfaces apply: "
+                             "--json's below_floor flags, --exit-code's verdict, "
+                             "--prd's selection (default 2)")
     # `--prd` and `--exit-code` are MUTUALLY EXCLUSIVE, and argparse enforces it
     # rather than a branch silently preferring one. Both are floor-gated verdict
     # surfaces with CONTRADICTORY code vocabularies: `--prd` already answers "a
@@ -640,7 +663,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .render import document, gap_brief, radar_report
     from .scan import (gate_verdict, render_scan, scan, scan_json,
                        select_for_prd, unanswered)
-    from .scoring import CONFIDENCE_FLOOR_DEFAULT, rank
+    from .scoring import rank
 
     if args.command == "taxonomy":
         out = ["# Taxonomy", "", "## Layers", ""]
@@ -690,14 +713,16 @@ def _dispatch(argv: list[str] | None = None) -> int:
             result = scan(gaps, args.target)
         except (NotADirectoryError, OSError) as exc:
             return _fail(f"cannot scan target: {exc}")
+        # Read the floor ONCE, ahead of every surface branch, and let that one local
+        # feed every decision and every message about it -- so a message can never
+        # name a floor other than the one actually applied, and the three floor-gated
+        # surfaces (`--prd` selection, `--exit-code` verdict, `--json` payload) cannot
+        # tell one consumer three different stories about one target.
+        floor = args.floor
         if args.prd:
             if not result.actionable:
                 return _fail("no PRESENT finding to build against; "
                              "run without --prd to see MANUAL questions")
-            # Read the floor ONCE and use that same value for the decision
-            # and for every message about it, so a message can never name a
-            # floor other than the one actually applied.
-            floor = CONFIDENCE_FLOOR_DEFAULT
             selection = select_for_prd(result, floor)
             if selection.selected is None:
                 listed = ", ".join(
@@ -724,7 +749,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # is a refusal and the published `2` row promises stdout stays empty on
         # one. With the flag off `verdict` is False and the return is `EXIT_OK`,
         # so the default path keeps today's single exit code and today's bytes.
-        verdict = gate_verdict(result) if args.exit_code else False
+        verdict = gate_verdict(result, floor) if args.exit_code else False
         if verdict is None:
             return _fail(
                 f"scan applied 0 register records from {directory}, so "
@@ -753,7 +778,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     "applies 1 record even when its check cannot decide, and 0 "
                     "would publish a clean gate this scan never earned. Run "
                     "without --exit-code to read what the scan does say.")
-        sys.stdout.write(scan_json(result) if args.json
+        sys.stdout.write(scan_json(result, floor) if args.json
                          else render_scan(result))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 

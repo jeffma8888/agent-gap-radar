@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-255
+    lenses: simplification-and-deletion (iteration 255), performance-and-throughput (iteration 255)
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- the suite pays the same live whole-repo `radar scan` dozens of times
+    - Candidate B2 -- one module's serialized module-scoped fixtures are the suite's critical path
+    - Candidate B3 -- the per-scan cost, re-priced: what a scan pays for the register's own corpus
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: A1
+    ship: pending (not yet decided)
   iter-254
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `radar diff` returns exit 0 over a register that LOST a record and DOWNGRADED another, so the non-regression half of the contract's own gate rule has a payload and no verdict
@@ -10,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the public-repo bar is enforced by SIX disagreeing hand-assembled needle vocabularies over 1 file each, beside one committed 4-rule tool over 279 -- and three needle classes exist ONLY in the copies
     - Candidate B3 -- the product's ONLY duplicated region is the twin literal provers' shared decomposition, and the docstring that depends on their being identical is the only thing enforcing it
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED ad647a5
   iter-253
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the src-wide no-network ban cannot see `http.*`: its `http.client` entry is unreachable by construction, and the only check that CAN see it covers 1 of 11 files at import time
@@ -1156,4 +1167,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-116 scouted iterations
+117 scouted iterations

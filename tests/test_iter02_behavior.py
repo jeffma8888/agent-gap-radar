@@ -458,16 +458,36 @@ def test_b8_an_explicitly_named_below_floor_gap_still_yields_a_prd(tmp_path, cap
 
 
 # ---------------------------------------------------------------------------
-# Behavior 9 -- no new flag on `scan`. The floor here is the register default,
-# matching the flagless `prd`, not the `--floor` of `list` / `report`.
+# Behavior 9 -- REVERSED BY ITERATION 255, and this is the only re-baseline that
+# iteration took. It originally read "no new flag on `scan`: the floor here is the
+# register default, matching the flagless `prd`, not the `--floor` of `list` /
+# `report`", and it asserted `unrecognized arguments: --floor 0`.
+#
+# WHY THE REVERSAL IS DATED AND NOT AESTHETIC. That refusal was correct when `--prd`
+# was `scan`'s ONLY floor-gated surface, because `prd` reaches the same decision
+# flaglessly and offers `prd --gap <ID>` as an escape hatch a human can name. `scan`
+# has since grown two more floor-reading surfaces that came later and have no such
+# hatch: `--exit-code` (iteration 67) turns the floor into a consumer's CI verdict,
+# and `--json` publishes `confidence_floor` plus a per-finding `below_floor` a gate
+# reads across a repo boundary. So the premise of the refusal -- "the floor here
+# matches the flagless `prd`" -- stopped holding, while the cost of the refusal grew
+# into a target whose only PRESENT gap sits at confidence 1 getting a GREEN gate with
+# no way to ask for a stricter one.
+#
+# The assertion is INVERTED rather than deleted: this file's helpers are imported by
+# six other modules, and a flag reversal is worth keeping visible next to the reason
+# it reversed. What has NOT changed is the DEFAULT -- every invocation that omits
+# `--floor` still applies the register floor and still emits the same bytes -- and the
+# floor still gates verdicts only, never the domain.
 # ---------------------------------------------------------------------------
 
-def test_b9_scan_rejects_a_floor_flag(tmp_path, target, capsys):
+def test_b9_scan_accepts_a_floor_flag(tmp_path, target, capsys):
     reg = _reg(tmp_path, "mixed", MIXED)
-    with pytest.raises(SystemExit) as exc:
-        main(["scan", str(target), "--gaps", str(reg), "--floor", "0"])
-    assert exc.value.code == 2
-    assert "unrecognized arguments: --floor 0" in capsys.readouterr().err
+    rc = main(["scan", str(target), "--gaps", str(reg), "--floor", "0"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "unrecognized arguments" not in captured.err
+    assert captured.out != ""
 
 
 # ---------------------------------------------------------------------------
