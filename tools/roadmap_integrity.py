@@ -23,10 +23,21 @@ reported `shipped`, one of them as the strongest remaining candidate. The requir
 DERIVED from that column rather than from a list of retired rows, because such a list is a
 second copy of the table and decays the moment a row flips.
 
+The Done ledger may be SPLIT across the roadmap and an archive file beside it (`ARCHIVE_NAME`),
+so the file every planning stage reads can stay short while no row is ever deleted. The
+archive is optional: when it is absent every check below runs single-file, byte-for-byte as
+before. When it is present, ship coverage is judged over the UNION of the two ledgers (a row
+in either file records the ship) and ascending order is judged within EACH file on its own,
+because the archive holds older rows than the index by construction and a cross-file order
+claim would fire on exactly the layout the split produces.
+
 Offline by contract: the only subprocess is a local `git log` inside this checkout.
 
 Usage:
     python3 tools/roadmap_integrity.py [ROADMAP]
+
+The archive is never an argument: it is discovered beside ROADMAP by name, so a copy of the
+roadmap under a scratch directory is checked alone unless a copy of the archive sits with it.
 
 Exit codes: 0 no violations, 1 at least one violation, 2 bad usage.
 """
@@ -64,6 +75,15 @@ _SHIP_SUBJECT = re.compile(r"\(foundry iter (\d+)\)")
 
 #: Compared against a lower-cased, stripped heading line.
 _LEDGER_HEADING = "## done ledger"
+
+#: The archive spells its heading differently on purpose, so a reader of either file can
+#: tell which one they hold without looking at the path; the parser accepts both.
+_ARCHIVE_LEDGER_HEADING = "## done ledger (archive)"
+
+_LEDGER_HEADINGS: tuple[str, ...] = (_LEDGER_HEADING, _ARCHIVE_LEDGER_HEADING)
+
+#: The archive's fixed name, always a sibling of the roadmap it extends.
+ARCHIVE_NAME: str = "PRODUCT_ARCHIVE.md"
 
 #: The legend sentence that pins the vocabulary. Matched on whitespace-normalised text so
 #: the paragraph may be re-wrapped without breaking the check.
@@ -186,7 +206,7 @@ def ledger_iterations(text: str) -> list[tuple[str, int]]:
     inside = False
     for line in text.splitlines():
         if line.startswith("## "):
-            inside = line.strip().lower() == _LEDGER_HEADING
+            inside = line.strip().lower() in _LEDGER_HEADINGS
             continue
         if not inside:
             continue
@@ -379,6 +399,56 @@ def default_roadmap() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parent.parent / "PRODUCT.md"
 
 
+def archive_beside(roadmap: pathlib.Path) -> pathlib.Path:
+    """Where `roadmap`'s archive lives: the same directory, under `ARCHIVE_NAME`."""
+    return roadmap.parent / ARCHIVE_NAME
+
+
+def read_archive(roadmap: pathlib.Path) -> str | None:
+    """The archive's text, or `None` when no archive sits beside `roadmap`.
+
+    `None` and `""` are kept distinct, as `GitShips` and `ship_order_paragraph` keep them:
+    an absent archive means single-file semantics and is not a finding, while a present
+    archive that parses to nothing IS one (see `archive_findings`).
+    """
+    path = archive_beside(roadmap)
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def ledger_union(index_text: str, archive_text: str | None) -> str:
+    """One text whose ledger rows are the index's followed by the archive's.
+
+    Index FIRST, deliberately. `ledger_iterations` scopes rows by `## ` headings, and the
+    index's Done ledger is its final section, so nothing of the index leaks past the join;
+    the archive then re-opens the scope at its own heading. The other order would run the
+    archive's ledger section into the index's table prose until the index's first `## `
+    line, and a `- iter` line there would be counted as a record.
+    """
+    if archive_text is None:
+        return index_text
+    return f"{index_text}\n{archive_text}"
+
+
+def archive_findings(archive_text: str | None) -> list[str]:
+    """What the archive alone can get wrong: nothing when absent, vacuity, or its own order.
+
+    Ordering is judged per file and never across the join, because the archive holds the
+    OLDER rows by construction: a union-wide ascending claim would fire on the one layout
+    the split is meant to produce (archive ending at N, index starting at N+1). Coverage is
+    the union's job (`unrecorded_ships` over `ledger_union`), not this function's.
+    """
+    if archive_text is None:
+        return []
+    if not ledger_iterations(archive_text):
+        return [f"{ARCHIVE_NAME} has no done-ledger rows: the archive is vacuous"]
+    return [
+        f"{ARCHIVE_NAME}: {violation.message}"
+        for violation in ledger_sequence_violations(archive_text)
+    ]
+
+
 def main(argv: list[str]) -> int:
     roadmap = pathlib.Path(argv[1]) if len(argv) > 1 else default_roadmap()
     if not roadmap.is_file():
@@ -386,9 +456,11 @@ def main(argv: list[str]) -> int:
         return 2
 
     text = roadmap.read_text(encoding="utf-8")
+    archive = read_archive(roadmap)
     findings: list[str] = list(vacuity_violations(text))
     findings += [violation.message for violation in row_status_violations(text)]
     findings += [violation.message for violation in ledger_sequence_violations(text)]
+    findings += archive_findings(archive)
     if not legend_declares_two_values(text):
         findings.append("status legend does not state the two-value vocabulary verbatim")
     findings += ship_order_violations(text)
@@ -398,11 +470,14 @@ def main(argv: list[str]) -> int:
         print(f"  SKIP  shipped-iteration cross-check: {ships.skip_reason}")
     else:
         print(f"  git reports shipped: {list(ships.iterations)}")
-        findings += unrecorded_ship_messages(unrecorded_ships(text, ships.iterations))
+        recorded_in = ledger_union(text, archive)
+        findings += unrecorded_ship_messages(unrecorded_ships(recorded_in, ships.iterations))
 
     print(f"  ship order names row(s): {ship_order_rows(text)}")
     rows, ledger = len(table_rows(text)), len(ledger_iterations(text))
     print(f"  {rows} table row(s), {ledger} ledger row(s)")
+    if archive is not None:
+        print(f"  archive {ARCHIVE_NAME}: {len(ledger_iterations(archive))} ledger row(s)")
     for finding in findings:
         print(f"  VIOLATION  {finding}")
     print(f"\n{len(findings)} violation(s)")

@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-261
+    lenses: unknown
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- placeholder, being measured
+    - Candidate B2 -- placeholder, being measured
+    - Candidate B3 -- placeholder, being measured
+    stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: unknown
+    ship: pending (not yet decided)
   iter-260
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- all seven register doors diagnose a NON-register directory as a corrupt register: `package.json: 13 schema error(s)`, 764 B, identical on every verb
@@ -11,7 +22,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- placeholder, being measured
     stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED fd89d19
   iter-259
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the offline door covers 19 of 154 tracked Python files, and the half it skips is the half the quality bar names: `tests/`
@@ -1218,4 +1229,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-122 scouted iterations
+123 scouted iterations
