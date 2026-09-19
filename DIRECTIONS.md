@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-259
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- the offline door covers 19 of 154 tracked Python files, and the half it skips is the half the quality bar names: `tests/`
+    - Candidate A2 -- `radar show` breaches both halves of the error contract on a machine whose stdout is not UTF-8, over a perfectly legal record
+    - Candidate A3 -- an empty-by-construction search domain yields `ABSENT`, the one verdict `checks.py` says may never be asserted without looking
+    - Candidate B1 -- `radar validate --json`: the one door every contributor and CI runs answers four problems in ONE 819-byte prose line, and a naive split of it yields FIVE fragments for FOUR errors
+    - Candidate B2 -- `list --json` publishes the ONE narrowing argument that is free and not the one that changes the domain, and the sibling verb on the same CLI already publishes its own
+    - Candidate B3 -- bare `radar` exits 0 with 923 bytes of usage on stdout, which this product's own exit-code table defines as "the verb produced its document"
+    winner: A2
+    ship: pending (not yet decided)
   iter-258
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the register's 114 two-sided fixtures are never executed against their own rules, and iteration 257 just published their bytes to the build loop
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `--floor 6` turns `scan --exit-code` from 1 into 0 over identical findings: the knob iteration 255 shipped to decide a CI verdict accepts any integer
     - Candidate B3 -- the tool declares its input encoding at every read and leaves its OUTPUT encoding ambient, so byte-stable output is byte-stable only on a UTF-8 machine
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 4735c85
   iter-257
     lenses: narrative-and-docs -- iteration 257, new-capability
     - Candidate A1 -- the rule that decides `ABSENT` is published in three documents as "test files", and its real 4-branch vocabulary silently turns a mitigated target into `PRESENT`
@@ -1197,4 +1207,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-120 scouted iterations
+121 scouted iterations

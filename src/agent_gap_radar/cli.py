@@ -617,6 +617,57 @@ def _silence_stdout() -> None:
         return
 
 
+def _force_stream_encoding() -> None:
+    """Pin both output streams to the encoding named below. Never raises.
+
+    The literal is spelled exactly once, on the single line at the bottom of
+    this function, so the process's published encoding is one decision and the
+    ambient locale is not a second one.
+
+    Byte-stability is the reason. A record's core artifact is a VERBATIM quote
+    lifted from a source, so a document routinely carries curly quotation
+    marks, dashes and non-Latin script, while Python takes the text layer's
+    encoding for `sys.stdout` from the environment. On a machine whose stdout
+    layer is narrower than the document -- an ASCII locale, a `PYTHONIOENCODING`
+    a consumer set for some other tool -- the write raised `UnicodeEncodeError`
+    part-way through: exit 1 (no member of `EXIT_CODES`), ZERO document bytes,
+    and a traceback on the stream this module promises carries only `Error: `
+    lines, whose own last line contains that substring. So the published
+    document was a property of the READER's locale rather than of this tool,
+    and the loudest failure was reserved for the records that quote hardest.
+    Pinning happens here, at the `main` boundary, rather than at the nine write
+    sites, for the same reason the broken-pipe guard lives here: one decision
+    covering every verb, argparse's own help and usage writes included.
+
+    Both streams, because an `Error: ` line quoting a record's own text is
+    subject to the identical failure -- and the error channel is the one that
+    must still work when everything else has not.
+
+    Each stream KEEPS its own error policy, which is NOT what the call below
+    does by default: naming an encoding and no policy resets both streams to
+    `strict`. CPython hands stderr `backslashreplace` precisely so a diagnostic
+    is always deliverable, and resetting it would trade this crash for the same
+    crash on, say, an undecodable filename echoed into a message. stdout keeps
+    the `strict` it already had, for the opposite reason: a substituted byte is
+    a silently WRONG document, which is worse than a refusal a consumer sees.
+
+    Silent on failure, exactly as `_silence_stdout` is and for the same callers.
+    An in-process consumer or a test double may have replaced a stream with an
+    object that holds `str` and never encodes -- an `io.StringIO` has no text
+    layer to adjust -- and there is then nothing to pin and nothing to report.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)
+        except (AttributeError, ValueError):
+            # AttributeError: not a text layer at all (the `io.StringIO` double
+            # above). ValueError: a closed or detached stream, which covers
+            # `io.UnsupportedOperation` too. Both are the caller's own
+            # bookkeeping; refusing to run the verb over one would be this
+            # guard inventing a failure the verb does not have.
+            continue
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one verb, absorbing a reader that stopped reading.
 
@@ -633,8 +684,14 @@ def main(argv: list[str] | None = None) -> int:
 
     `SystemExit` from argparse (`--help`, `--version`, a usage error) is deliberately
     NOT caught: callers assert on it today, and it carries its own code.
+
+    The encoding pin is INSIDE the guard, and for the flush's own reason: pinning a
+    text layer flushes it first, so on a pipe a reader has already closed the very
+    first statement of this function can raise `BrokenPipeError`. Outside the `try`
+    that would answer a consumer's early exit with a traceback instead of 141.
     """
     try:
+        _force_stream_encoding()
         code = _dispatch(argv)
         sys.stdout.flush()
         return code
