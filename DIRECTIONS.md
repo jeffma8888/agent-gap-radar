@@ -1,6 +1,17 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-260
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- all seven register doors diagnose a NON-register directory as a corrupt register: `package.json: 13 schema error(s)`, 764 B, identical on every verb
+    - Candidate A2 -- the flagship ranked report is 39,022 B that exist nowhere in the repo, so the register cannot be READ as a register on GitHub
+    - Candidate A3 -- `diff --exit-code` is half of the published gate rule, and the two documents a consumer reads publish NO way to obtain the OLD register state
+    - Candidate B1 -- placeholder, being measured
+    - Candidate B2 -- placeholder, being measured
+    - Candidate B3 -- placeholder, being measured
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: A2
+    ship: pending (not yet decided)
   iter-259
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- the offline door covers 19 of 154 tracked Python files, and the half it skips is the half the quality bar names: `tests/`
@@ -10,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `list --json` publishes the ONE narrowing argument that is free and not the one that changes the domain, and the sibling verb on the same CLI already publishes its own
     - Candidate B3 -- bare `radar` exits 0 with 923 bytes of usage on stdout, which this product's own exit-code table defines as "the verb produced its document"
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 8103588
   iter-258
     lenses: new-capability, hardening/DX
     - Candidate A1 -- the register's 114 two-sided fixtures are never executed against their own rules, and iteration 257 just published their bytes to the build loop
@@ -1207,4 +1218,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-121 scouted iterations
+122 scouted iterations
