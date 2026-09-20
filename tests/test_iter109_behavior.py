@@ -354,13 +354,16 @@ def test_b4_report_still_exits_zero_with_a_document_and_clean_stderr():
     assert out.startswith("#") and out.endswith("\n") and not out.endswith("\n\n"), repr(out[:80])
 
 
-def test_b4_bare_radar_still_exits_zero_and_is_out_of_scope():
-    """Pinned, not fixed: the spec records bare `radar` (exit 0 with usage on STDOUT) as
-    roadmap row 99, out of scope here, so this change must not turn that 0 into a 2."""
+def test_b4_bare_radar_refuses_like_every_other_structural_door():
+    """Re-baselined in iteration 264, which shipped row 99 (re-landing 262): bare `radar` is the
+    seventh structural refusal, so it takes the same route as the six above -- exit 2,
+    empty stdout, the usage block ABOVE one published `Error: ` line on stderr."""
     code, out, err = capture(())
-    assert code == 0, f"bare radar exited {code!r} -- row 99 was changed by accident: {err!r}"
-    assert out.strip(), "bare radar stopped writing its usage to stdout"
-    assert err == "", repr(err)
+    assert code == 2, f"bare radar exited {code!r} -- row 99 shipped exit 2: {err!r}"
+    assert out == "", f"bare radar wrote to stdout: {out[:120]!r}"
+    lines = nonempty_lines(err)
+    assert lines[0].startswith("usage:"), lines[0]
+    assert lines[-1] == ERROR_PREFIX + "the following arguments are required: command", lines[-1]
 
 
 # --------------------------------------------------------------------------------------

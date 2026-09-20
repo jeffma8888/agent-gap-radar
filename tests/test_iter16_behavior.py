@@ -430,11 +430,14 @@ def test_behavior10_the_verb_surface_is_the_eight_shipped_verbs_and_no_ingest() 
     assert "ingest" not in parser_choices()
 
 
-def test_behavior10_help_and_bare_invocation_still_exit_zero(
+def test_behavior10_help_exits_zero_and_bare_invocation_refuses_with_two(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Behavior 10: exit codes are unchanged for the two invocations with no inputs."""
-    assert main([]) == 0
+    """Behavior 10, re-baselined in iteration 264 (row 99, re-landing 262): `--help` still exits
+    0; bare `radar` is now a structural refusal and exits 2 through argparse."""
+    with pytest.raises(SystemExit) as bare:
+        main([])
+    assert bare.value.code == 2
     with pytest.raises(SystemExit) as excinfo:
         main(["--help"])
     assert excinfo.value.code == 0

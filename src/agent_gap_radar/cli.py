@@ -10,8 +10,8 @@ IMPORT INVARIANT: no verb pays for a module it does not use. Only `taxonomy`
 (stdlib-only) and `__version__` are imported at module level; every other
 `agent_gap_radar` module loads behind a seam taken after argparse has decided a
 document will be produced. So `import agent_gap_radar.cli` leaves `pydantic`
-absent from `sys.modules`, and the no-document paths -- the six structural
-refusals, `--version`, `--help`, bare `radar` -- construct no pydantic model
+absent from `sys.modules`, and the no-document paths -- the seven structural
+refusals, `--version`, `--help` -- construct no pydantic model
 class to emit one line and zero document bytes. Stated as an INVARIANT rather
 than a speed target on purpose: an import graph is assertable offline and
 deterministically, while a millisecond threshold would be flaky on this machine
@@ -425,7 +425,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="radar",
         description="Evidence-first gap radar for AI agent infrastructure.")
     parser.add_argument("--version", action="version", version=__version__)
-    sub = parser.add_subparsers(dest="command")
+    # `required` makes the missing verb a STRUCTURAL refusal like the other six, so
+    # bare `radar` reaches `PublishedErrorParser.error` (exit 2, usage above one
+    # `Error: ` line on stderr, stdout empty) instead of printing help and exiting 0,
+    # which `docs/CONSUMER_CONTRACT.md` defines as "the verb produced its document".
+    sub = parser.add_subparsers(dest="command", required=True)
 
     for name, help_text in [
         ("validate", "Validate every gap record; exit 2 on any problem."),
@@ -711,13 +715,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command is None:
-        parser.print_help()
-        return EXIT_OK
-
-    # THE SEAM. Everything above this line runs on the no-document paths -- the
-    # bare invocation just answered, and `parse_args` has already exited for
-    # `--version`, `--help` and all six structural refusals -- so no verb that
+    # THE SEAM. Everything above this line runs on the no-document paths --
+    # `parse_args` has already exited for `--version`, `--help` and all seven
+    # structural refusals, the bare invocation among them -- so no verb that
     # writes zero document bytes reaches this block. ONE block rather than a
     # per-branch import: eight verbs importing lazily on their own is eight
     # places for the graph to drift and, in a loop, eight repeated lookups.

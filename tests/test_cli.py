@@ -31,9 +31,16 @@ def repo(tmp_path):
     return tmp_path
 
 
-def test_no_command_prints_help_and_exits_zero(capsys):
-    assert main([]) == 0
-    assert "usage" in capsys.readouterr().out.lower()
+def test_no_command_refuses_with_usage_on_stderr_and_exits_two(capsys):
+    """Re-baselined in iteration 264 (row 99, re-landing 262): a missing verb is a structural
+    refusal, so argparse exits 2 with usage on STDERR and stdout stays empty."""
+    with pytest.raises(SystemExit) as excinfo:
+        main([])
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "usage" in captured.err.lower()
+    assert captured.err.rstrip().splitlines()[-1].startswith("Error: ")
 
 
 def test_validate_ok(repo, capsys):

@@ -95,8 +95,9 @@ def _record_ids() -> list[str]:
 
 SOME_ID = _record_ids()[0]
 
-#: Behaviors 1-2 and 7: one invocation per shipped human/JSON surface, plus the implicit
-#: help write argparse does for itself. `prd` keeps the spec's own `GAP-003` because it
+#: Behaviors 1-2 and 7: one invocation per shipped human/JSON surface. The bare invocation
+#: left this table in iteration 264 (roadmap row 99): it is a refusal now, not a success
+#: path, and is pinned below. `prd` keeps the spec's own `GAP-003` because it
 #: must SUCCEED for the pipe to break at all -- if the register ever loses that record the
 #: success-path test fails loudly instead of passing over a refusal.
 def _argvs() -> list[list[str]]:
@@ -110,12 +111,11 @@ def _argvs() -> list[list[str]]:
         ["taxonomy"],
         ["prd", repo, "--gap", "GAP-003"],
         ["scan", repo],
-        [],
     ]
 
 
 def _ids(argvs: list[list[str]]) -> list[str]:
-    return [" ".join(a).replace(str(REPO_ROOT), "<repo>") or "<no args>" for a in argvs]
+    return [" ".join(a).replace(str(REPO_ROOT), "<repo>") for a in argvs]
 
 
 ARGVS = _argvs()
@@ -401,12 +401,16 @@ def test_b7_every_success_path_exits_0_and_ends_in_exactly_one_newline(argv):
     assert second.returncode == 0
 
 
-def test_b7_no_arguments_still_prints_help_and_exits_0():
-    """Behavior 7's last clause: argparse's own help write is inside the guard's reach."""
+def test_b7_no_arguments_refuses_with_usage_on_stderr_and_exits_two():
+    """Behavior 7's last clause, re-baselined in iteration 264 (roadmap row 99): the bare
+    invocation is a structural refusal, so argparse answers on STDERR with the usage block
+    above one `Error: ` line, exits 2, and writes no document bytes for the guard to reach."""
     proc = _run()
-    assert proc.returncode == 0, proc.stderr
-    assert b"usage:" in proc.stdout
-    assert proc.stdout.endswith(b"\n") and not proc.stdout.endswith(b"\n\n")
+    assert proc.returncode == cli.EXIT_ERROR == 2, proc.stderr
+    assert proc.stdout == b"", f"stdout carried {proc.stdout!r} on a refusal"
+    lines = [line for line in proc.stderr.decode().splitlines() if line.strip()]
+    assert lines[0].startswith("usage:"), lines[0]
+    assert lines[-1] == "Error: the following arguments are required: command", lines[-1]
 
 
 # ------------------------- behavior 8: every failure path still exits 2 with one Error: line

@@ -1,6 +1,35 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-264
+    lenses: new-capability, hardening/DX
+    - A1 -- re-land iteration 263: `Gap.resolution`, the closing citation a terminal status must carry, with the five-module re-baseline named as the FIRST engineering step
+    - A2 -- `radar scan --prd` hands the build loop a PRD that names none of the target locators the scan just found
+    - A3 -- the ingest door refuses an evidence-strengthening submission as a duplicate, so the vision's named in-scope activity has no door
+    winner: A1
+    ship: pending (not yet decided)
+  iter-263
+    lenses: new-capability
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- closing a gap is a one-word edit: `status: addressed` passes every door with no closing citation, and the schema REFUSES the evidence a curator would attach
+    - Candidate B2 -- roadmap row 119, with row 86's number computed for the first time: 0 committed record pairs are behavioural twins, 76 are one-way stand-ins, and 6 of the 7 strongest lexical lookalikes are among the 76
+    - Candidate B3 -- the vision names "strengthening the evidence on existing records" as in-scope, and the only gated door REJECTS a strengthening submission as a duplicate
+    stubs: 3 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: B1
+    ship: REVERTED
+  iter-262
+    lenses: performance-and-throughput
+    - Candidate A1 -- placeholder, being measured
+    - Candidate A2 -- placeholder, being measured
+    - Candidate A3 -- placeholder, being measured
+    - Candidate B1 -- placeholder, being measured
+    - Candidate B2 -- placeholder, being measured
+    - Candidate B3 -- placeholder, being measured
+    stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
+    winner: B3
+    ship: REVERTED
   iter-261
     lenses: unknown
     - Candidate A1 -- placeholder, being measured
@@ -11,7 +40,7 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- placeholder, being measured
     stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
     winner: unknown
-    ship: pending (not yet decided)
+    ship: PUSHED ea5812b
   iter-260
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- all seven register doors diagnose a NON-register directory as a corrupt register: `package.json: 13 schema error(s)`, 764 B, identical on every verb
@@ -1229,4 +1258,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-123 scouted iterations
+126 scouted iterations

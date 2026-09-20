@@ -85,7 +85,8 @@ PUBLIC_NAMES = (*EXIT_NAMES, "ListRow", "build_parser", "main")
 ERROR_PREFIX = "Error: "
 
 #: Behaviors 4 and 5. Every argv that produces ZERO document bytes, with the exit code the
-#: tree returns today. Six structural refusals, then the two zero-exit no-document paths.
+#: tree returns today. Seven structural refusals (bare `radar` joined them in iteration
+#: 264, roadmap row 99, re-landing iteration 262), then the one zero-exit no-document path.
 NO_DOCUMENT_CASES = [
     ("unknown-verb", ["nosuchverb"], 2),
     ("show-missing-id", ["show"], 2),
@@ -94,7 +95,7 @@ NO_DOCUMENT_CASES = [
     ("report-bad-floor", ["report", "--floor", "x"], 2),
     ("unknown-option", ["--nosuchoption"], 2),
     ("version", ["--version"], 0),
-    ("bare", [], 0),
+    ("bare", [], 2),
 ]
 REFUSALS = [case for case in NO_DOCUMENT_CASES if case[2] == 2]
 
@@ -429,13 +430,16 @@ def test_behavior_5_version_writes_the_version_to_stdout(tmp_path):
     assert census["stderr"] == b"", census["stderr"]
 
 
-def test_behavior_5_bare_radar_writes_usage_help_to_stdout(tmp_path):
+def test_behavior_5_bare_radar_refuses_with_usage_on_stderr_and_empty_stdout(tmp_path):
+    """Re-baselined in iteration 264 (row 99, re-landing 262): the bare invocation no longer
+    writes help to stdout with exit 0; it is a structural refusal and its `Error: ` line
+    is the same sentence `radar show` emits for a missing `gap_id`."""
     census = child(tmp_path, "b5-bare", argv=[])
-    assert census["code"] == 0, census["code"]
-    stdout = census["stdout"].decode()
-    assert stdout.startswith("usage: radar"), stdout[:120]
-    assert stdout.endswith("\n") and not stdout.endswith("\n\n"), repr(stdout[-4:])
-    assert census["stderr"] == b"", census["stderr"]
+    assert census["code"] == 2, census["code"]
+    assert census["stdout"] == b"", census["stdout"][:120]
+    lines = nonempty_lines(census["stderr"].decode())
+    assert lines[0].startswith("usage: radar"), lines[0]
+    assert lines[-1] == ERROR_PREFIX + "the following arguments are required: command", lines[-1]
 
 
 @pytest.mark.parametrize("label,argv,expected_code", NO_DOCUMENT_CASES,
