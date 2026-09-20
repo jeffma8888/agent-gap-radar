@@ -41,10 +41,12 @@ TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
 #: Spec behavior 1, quoted from the spec and not from the document.
 ANCHOR = "A gate gets a stable object:"
-#: Spec behavior 1: the sentence ends with these exact 9 characters.
-SENTENCE_TAIL = "`status`."
-#: Spec behavior 2.
-EXPECTED_KEY_COUNT = 20
+#: Spec behavior 1: the sentence ends with these exact characters (9 when written).
+#: Re-baselined in iteration 265: `location_notes` was APPENDED as the last finding
+#: key, so it is now the enumeration's terminating token (17 characters).
+SENTENCE_TAIL = "`location_notes`."
+#: Spec behavior 2.  Re-baselined 20 -> 21 in iteration 265 (`location_notes`).
+EXPECTED_KEY_COUNT = 21
 #: Spec behavior 3: three tokens the tool does NOT emit. Each test asserts that premise.
 NOT_EMITTED_TOKENS = ("score", "open", "rank")
 #: Spec behavior 6: iteration 13's committed pin, byte-identical.
@@ -134,7 +136,9 @@ def test_b1_the_scope_starts_at_the_anchor_and_ends_at_the_terminating_period(te
         f"the scope must begin at {ANCHOR!r}; it begins {sentence[:40]!r}")
     assert sentence.endswith(SENTENCE_TAIL), (
         f"the scope must end at {SENTENCE_TAIL!r}; it ends {sentence[-40:]!r}")
-    assert len(SENTENCE_TAIL) == 9, "spec behavior 1 prices the tail at 9 characters"
+    assert len(SENTENCE_TAIL) == 17, (
+        "spec behavior 1 priced the tail at 9 characters; iteration 265 re-baselined "
+        "it to the 17 of `location_notes`.")
 
 
 def test_b1_the_scope_holds_no_blank_line(text):

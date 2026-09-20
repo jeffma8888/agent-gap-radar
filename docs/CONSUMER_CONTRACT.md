@@ -413,10 +413,22 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
 `confidence_floor`, `records_applied`, `counts` keyed by verdict, `uncheckable`,
 `findings`, and per finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`,
 `priority`, `confidence`, `below_floor`, `reason`, `question`, `locations`,
-`build_hypothesis`, `status`. `status` is the record's own stored value, passed
-through unchanged, so the traceability clause's citable-status test is answerable
-payload instead of requiring a second read of the register; publishing it selects
-nothing, and a below-floor or non-`open` record is still DISPLAYED, never dropped.
+`build_hypothesis`, `status`, `location_notes`. `status` is the record's own
+stored value, passed through unchanged, so the traceability clause's
+citable-status test is answerable payload instead of requiring a second read of
+the register; publishing it selects nothing, and a below-floor or non-`open`
+record is still DISPLAYED, never dropped. Every element of `locations` is a
+`path:line` locator -- it is the one array a gate turns into file annotations,
+so nothing in it needs parsing before it is used that way. The prose the checks
+write beside those locators -- the `(+N more matches)` remainder the per-rule
+cap suppressed, and the `(no match) searched ... for /PATTERN/` or
+`(no files) searched ...` witness an absence rule leaves where it has no matched
+line -- is published in `location_notes`, in the order the check wrote it, and
+is MOVED there, never dropped: a cut remainder and the scope of an absence
+search are evidence, and a finding whose only witness is such a note has an
+empty `locations` and a non-empty `location_notes` rather than a fabricated
+line. The markdown brief still renders locators and notes as one list, byte for
+byte as before; only the machine payload separates them.
 `priority` and `confidence` stay separate fields and no
 blended `score` key exists, so the invariant survives serialisation; a test
 asserts that. `confidence_floor` is the floor the scan APPLIED and `below_floor`

@@ -11,8 +11,8 @@ from __future__ import annotations
 import pathlib
 from dataclasses import dataclass
 
-from .checks import (CheckOutcome, UNKNOWN_MEANING, Verdict, file_cache_scope,
-                     read_cache_scope, run_check)
+from .checks import (CheckOutcome, LocationNote, UNKNOWN_MEANING, Verdict,
+                     file_cache_scope, read_cache_scope, run_check)
 from .models import Gap
 from .render import document, json_document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
@@ -240,6 +240,7 @@ def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
     cannot tell a caller different stories about the same record.
     """
     conf = finding.confidence
+    locators, notes = _split_locations(finding.outcome.locations)
     return {
         "gap_id": finding.gap.id,
         "title": finding.gap.title,
@@ -253,14 +254,36 @@ def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
         "question": finding.outcome.question,
         # Lexical evidence of the signature, ranked code-first. NOT a
         # fix list: a regex match is not a proof of the defect's site.
-        "locations": list(finding.outcome.locations),
+        # Every element is a `path:line` locator: this is the one array a
+        # gate turns into file annotations, so the prose the checks write
+        # beside the locators goes to `location_notes` instead.
+        "locations": locators,
         "build_hypothesis": finding.gap.build_hypothesis,
-        # APPENDED last on purpose: the declared consumer's traceability gate
+        # APPENDED on purpose: the declared consumer's traceability gate
         # asserts a cited gap "is open", and until now that clause was
         # unanswerable from this payload. Passed straight through from the
         # record -- publishing is not selecting, so nothing here filters on it.
         "status": finding.gap.status,
+        # APPENDED last, after `status`, so every earlier key keeps its index.
+        # The `(+N more matches)` remainder and the `(no match) searched ...`
+        # witness, in the order the check wrote them: MOVED here, never dropped,
+        # because a cut remainder or an absence with no matched line is part of
+        # the evidence and hiding it would overstate what the search covered.
+        "location_notes": notes,
     }
+
+
+def _split_locations(entries: list[str]) -> tuple[list[str], list[str]]:
+    """Partition a check's location list into locators and prose, order kept.
+
+    Decided by the producer's TYPE, not by the string's shape: `checks` tags
+    every prose entry it writes as a `LocationNote`, so this function never
+    re-parses a string another module wrote and cannot drift from it. Both
+    halves are plain `str` so the payload carries no subclass of its own.
+    """
+    locators = [str(e) for e in entries if not isinstance(e, LocationNote)]
+    notes = [str(e) for e in entries if isinstance(e, LocationNote)]
+    return locators, notes
 
 
 def scan_json(result: ScanResult,

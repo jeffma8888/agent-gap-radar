@@ -77,6 +77,22 @@ class Verdict(str, enum.Enum):
 UNKNOWN_MEANING = "no verdict: the check could not run, or its search was incomplete"
 
 
+class LocationNote(str):
+    """A PROSE entry carried in a location list beside the `path:line` locators.
+
+    Two producers write prose into `RuleHit.locations`: `_scope_note` (what an
+    absence search covered) and `_rank_locations` (the remainder the cap cut).
+    The markdown brief renders locators and prose as ONE list, and its frozen
+    digests hold that shape, so the list stays one list on this object. The
+    JSON surface must NOT: a CI gate turns `locations` into file annotations,
+    and a regex source or a `(+N more)` tail is not a file. Tagging the prose by
+    TYPE at the point it is written lets `scan._finding_json` partition the list
+    without re-parsing a string this module wrote -- a shape regex in another
+    module is exactly the copy that drifts the day a third dialect is added.
+    Equal to its plain-`str` value, so every existing reader is unaffected.
+    """
+
+
 @dataclass
 class RuleHit:
     matched: bool
@@ -677,7 +693,7 @@ def _folded(path: pathlib.Path, text: str) -> str:
     return folded
 
 
-def _scope_note(globs: list[str], pattern: str | None = None) -> str:
+def _scope_note(globs: list[str], pattern: str | None = None) -> LocationNote:
     """Describe an ABSENCE in actionable terms: what was searched, and for what.
 
     An absent pattern has no file:line, so returning an empty location list makes
@@ -686,8 +702,8 @@ def _scope_note(globs: list[str], pattern: str | None = None) -> str:
     """
     scope = ", ".join(globs[:4])
     if pattern:
-        return f"(no match) searched {scope} for /{pattern}/"
-    return f"(no files) searched {scope}"
+        return LocationNote(f"(no match) searched {scope} for /{pattern}/")
+    return LocationNote(f"(no files) searched {scope}")
 
 
 def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
@@ -709,7 +725,7 @@ def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
     note = f"(+{hidden} more match{'es' if hidden != 1 else ''}"
     if in_tests > 0:
         note += f", {in_tests} in test files"
-    return shown + [note + ")"]
+    return shown + [LocationNote(note + ")")]
 
 
 def evaluate(rule: dict, target: pathlib.Path,

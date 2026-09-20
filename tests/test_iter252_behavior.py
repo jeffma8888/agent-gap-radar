@@ -81,11 +81,14 @@ GAPS_DIR = REPO / "gaps"
 #: The sentence HEAD emitted, byte-identical, 62 times per scan.  It stays the PREFIX.
 PREFIX = "applies_when did not match: "
 
-#: The thirteen keys `docs/CONSUMER_CONTRACT.md` publishes for a `scan --json` finding.
+#: The keys `docs/CONSUMER_CONTRACT.md` publishes for a `scan --json` finding.
 #: Behavior 2: nothing added, nothing removed.
+#: Re-baselined 13 -> 14 in iteration 265: `location_notes` was APPENDED to the
+#: finding (the prose tails of `locations` moved there); the pinned claim stays.
 FINDING_KEYS = frozenset({
     "gap_id", "title", "layer", "gap_type", "verdict", "priority", "confidence",
     "below_floor", "reason", "question", "locations", "build_hypothesis", "status",
+    "location_notes",
 })
 
 #: The `scan --json` DOCUMENT's own top-level keys, measured on HEAD's implementation
@@ -844,6 +847,7 @@ PRECHANGE_FIXTURE_FINDINGS: dict[str, dict[str, object]] = {
         "gap_id": "GAP-101",
         "gap_type": "missing-contract",
         "layer": "orchestration",
+        "location_notes": [],
         "locations": [],
         "priority": 8.0,
         "question": "",
@@ -859,6 +863,7 @@ PRECHANGE_FIXTURE_FINDINGS: dict[str, dict[str, object]] = {
         "gap_id": "GAP-104",
         "gap_type": "missing-contract",
         "layer": "orchestration",
+        "location_notes": [],
         "locations": [],
         "priority": 8.0,
         "question": "",
@@ -874,6 +879,7 @@ PRECHANGE_FIXTURE_FINDINGS: dict[str, dict[str, object]] = {
         "gap_id": "GAP-107",
         "gap_type": "missing-contract",
         "layer": "orchestration",
+        "location_notes": [],
         "locations": [],
         "priority": 8.0,
         "question": "A fixture manual question ending in a question mark?",
@@ -889,6 +895,7 @@ PRECHANGE_FIXTURE_FINDINGS: dict[str, dict[str, object]] = {
         "gap_id": "GAP-111",
         "gap_type": "missing-contract",
         "layer": "orchestration",
+        "location_notes": [],
         "locations": [],
         "priority": 8.0,
         "question": "",

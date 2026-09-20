@@ -1,13 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-265
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- `radar scan` trusts `git ls-files` as a list of readable files: an index entry whose worktree file is deleted, a submodule gitlink, or a non-UTF-8 blob may crash a verb with a traceback and exit 1 instead of an `Error: ` line and exit 2
+    - Candidate A2 -- byte-stable output is asserted by the suite under ONE hash seed: any renderer that iterates a `set`/`dict` built from unsorted input is nondeterministic under `PYTHONHASHSEED`, and no test varies it
+    - Candidate A3 -- `radar report . | head -1` (a downstream consumer closing the pipe) ends in a `BrokenPipeError` traceback on stderr, breaching the error contract's "stderr carries `Error: `, exit 2" on the most common shell composition
+    - Candidate B1 -- `scan --json`'s `locations` array is the one field a gate annotates FILES from, and on the self-scan all 5 PRESENT findings end that array with a string that is not a locator: 13 of 210 elements are prose in two dialects, one of which publishes the check's regex source
+    - Candidate B2 -- `radar scan --sarif`: the five verdicts the README refuses to collapse map one-to-one onto SARIF 2.1.0's five `result.kind` values, and the consumers that read SARIF (GitHub code scanning, the VS Code SARIF viewer, reviewdog) are the ones a CI gate already has
+    - Candidate B3 -- the installed `radar` cannot scan anything: the built wheel is 16 files and 0 gap records, so every README recipe (`--gaps gaps`) presumes a second checkout of this repository, and the default `--gaps .` points at the CONSUMER's tree
+    winner: B1
+    ship: pending (not yet decided)
   iter-264
     lenses: new-capability, hardening/DX
     - A1 -- re-land iteration 263: `Gap.resolution`, the closing citation a terminal status must carry, with the five-module re-baseline named as the FIRST engineering step
     - A2 -- `radar scan --prd` hands the build loop a PRD that names none of the target locators the scan just found
     - A3 -- the ingest door refuses an evidence-strengthening submission as a duplicate, so the vision's named in-scope activity has no door
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED a4193db
   iter-263
     lenses: new-capability
     - Candidate A1 -- placeholder, being measured
@@ -1258,4 +1268,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-126 scouted iterations
+127 scouted iterations

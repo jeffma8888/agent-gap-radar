@@ -51,9 +51,12 @@ TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
 #: The pin's intent is "no key renamed, removed or reordered" -- every pre-existing key
 #: keeps its absolute index here, so this literal still refuses the changes it exists to
 #: refuse while documenting growth by appending.
+#: Re-baselined 13 -> 14 in iteration 265: `location_notes` was APPENDED after `status`,
+#: the same permitted change for the same reason -- `locations` itself keeps its name
+#: and its index; only its prose tails moved to the new last key.
 FINDING_KEYS = ["gap_id", "title", "layer", "gap_type", "verdict", "priority",
                 "confidence", "below_floor", "reason", "question", "locations",
-                "build_hypothesis", "status"]
+                "build_hypothesis", "status", "location_notes"]
 
 #: Below the floor with real evidence: one `secondary-summary` citation scores 1.
 WEAK = _record("GAP-500", 5, 3, 5, classes=("secondary-summary",), check_id="CHK-500")

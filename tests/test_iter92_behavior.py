@@ -80,7 +80,9 @@ PRE_EXISTING_FINDING_KEYS = [
     "gap_id", "title", "layer", "gap_type", "verdict", "priority", "confidence",
     "below_floor", "reason", "question", "locations", "build_hypothesis",
 ]
-FINDING_KEYS = PRE_EXISTING_FINDING_KEYS + ["status"]
+#: Re-baselined in iteration 265: `location_notes` was APPENDED after `status`, the
+#: same permitted change for the same reason -- every pre-existing key keeps its index.
+FINDING_KEYS = PRE_EXISTING_FINDING_KEYS + ["status", "location_notes"]
 
 #: Behavior 3. Same shape of claim for `sourceGap`'s seven pre-existing inner keys.
 PRE_EXISTING_SOURCE_GAP_KEYS = [
@@ -265,7 +267,7 @@ def test_b1_the_pre_existing_keys_keep_their_absolute_index(tmp_path, target, ca
     for finding in payload["findings"]:
         keys = list(finding.keys())
         assert keys[:len(PRE_EXISTING_FINDING_KEYS)] == PRE_EXISTING_FINDING_KEYS, keys
-        assert keys[-1] == "status", keys
+        assert keys[-1] == "location_notes", keys
         for index, key in enumerate(PRE_EXISTING_FINDING_KEYS):
             assert keys[index] == key, (index, key, keys[index])
 
