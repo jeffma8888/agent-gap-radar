@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-294
+    lenses: new-capability -- iteration 294, hardening/DX
+    - Candidate A1 -- `radar scan --baseline <prior scan.json>`: the target-side non-regression half of the gate, so a target with a pre-existing PRESENT backlog can fail on NEW findings instead of never going green
+    - Candidate A2 -- `radar report --layer L`: the whole register document scoped to the one layer a builder owns, reusing the closed-vocabulary refusal `list --layer` already has
+    - Candidate A3 -- `radar prd --floor N` (roadmap row 133, open): the one floor-applying verb whose floor a consumer can neither set nor read
+    - Candidate B1 -- Execute the done-ledger archive split iter 261 enabled, and commit a size brake so PRODUCT.md cannot regrow past the wall
+    - Candidate B2 -- Every tools/*.py brake gets a suite-owned runner test, because a brake nothing runs is not enforced
+    - Candidate B3 -- Make `uv run pytest -q` print its summary line again (addopts already carries -q, so a second -q silences the count)
+    winner: A3
+    ship: pending (not yet decided)
+  iter-293
+    lenses: narrative-and-docs -- iteration 293, new-capability
+    - Candidate A1 -- the roadmap is 360,169 chars against the 54,000-char wall its own brake publishes, the archive door that iteration 261 shipped to fix that has NO archive file behind it (zero `*_ARCHIVE.md` tracked), and the brake still says `0 violation(s)`
+    - Candidate A2 -- README.md is the only user-facing document and its hard figures (record count, check count, verb table, exit codes) are asserted by hand; measure each against the tree and pin the ones that drift
+    - Candidate A3 -- `docs/CONSUMER_CONTRACT.md` publishes a stable-key table for `scan --json`; iteration 265 added `location_notes` and the contract mentions it 3 times, but no test asserts the table is set-equal to the payload the way the Defaults table (iter 256) is pinned to the parser
+    - Candidate B1 -- `radar scan --prd` emits a PRD byte-identical to `radar prd --gap <ID>`: 4,230 B, 0 target locators, while the same scan holds 20 `path:line` hits for that gap
+    - Candidate B2 -- a terminal status is still a one-word edit: `Gap.resolution` (iteration 263's approved design) is NOT in the tree, although DIRECTIONS.md records iteration 264 as its re-land
+    - Candidate B3 -- `radar prd` is the one floor-applying verb whose floor a consumer can neither set nor read: `Error: no gap clears the confidence floor` (rc 2) names no number, and `--floor` is `unrecognized arguments` (row 133, open, never slated)
+    winner: A1
+    ship: REVERTED
   iter-265
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- `radar scan` trusts `git ls-files` as a list of readable files: an index entry whose worktree file is deleted, a submodule gitlink, or a non-UTF-8 blob may crash a verb with a traceback and exit 1 instead of an `Error: ` line and exit 2
@@ -10,12 +30,13 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan --sarif`: the five verdicts the README refuses to collapse map one-to-one onto SARIF 2.1.0's five `result.kind` values, and the consumers that read SARIF (GitHub code scanning, the VS Code SARIF viewer, reviewdog) are the ones a CI gate already has
     - Candidate B3 -- the installed `radar` cannot scan anything: the built wheel is 16 files and 0 gap records, so every README recipe (`--gaps gaps`) presumes a second checkout of this repository, and the default `--gaps .` points at the CONSUMER's tree
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 946ee04
   iter-264
     lenses: new-capability, hardening/DX
     - A1 -- re-land iteration 263: `Gap.resolution`, the closing citation a terminal status must carry, with the five-module re-baseline named as the FIRST engineering step
     - A2 -- `radar scan --prd` hands the build loop a PRD that names none of the target locators the scan just found
     - A3 -- the ingest door refuses an evidence-strengthening submission as a duplicate, so the vision's named in-scope activity has no door
+    empty: scout b -- file present, 0 candidate headings
     winner: A1
     ship: PUSHED a4193db
   iter-263
@@ -49,7 +70,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- placeholder, being measured
     - Candidate B3 -- placeholder, being measured
     stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
-    winner: unknown
+    winner: unparsed (pm.md present)
     ship: PUSHED ea5812b
   iter-260
     lenses: integration-and-adoption, simplification-and-deletion
@@ -264,7 +285,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- placeholder, being measured
     - Candidate B3 -- placeholder, being measured
     stubs: 6 of 6 candidate line(s) are write-early placeholders, not measured candidates
-    winner: unknown
+    winner: unparsed (pm.md present)
     ship: PUSHED 7a32d85
   iter-219
     lenses: simplification-and-deletion -- iteration 219, performance-and-throughput -- iteration 219
@@ -312,6 +333,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- the majority verdict of a scan is invisible in the human brief and unfalsifiable in the machine one: 69 findings, one identical reason, no rule, no domain
     - Candidate B2 -- the confidence axis has saturated at 118 of 120 records, and the one number that still separates them is computed, published per-record only, and aggregated nowhere
     - Candidate B3 -- both coverage censuses now read "complete" while 38 of the 88 taxonomy cells have never held a record
+    empty: scout a -- file present, 0 candidate headings
     winner: B1
     ship: PUSHED 734a21e
   iter-207
@@ -369,6 +391,7 @@ foundry directions -- agent-gap-radar
     - Candidate A1 -- one import block serves eight verbs, so `radar taxonomy` pays 93 ms of pydantic for a document derived from a stdlib-only module
     - Candidate A2 -- the register's 506 detection patterns are compiled at load by a schema gate, then compiled again by the only consumer, under a different flag
     - Candidate A3 -- `radar scan` decodes 23,195 times to cover 255 files, and the literal prefilter now proves a set for 226 of 254 evaluations, so the remaining regex prize is 11% of the passes and shrinking
+    empty: scout b -- file present, 0 candidate headings
     winner: A3
     ship: PUSHED 3a0d1cc
   iter-125
@@ -426,6 +449,7 @@ foundry directions -- agent-gap-radar
     - Candidate A1 -- re-land iteration 119: the corroboration denominator, and the `show --json` twin it rides on, which HEAD does not have
     - Candidate A2 -- 120 records, 17 KB of `list`, and no way to LOOK ONE UP: selection exists only over a CLOSED vocabulary
     - Candidate A3 -- `radar scan` is all-or-nothing, so the gate that owns ONE gap cannot ask about it
+    empty: scout b -- file present, 0 candidate headings
     winner: A3
     ship: PUSHED 75cb548
   iter-119
@@ -578,7 +602,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- four hand-copied closed-vocabulary validators become ONE derived rule
     - Candidate B2 -- three caches in `checks.py`, one mechanism: the process-lifetime special case is deleted
     - Candidate B3 -- the roadmap index sheds 44% of itself into an archive, keyed by row id
-    winner: unknown
+    winner: unparsed (pm.md present)
     ship: PUSHED c1c1b7f
   iter-97
     lenses: hardening/DX, integration-and-adoption
@@ -685,6 +709,7 @@ foundry directions -- agent-gap-radar
     - Candidate A1 -- one JSON document tail, not four: the same 60-character terminator is written out four times, and the census that guards its text twin cannot see it
     - Candidate A2 -- one offline tripwire, not five divergent ones: the quality bar's most load-bearing rule is hand-copied per module and has already drifted
     - Candidate A3 -- retire `tools/check_locators.py`: its domain is now provably a subset of the quote checker's, and the repo pays an offline-seam tax twice for one question
+    empty: scout b -- file present, 0 candidate headings
     winner: A1
     ship: PUSHED e1285df
   iter-86
@@ -1268,4 +1293,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-127 scouted iterations
+129 scouted iterations

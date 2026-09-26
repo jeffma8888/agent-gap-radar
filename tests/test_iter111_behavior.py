@@ -151,7 +151,9 @@ EXPECTED_SURFACE = {
     "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
     # Iteration 257 added `--with-fixtures`; the list is SORTED, so it lands last
     # here and its registration index is asserted separately below.
-    "prd": (["--gap", "--project", "--with-fixtures"], 1, [], ["path"]),
+    # Iteration 294 added `--floor`, the same flag and default `list`/`report`/`scan`
+    # carry; the list is SORTED, so it lands first.
+    "prd": (["--floor", "--gap", "--project", "--with-fixtures"], 1, [], ["path"]),
     "report": (["--floor"], 1, [], ["path"]),
     # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
     # `report` do; the sorted list is the inventory, not a ranking.
@@ -184,6 +186,10 @@ EXPECTED_ARGUMENTS = {
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("path", [], False, ".", "?"),
         ("gap_id", ["--gap"], False, None, None),
+        # Iteration 294: the floor the top-ranked selection applies, registered after
+        # `--gap` (the escape hatch that bypasses it). Same dest, spelling and DEFAULT
+        # as the `list`/`report`/`scan` rows, so a drift in one of the four fails here.
+        ("floor", ["--floor"], False, 2, None),
         ("project", ["--project"], False, "agent-gap-radar", None),
         # Iteration 257: the opt-in inlined reproduction sample. `nargs=0` and a `False`
         # default, which is why `docs/CONSUMER_CONTRACT.md`'s `## Defaults` table owes it

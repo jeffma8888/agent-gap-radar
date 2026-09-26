@@ -467,6 +467,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_prd.add_argument("path", nargs="?", default=".")
     p_prd.add_argument("--gap", dest="gap_id", default=None,
                        help="gap id (default: the top-ranked gap)")
+    # The floor the top-ranked selection applies, adjustable here since iteration 294
+    # for the reason `scan --floor` gives below: a consumer that raised the floor on the
+    # scan side to demand stronger evidence could not ask the register side of the same
+    # build loop for the same standard. `2` is the same LITERAL `list` / `report` /
+    # `scan` carry (the import invariant keeps `scoring` out of `build_parser()`), and
+    # there is no range check, for the same reason. Not consulted when `--gap` names
+    # the record: that flag stays the explicit escape hatch.
+    p_prd.add_argument("--floor", type=int, default=2,
+                       help="confidence floor for the top-ranked selection (default 2)")
     p_prd.add_argument("--project", default="agent-gap-radar")
     # Registered LAST so the argument order `tests/test_iter111_behavior.py`'s
     # `EXPECTED_ARGUMENTS["prd"]` reads is extended rather than reshuffled, and OPT-IN so
@@ -962,9 +971,13 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     return _fail(
                         "every gap record carries a terminal status; the citable "
                         f"statuses are: {', '.join(citable_statuses())}")
-                ranked = rank(citable)
+                ranked = rank(citable, args.floor)
+                # The refusal names the floor it APPLIED, so a consumer can tell a
+                # raised floor from an under-evidenced register: `scan --prd` has
+                # published its floor in the same sentence since iteration 255.
                 if not ranked:
-                    return _fail("no gap clears the confidence floor")
+                    return _fail(
+                        f"no gap clears the confidence floor {args.floor}")
                 gap = ranked[0][0]
             sys.stdout.write(render_prd(gap, args.project,
                                         with_fixtures=args.with_fixtures))

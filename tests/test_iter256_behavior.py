@@ -48,10 +48,13 @@ from _surface_contract import (DEFAULTS_COLUMNS, DEFAULTS_HEADING, ArgumentDefau
 #: parser (`parser_defaults()` over `build_parser()`, run at iteration 256). Written as a
 #: literal on purpose: set-equality between the document and the parser stays green if
 #: BOTH sides drift together, and this is the third opinion that catches that. A CLI that
-#: legitimately gains an eleventh default updates this row, the document, and nothing else.
+#: legitimately gains a default updates this row, the document, and nothing else
+#: (iteration 294 did exactly that for `prd --floor`: ten rows became eleven).
 EXPECTED_DEFAULTS = frozenset({
     ArgumentDefault("list", "--floor", "2"),
     ArgumentDefault("list", "path", "."),
+    # Iteration 294: `prd --floor`, the eleventh default, the fourth `--floor` at `2`.
+    ArgumentDefault("prd", "--floor", "2"),
     ArgumentDefault("prd", "--project", "agent-gap-radar"),
     ArgumentDefault("prd", "path", "."),
     ArgumentDefault("report", "--floor", "2"),
@@ -68,7 +71,7 @@ _SEPARATOR_ROW = "|---|---|---|"
 _MINIMAL_ROW = "| `list` | `--floor` | `2` |"
 
 #: A minimal well-formed document, used to plant structural defects without disturbing
-#: the shipped ten-row table. Paired with `_synthetic()`, whose only default is this row.
+#: the shipped eleven-row table. Paired with `_synthetic()`, whose only default is this row.
 _MINIMAL = (
     "# Consumer contract\n"
     "\n"
@@ -138,10 +141,10 @@ def register(tmp_path_factory):
 # Behavior 0 (guards, not spec behaviors) -- the fixtures are not vacuous.
 # ---------------------------------------------------------------------------
 
-def test_b0_the_parser_carries_exactly_the_ten_measured_defaults():
-    """Every set-equality below is meaningless if the parser side is not these ten."""
+def test_b0_the_parser_carries_exactly_the_eleven_measured_defaults():
+    """Every set-equality below is meaningless if the parser side is not these eleven."""
     measured = parser_defaults()
-    assert len(measured) == 10, f"parser reports {len(measured)} defaults, expected 10"
+    assert len(measured) == 11, f"parser reports {len(measured)} defaults, expected 11"
     assert measured == EXPECTED_DEFAULTS, (
         f"parser side moved: missing {sorted(e.label for e in EXPECTED_DEFAULTS - measured)}, "
         f"unexpected {sorted(e.label for e in measured - EXPECTED_DEFAULTS)}")
@@ -244,11 +247,11 @@ def test_b3_the_shipped_document_and_the_real_parser_agree():
     assert defaults_violations(contract_text()) == []
 
 
-def test_b3_both_sides_equal_the_ten_measured_triples():
+def test_b3_both_sides_equal_the_eleven_measured_triples():
     documented = documented_defaults(contract_text())
     assert set(documented) == EXPECTED_DEFAULTS
     assert parser_defaults() == EXPECTED_DEFAULTS
-    assert len(documented) == 10, f"{len(documented)} rows, expected 10"
+    assert len(documented) == 11, f"{len(documented)} rows, expected 11"
     assert len(set(documented)) == len(documented), "a row is duplicated"
 
 

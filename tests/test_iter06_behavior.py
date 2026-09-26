@@ -32,7 +32,7 @@ README_DOC = REPO_ROOT / "README.md"
 
 ZERO_RECORD_PREFIX = "Error: no gap records found in "
 NOT_A_DIRECTORY_PREFIX = "Error: not a directory: "
-PRD_FLOOR_ERROR = "Error: no gap clears the confidence floor\n"
+PRD_FLOOR_ERROR = "Error: no gap clears the confidence floor 2\n"
 
 #: One schema-valid record, matching the shape the existing suite already uses.
 RECORD = {

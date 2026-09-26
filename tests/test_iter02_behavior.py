@@ -444,7 +444,7 @@ def test_b8_prd_still_refuses_with_its_own_message(tmp_path, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert rc == 2
-    assert captured.err == "Error: no gap clears the confidence floor\n"
+    assert captured.err == "Error: no gap clears the confidence floor 2\n"
 
 
 def test_b8_an_explicitly_named_below_floor_gap_still_yields_a_prd(tmp_path, capsys):

@@ -106,7 +106,7 @@ def _all_terminal_message():
             f"are: {_expected_citable_phrase()}\n")
 
 
-FLOOR_MESSAGE = "Error: no gap clears the confidence floor\n"
+FLOOR_MESSAGE = "Error: no gap clears the confidence floor 2\n"
 
 
 # --------------------------------------------------------------------------- fixtures

@@ -82,7 +82,7 @@ EXPECTED_CELLS = [
     "`radar list [<repo>] [--json] [--floor N] [--layer L]`",
     "`radar show <ID> [<repo>]`",
     "`radar report [<repo>] [--floor N]`",
-    "`radar prd [<repo>] [--gap <ID>] [--project NAME] [--with-fixtures]`",
+    "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
     "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code]`",
     "`radar diff <old> <new> [--json] [--exit-code]`",
     "`radar taxonomy`",
@@ -296,8 +296,8 @@ def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
     ("validate", "`radar validate [<repo>]`", "`radar validate <repo>`"),
     ("report", "`radar report [<repo>] [--floor N]`",
      "`radar report <repo> [--floor N]`"),
-    ("prd", "`radar prd [<repo>] [--gap <ID>] [--project NAME] [--with-fixtures]`",
-     "`radar prd [<repo>] --gap <ID> [--project NAME] [--with-fixtures]`"),
+    ("prd", "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
+     "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`"),
 ])
 def test_b4_an_optional_argument_documented_as_required_is_refused(verb, old, new):
     document = _replace_once(contract_text(), old, new)
@@ -316,8 +316,8 @@ def test_b4_the_gap_flag_cell_is_the_one_that_costs_a_consumer_something():
     editor cannot tell which of the row's three tokens to unbracket.
     """
     document = _replace_once(
-        contract_text(), "`radar prd [<repo>] [--gap <ID>] [--project NAME] [--with-fixtures]`",
-        "`radar prd [<repo>] --gap <ID> [--project NAME] [--with-fixtures]`")
+        contract_text(), "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
+        "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`")
     violations = requiredness_violations(parser_surface(), document)
     assert violations == [
         "prd: documents '--gap' as required, parser makes it optional"]
@@ -443,8 +443,8 @@ def test_b7_every_planted_known_bad_differs_from_the_committed_document():
     plants = [
         ("`radar validate [<repo>]`", "`radar validate <repo>`"),
         ("`radar report [<repo>] [--floor N]`", "`radar report <repo> [--floor N]`"),
-        ("`radar prd [<repo>] [--gap <ID>] [--project NAME] [--with-fixtures]`",
-         "`radar prd [<repo>] --gap <ID> [--project NAME] [--with-fixtures]`"),
+        ("`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
+         "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`"),
         ("`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code]`",
          "`radar scan [<target>] [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code]`"),
         ("`radar show <ID> [<repo>]`", "`radar show [<ID>] [<repo>]`"),
