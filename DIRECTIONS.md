@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-296
+    lenses: simplification-and-deletion
+    - Candidate A1 -- the first command a new user types, `radar scan .` from inside their own project, answers with a 1,153 B pydantic dump about `package.json`; make `_resolve` refuse "no register at <path>" instead
+    - Candidate A2 -- `show`, `prd --gap`, `scan --gap` refuse `9`, `GAP-9` and `gap-009` with `no such gap`, although `GAP_ID_RE` makes the canonical spelling unambiguous; canonicalize the id before lookup
+    - Candidate A3 -- neither scan document names the register it applied: `Register records applied: 120` / `"records_applied": 120` is the whole provenance, so two gate artifacts built from different registers look comparable; publish the register's identity
+    - Candidate B1 -- `cli.py` carries two names for one parser class (`PublishedErrorParser` at line 370 and `_PublishedErrorParser` at 420); retire the alias so the class has one spelling
+    - Candidate B2 -- the suite still special-cases the `(no match)` diagnostic that iteration 265 moved OUT of `scan --json`'s `locations` (`test_iter81_behavior.py:471 _DIAGNOSTIC_PREFIX`); delete the workaround and assert purity directly
+    - Candidate B3 -- `checks.py` runs two literal provers on every pattern (`required_literals` and `required_literal_sets`) although production reads only the DNF result; collapse to one and keep the cross-check as a test
+    winner: A1
+    ship: pending (not yet decided)
+  iter-295
+    lenses: hardening/DX, integration-and-adoption
+    - Candidate A1 -- every long flag on every verb (and 5 tools scripts) answers to any unambiguous PREFIX, an unpublished alias surface that the next flag added silently rebinds; set `allow_abbrev=False` once, in `PublishedErrorParser.__init__`
+    - Candidate A2 -- a newline inside a record's single-line fields passes `radar validate` (and therefore every verb, since all load through `Gap.model_validate`), then `radar list` prints TWO lines for ONE record (README promises "one line per record" twice), `report`'s ranked table row is split, and `show`'s H1 is split; add a schema-level single-line rule for the fields rendered in a heading or table cell
+    - Candidate A3 -- 20 test call sites in 8 files scan the LIVE working tree (`"scan", "."`), and 12 of them compare two arms enumerated at different moments, so a `git add` mid-run flips them red (iter 294 gate: 3 red against a tree two stages had measured green); snapshot the target once per module so both arms scan a tree that cannot move
+    - Candidate B1 -- `scan --prd` hands the build loop a PRD with 0 of the 20 `path:line` locators the same scan just found for that gap; carry the finding's `locations` into `sourceGap`
+    - Candidate B2 -- two machine payloads do not echo the argument that shaped them: `list --json --layer L` (row 81, open since iteration 84) and, since last iteration, `prd --floor N`; publish both
+    - Candidate B3 -- the installed `radar` still cannot scan anything: the wheel packages `src/agent_gap_radar` only, the 120 records live outside it, and the default `--gaps .` points at the CONSUMER's tree; bundle the register so `radar scan <target>` works from a bare install
+    winner: A1
+    ship: unknown
   iter-294
     lenses: new-capability -- iteration 294, hardening/DX
     - Candidate A1 -- `radar scan --baseline <prior scan.json>`: the target-side non-regression half of the gate, so a target with a pre-existing PRESENT backlog can fail on NEW findings instead of never going green
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Every tools/*.py brake gets a suite-owned runner test, because a brake nothing runs is not enforced
     - Candidate B3 -- Make `uv run pytest -q` print its summary line again (addopts already carries -q, so a second -q silences the count)
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED 3eea489
   iter-293
     lenses: narrative-and-docs -- iteration 293, new-capability
     - Candidate A1 -- the roadmap is 360,169 chars against the 54,000-char wall its own brake publishes, the archive door that iteration 261 shipped to fix that has NO archive file behind it (zero `*_ARCHIVE.md` tracked), and the brake still says `0 violation(s)`
@@ -1293,4 +1313,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-129 scouted iterations
+131 scouted iterations

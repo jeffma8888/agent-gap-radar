@@ -505,12 +505,17 @@ def test_b6_the_rebinding_is_loud_even_when_gaps_is_also_given(world):
 
 
 def test_b6_the_now_ambiguous_short_abbreviation_fails_loudly_too(world):
-    """`--ga` was an unambiguous abbreviation of `--gaps`; adding `--gap` makes it ambiguous.
+    """`--ga` was an unambiguous abbreviation of `--gaps`; adding `--gap` made it ambiguous.
 
     That is the second half of "the abbreviation change is loud": the dangerous outcome is
     not an error, it is argparse silently keeping the OLD binding (or taking the new one)
-    for a command line a consumer already ships. It must refuse, with empty stdout, and
-    the refusal must name BOTH candidates so the reader can tell which they meant.
+    for a command line a consumer already ships. It must refuse, with empty stdout.
+
+    Re-baselined in iteration 296: `PublishedErrorParser` now defaults `allow_abbrev=False`,
+    so NO prefix resolves and the ambiguity this test once pinned is unreachable -- there
+    are no candidates to name. The refusal is the structural one every unknown option
+    gets, and it echoes the tokens argparse could not place. Same door, same loudness,
+    one letter earlier still.
     """
     _reg, target = world
     out, err = io.StringIO(), io.StringIO()
@@ -521,8 +526,7 @@ def test_b6_the_now_ambiguous_short_abbreviation_fails_loudly_too(world):
     assert out.getvalue() == "", repr(out.getvalue())
     tail = [ln for ln in err.getvalue().splitlines() if ln.strip()][-1]
     assert tail.startswith("Error: "), repr(tail)
-    assert "ambiguous" in tail, repr(tail)
-    assert "--gaps" in tail and "--gap" in tail, repr(tail)
+    assert tail == "Error: unrecognized arguments: --ga ./", repr(tail)
 
 
 # ---------------------------------------------------------------------------

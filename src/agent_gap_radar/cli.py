@@ -24,7 +24,7 @@ import argparse
 import os
 import pathlib
 import sys
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from . import __version__
 # `taxonomy` STAYS module-level, and it is the only sibling that does:
@@ -388,13 +388,38 @@ class PublishedErrorParser(argparse.ArgumentParser):
     Installed on the TOP-LEVEL parser only. `add_subparsers` defaults its `parser_class`
     to `type(self)`, so all eight verbs inherit the override with no per-verb edit and no
     second place to keep in sync -- and a verb added later inherits it by construction
-    rather than by someone remembering.
+    rather than by someone remembering. Abbreviation refusal (`__init__` below) rides the
+    same inheritance: `add_subparsers` passes no kwargs, so a default set only on the
+    top-level parser would leave every verb accepting prefixes.
 
     PUBLIC since iteration 206. The same argument holds for every door this repo owns, and
     the `tools/` scripts had four argparse parsers answering in argparse's spelling, so
     they import THIS class instead of each restating the rule -- one override, one emitter,
     seven scripts. Nothing about the class is CLI-specific: it names no verb and no `prog`.
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Refuse every strict prefix of a long flag; only exact spellings are published.
+
+        argparse's default (`allow_abbrev=True`) makes every unambiguous prefix of every
+        long flag a working alias -- `prd . --flo 3`, `scan . --exit`, `list . --lay` all
+        parsed -- that `docs/CONSUMER_CONTRACT.md` never published. The hazard is not the
+        alias itself but its REBINDING: iteration 120 added `scan --gap` next to `--gaps`,
+        and `--gap` had been a legal abbreviation of `--gaps` until that day, so a consumer
+        script spelling the prefix silently changed meaning. It survived only because the
+        new meaning refused loudly; the next shared prefix may not. A loud refusal now
+        beats a silent rebinding later.
+
+        `setdefault` rather than a hard override, so a caller that spells
+        `allow_abbrev=True` still gets it: this is the class's DEFAULT, not a rule it
+        hides from its callers. Set here, in `__init__`, rather than on the top-level
+        parser in `build_parser()`, because `add_subparsers` constructs each verb through
+        `parser_class` with no kwargs -- a default set only at the top would leave every
+        verb accepting prefixes, and the top level is the one door where it barely matters
+        (`required=True` fires first there).
+        """
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
 
     def error(self, message: str) -> NoReturn:
         """Keep the usage block, then refuse through the one published error site.
