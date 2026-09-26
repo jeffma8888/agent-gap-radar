@@ -870,6 +870,13 @@ def evaluate(rule: dict, target: pathlib.Path,
         # alternative, so `\s+git\s+push\b` skips a file missing EITHER `git`
         # or `push` where a flat set could only ever test the longer one.
         literal_sets = required_literal_sets(rule["pattern"])
+        # The ASCII refinement of the DNF above, proved ONCE per rule for the same
+        # reason: which runs a pattern has is a property of the PATTERN. Consulted
+        # per file only behind `is_ascii`, and only AFTER the seam above has
+        # admitted the file -- so a seam substituted with an impossible literal
+        # still skips every file, and a seam substituted with `None` still runs
+        # every regex pass, exactly as before this refinement existed.
+        ascii_sets = _required_literal_sets_ascii(rule["pattern"])
         # Decided ONCE per rule evaluation for exactly the reason above it: which
         # pattern text runs is a property of the PATTERN, not of any file, and this
         # loop is the cost term the substitution exists to shrink, so classifying
@@ -899,6 +906,9 @@ def evaluate(rule: dict, target: pathlib.Path,
             text = _read(path)
             if text is None:
                 continue
+            # Read once per file and reused by the fast-path gate below: it is the
+            # ONE fact that makes the unfolded DNF sound for this text.
+            is_ascii = text.isascii()
             if literal_sets is not None:
                 # Folded once into a local: the membership test below runs once per
                 # literal, and re-deriving the fold inside that loop would pay for
@@ -926,7 +936,18 @@ def evaluate(rule: dict, target: pathlib.Path,
                     # text, so no file that is read today becomes unread and
                     # `truncated` keeps meaning exactly what it meant.
                     continue
-            if fast_regex is not None and text.isascii():
+                if is_ascii and ascii_sets is not None and not any(
+                        all(literal in folded for literal in conjunction)
+                        for conjunction in ascii_sets):
+                    # The whole-run test, reached only by an ASCII file the folded
+                    # DNF already admitted. Same `any`/`all` shape, same fold,
+                    # same one-directional argument: an incomplete conjunction is
+                    # decisive, and every ASCII conjunction is at least as strong
+                    # as the folded one it refines, so this can only drop a pass
+                    # that would have found nothing. A non-ASCII file never
+                    # reaches it and keeps today's verdict byte for byte.
+                    continue
+            if fast_regex is not None and is_ascii:
                 # The substitution, and it is an EQUALITY rather than an
                 # approximation: for an ASCII text, `(?i)` over the raw text and the
                 # same body with `i` dropped over `text.lower()` accept the same
@@ -1646,6 +1667,51 @@ def required_literal_sets(pattern: str) -> tuple[frozenset[str], ...] | None:
     if proved is None:
         return None
     sets = _prove_literal_sets(pattern, 0, False)
+    if sets is None or not all(conjunction & proved for conjunction in sets):
+        return tuple(frozenset({literal}) for literal in sorted(proved))
+    return sets
+
+
+def _required_literal_sets_ascii(pattern: str) -> tuple[frozenset[str], ...] | None:
+    r"""`required_literal_sets`, but a leading `(?i)` does NOT fold the runs.
+
+    Sound ONLY for a text `t` with `t.isascii()`, and `evaluate` consults it
+    behind exactly that per-file gate -- the same one-directional gate the folded
+    fast path already takes. Under `(?i)` the shipped walk keeps the longest
+    `i`/`s`-free FRAGMENT of every run (`_FOLD_UNSAFE`): `(?i)s` matches U+017F and
+    `(?i)i` matches U+0130 in RAW text while `str.lower()` leaves both outside
+    ASCII, so `(?i)vector_store` proves `vector_` and `tore` and a file holding
+    those two anywhere is admitted. An ASCII text cannot hold either codepoint, so
+    there the WHOLE run is fold-safe: a `(?i)` match of an ASCII literal in ASCII
+    text is a case variant of it, whose lowercase IS a substring of `t.lower()`.
+    Stripping the leading global flag groups once and walking the body with
+    `fold=False` proves `vector_store` whole.
+
+    Never LOOSER than the folded DNF on an ASCII text: every folded fragment is a
+    substring of the unfolded run it was cut from, so a text holding the run holds
+    the fragment. `evaluate` tests it AFTER the shipped DNF has admitted a file,
+    never instead of it, which keeps the audited seam the floor and its
+    substitution tests meaningful.
+
+    Reaches the PRIVATE walks only -- never `required_literals` or
+    `required_literal_sets` -- so a tool counting those two as module globals
+    (`tools/scan_cost.py`) reads the same counters, and the pins on their call
+    sites hold. Every leading group is stripped here, not just the first, because
+    `(?m)(?i)foo` is a legal pattern whose `i` the walk would otherwise re-read
+    one level down and turn the fold back on. For a pattern with no leading `(?i)`
+    the walks receive the same body under the same `fold`, so the answer equals
+    `required_literal_sets(pattern)` by construction.
+    """
+    stripped = pattern
+    while True:
+        body, _folded_flag = _strip_inline_flags(stripped)
+        if body == stripped:
+            break
+        stripped = body
+    proved = _prove_literals(stripped, 0, False)
+    if proved is None:
+        return None
+    sets = _prove_literal_sets(stripped, 0, False)
     if sets is None or not all(conjunction & proved for conjunction in sets):
         return tuple(frozenset({literal}) for literal in sorted(proved))
     return sets

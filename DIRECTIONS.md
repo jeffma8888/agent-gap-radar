@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-298
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- the `(?i)` literal prefilter proves only the `i`/`s`-free FRAGMENT of every literal (`vector_store` -> `tore`, `thread_id` -> `d`), and 95% of the self-scan's regex time is zero-hit passes it admitted; prove the whole run for ASCII texts
+    - Candidate A2 -- `pathlib.relative_to` is still 0.88 s of the 10.3 s scan (50,091 calls for ~295 distinct answers); roadmap row 122 re-priced at HEAD after iteration 249's revert
+    - Candidate A3 -- the suite still spawns the 10 s live self-scan from 26 call sites in 9 files; iteration 297 memoized ONE file, the other 8 pay full price
+    - Candidate B1 -- `docs/CONSUMER_CONTRACT.md` restates a self-scan count (62 of 119, 2.7x) that the same document, 440 lines earlier, says it never restates; live is 61 of 119 and 2.5x -- replace the figure with the derived claim and add the lint the contract already promises
+    - Candidate B2 -- README.md:74 says `MANUAL` is "usually the majority verdict"; on the only target the repo measures offline it is third of five (29/119) and NOT_APPLICABLE is the plurality (61/119), which is what the contract already says -- reconcile the two documents and pin the one claim a test can hold
+    - Candidate B3 -- the `roadmap-index` WARN prescribes a remedy the numbers do not support: archiving the whole done ledger (141,214 chars) leaves PRODUCT.md at 221,112 chars, 4.1x the 54,000 wall, and the wall "the quality suite enforces" exists nowhere in `tests/` or `tools/` -- write the arithmetic down where the next PM will read it before acting on the WARN, and give the roadmap the size figure its brake actually measures
+    winner: A1
+    ship: pending (not yet decided)
   iter-297
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- Collapse near-duplicate render paths (report vs brief) into one shared table renderer
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the quality suite is the loop's most-paid-for unit of work (6543 tests, ~172-180 s per full run at the gate, three to four runs per iteration); measure how many tests spawn a `radar` subprocess and how much wall-clock that costs
     - Candidate B3 -- `scan --json` on the self-scan is 143,602 B and the gate re-emits and re-parses it per run; measure what share is repeated prose (`location_notes` diagnostics, `evidence` text) and target a bounded payload
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED c22994d
   iter-296
     lenses: simplification-and-deletion
     - Candidate A1 -- the first command a new user types, `radar scan .` from inside their own project, answers with a 1,153 B pydantic dump about `package.json`; make `_resolve` refuse "no register at <path>" instead
@@ -1323,4 +1333,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-132 scouted iterations
+133 scouted iterations
