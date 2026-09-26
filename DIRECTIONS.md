@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-297
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- Collapse near-duplicate render paths (report vs brief) into one shared table renderer
+    - Candidate A2 -- Retire a superseded flag or tool brake that a later verb made redundant
+    - Candidate A3 -- Replace a special case with the general rule in the confidence-ladder derivation
+    - Candidate B1 -- `radar scan` critical path re-reads and re-decodes the same target files once per check; measure reads-per-scan with `tools/scan_cost.py` and cache decoded text per scan
+    - Candidate B2 -- the quality suite is the loop's most-paid-for unit of work (6543 tests, ~172-180 s per full run at the gate, three to four runs per iteration); measure how many tests spawn a `radar` subprocess and how much wall-clock that costs
+    - Candidate B3 -- `scan --json` on the self-scan is 143,602 B and the gate re-emits and re-parses it per run; measure what share is repeated prose (`location_notes` diagnostics, `evidence` text) and target a bounded payload
+    winner: B2
+    ship: pending (not yet decided)
   iter-296
     lenses: simplification-and-deletion
     - Candidate A1 -- the first command a new user types, `radar scan .` from inside their own project, answers with a 1,153 B pydantic dump about `package.json`; make `_resolve` refuse "no register at <path>" instead
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the suite still special-cases the `(no match)` diagnostic that iteration 265 moved OUT of `scan --json`'s `locations` (`test_iter81_behavior.py:471 _DIAGNOSTIC_PREFIX`); delete the workaround and assert purity directly
     - Candidate B3 -- `checks.py` runs two literal provers on every pattern (`required_literals` and `required_literal_sets`) although production reads only the DNF result; collapse to one and keep the cross-check as a test
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 34db28f
   iter-295
     lenses: hardening/DX, integration-and-adoption
     - Candidate A1 -- every long flag on every verb (and 5 tools scripts) answers to any unambiguous PREFIX, an unpublished alias surface that the next flag added silently rebinds; set `allow_abbrev=False` once, in `PublishedErrorParser.__init__`
@@ -1313,4 +1323,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-131 scouted iterations
+132 scouted iterations

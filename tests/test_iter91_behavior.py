@@ -103,13 +103,34 @@ def _one_file(text: str, name: str = "sample.txt"):
 # ===========================================================================
 
 
-def _live_scan() -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(TOOL), str(REPO)],
+#: Module-lifetime memo of the fixed-argv live self-scan, keyed on the argv it ran, the way
+#: `checks._TRACKED_CACHE` is keyed on its path. The tool is byte-stable over an unchanged tree
+#: (the product's own invariant, and this file mutates nothing under `REPO`), so one spawn
+#: serves every test that reads only the RESULT; a second spawn of the same argv would return
+#: the same bytes and cost the same wall.
+_LIVE_SCAN_CACHE: dict[tuple[str, ...], subprocess.CompletedProcess] = {}
+
+
+def _live_scan(*, fresh: bool = False) -> subprocess.CompletedProcess:
+    """The live self-scan as the shell would run it: a real process boundary, spawned once.
+
+    `fresh=True` bypasses the memo in both directions (neither read nor written) for the tests
+    whose claim is about the SPAWN rather than its output: determinism needs two independent
+    runs (a memo compared to itself proves nothing), and the writes-nothing test must bracket a
+    run it actually caused.
+    """
+    argv = (sys.executable, str(TOOL), str(REPO))
+    if not fresh and argv in _LIVE_SCAN_CACHE:
+        return _LIVE_SCAN_CACHE[argv]
+    proc = subprocess.run(
+        list(argv),
         capture_output=True,
         text=True,
         cwd=str(REPO),
     )
+    if not fresh:
+        _LIVE_SCAN_CACHE[argv] = proc
+    return proc
 
 
 def test_b1_the_live_shippable_tree_is_clean_and_the_scan_states_its_domain_size():
@@ -147,7 +168,7 @@ def test_b1_the_index_lister_is_the_git_index_and_not_a_directory_walk():
 
 
 def test_b1_the_scan_is_deterministic_across_runs():
-    first, second = _live_scan(), _live_scan()
+    first, second = _live_scan(fresh=True), _live_scan(fresh=True)
     assert first.stdout == second.stdout
     assert first.returncode == second.returncode == 0
 
@@ -824,7 +845,7 @@ def test_b14_a_live_scan_writes_nothing_to_the_files_it_reads():
     """A gate that edits the tree it audits is worse than no gate."""
     watched = [TOOL, pathlib.Path(__file__)]
     before = [(p, hashlib.sha256(p.read_bytes()).hexdigest()) for p in watched]
-    proc = _live_scan()
+    proc = _live_scan(fresh=True)
     assert proc.returncode == 0
     after = [(p, hashlib.sha256(p.read_bytes()).hexdigest()) for p in watched]
     assert before == after
