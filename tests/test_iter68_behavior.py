@@ -322,9 +322,13 @@ def test_b4_scan_prd_emits_the_same_top_level_key_set_as_prd(tmp_path, capsys):
     code_s, out_s, err_s = _run(["scan", str(hit), "--gaps", str(reg), "--prd"], capsys)
     assert (code_s, err_s) == (0, ""), f"scan --prd: code={code_s} stderr={err_s!r}"
     keys_p, keys_s = set(_doc(out_p)), set(_doc(out_s))
-    assert keys_p == keys_s, f"prd {sorted(keys_p)} != scan --prd {sorted(keys_s)}"
-    # Named, so the equality above cannot be satisfied by two identically-wrong surfaces.
-    assert keys_s == set(EMITTED_ORDER)
+    # RE-BASELINED BY ITERATION 301, which reversed iteration 68's equality on purpose:
+    # `scan --prd` APPENDS the scan's own `finding` as a sixth top-level key, so its key
+    # set is `prd`'s plus exactly that one name -- never fewer, never any other extra.
+    assert keys_s == keys_p | {"finding"}, (
+        f"prd {sorted(keys_p)} + finding != scan --prd {sorted(keys_s)}")
+    # Named, so the relation above cannot be satisfied by two identically-wrong surfaces.
+    assert keys_p == set(EMITTED_ORDER)
     assert RETIRED_KEY not in out_s
     assert out_s.endswith("\n") and not out_s.endswith("\n\n")
 
@@ -333,7 +337,9 @@ def test_b4_holds_on_the_live_surfaces_too(capsys):
     _, out_p, _ = _live_prd(capsys)
     code_s, out_s, err_s = _run(["scan", str(REPO_ROOT), "--prd"], capsys)
     assert (code_s, err_s) == (0, ""), f"scan --prd: code={code_s} stderr={err_s!r}"
-    assert set(_doc(out_s)) == set(_doc(out_p))
+    # RE-BASELINED BY ITERATION 301 (see behavior 4 above): the live surfaces differ by
+    # exactly the appended `finding` key, and iteration 68's equality was reversed on purpose.
+    assert set(_doc(out_s)) == set(_doc(out_p)) | {"finding"}
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-301
+    lenses: hardening/DX -- iteration 301
+    - Candidate A1 -- harden the one-iteration-old `scan --baseline`: a baseline built from a DIFFERENT target or register must be refused, not silently compared
+    - Candidate A2 -- `radar <verb> <dir-with-no-register>` still answers with a pydantic schema dump (iteration 300 B3 says the log's "shipped in 296" is false); make `_resolve` refuse with `no register at <path>`
+    - Candidate A3 -- a downstream consumer closing the pipe (`radar report . | head -1`) or a hash-seed change must not break the error contract or byte-stability
+    - Candidate B1 -- `scan --prd` still hands the build loop a PRD with 0 of the 20 `path:line` locators the same scan found; the 295 deferral reason ("byte-compared against `prd --gap`") is narrower than recorded, so the re-baseline is 2 files, not 10
+    - Candidate B2 -- two machine payloads still do not echo the argument that shaped them: `list --json --layer L` (roadmap row 81, open since iteration 84) and `prd --floor N` (shipped 294 with no echo)
+    - Candidate B3 -- `radar taxonomy` is the only verb with no `--json`: the closed vocabularies every consumer must validate against (`layer`, `gap_type`, `status`, the evidence ladder) exist as a markdown document and four Python functions, and nothing outside this process can read them without scraping
+    winner: B1
+    ship: pending (not yet decided)
   iter-300
     lenses: new-capability, hardening/DX -- iteration 300
     - Candidate A1 -- re-land `radar scan --baseline <prior scan.json>`, with the six old-cell pins named as engineering step ONE
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- a line break inside `title` passes `radar validate` and splits `list` (README promises "one line per record" twice), `show`'s H1 and `report`'s ranked table row
     - Candidate B3 -- `radar <verb> <dir-with-no-register>` still answers with a 12-item pydantic schema dump; make `_resolve` say `no register at <path>` (the log records this as SHIPPED in 296; it is not)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 989336e
   iter-299
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- README.md:74 and CONSUMER_CONTRACT.md:463 both make a quantitative claim about the self-scan's verdict split, both claims are FALSE at HEAD, and each document says two screens earlier that it never restates such a figure
@@ -1353,4 +1363,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-135 scouted iterations
+136 scouted iterations

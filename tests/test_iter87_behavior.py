@@ -252,8 +252,11 @@ def test_b2_scan_prd_is_the_published_tail_too(capsys, reg, target):
     _assert_tail_is_the_published_one(out, "radar scan --prd")
     payload = json.loads(out)
     assert payload["stories"], "premise: the emitted prd must carry stories"
-    assert list(payload) == PRD_TOP_KEYS, (
-        f"`scan --prd` must publish the prd key sequence, got {list(payload)}")
+    # RE-BASELINED BY ITERATION 301, which reversed the equality on purpose: `scan --prd`
+    # now APPENDS the scan's own `finding` as a sixth top-level key after `stories`, so
+    # the prd key sequence is a strict PREFIX of this surface's rather than the whole.
+    assert list(payload) == PRD_TOP_KEYS + ["finding"], (
+        f"`scan --prd` must publish the prd key sequence plus `finding`, got {list(payload)}")
 
 
 def test_b2_prd_with_its_flags_is_the_published_tail(capsys, reg):

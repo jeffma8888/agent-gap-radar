@@ -344,6 +344,30 @@ def _select_gap(gaps: list[Gap], gap_id: str | None) -> list[Gap]:
     return gaps if gap_id is None else [select_one(gaps, gap_id)]
 
 
+#: The four `scan --json` per-finding keys `scan --prd` carries under `finding`, in
+#: published order. A PROJECTION of the object `scan._finding_json` builds, never a
+#: second derivation: every value is the one the `--json` surface emits for the same
+#: finding at the same floor, so the two surfaces cannot tell a build loop different
+#: stories about one record. `gap_id` and `priority` are left out because
+#: `sourceGap.id` and `sourceGap.priority` already publish them; `location_notes` is
+#: left out because the one array a loop turns into file annotations must hold pure
+#: `path:line` locators and nothing that has to be parsed first.
+_FINDING_KEYS: tuple[str, ...] = ("verdict", "confidence", "below_floor", "locations")
+
+
+def _prd_with_finding(prd: dict, finding: dict[str, object]) -> dict:
+    """The `scan --prd` document: `radar prd`'s object plus the scan's own `finding`.
+
+    APPENDED as a sixth top-level key AFTER `stories` and never nested in `sourceGap`,
+    so every key `radar prd` publishes keeps its index and the first five keys of the
+    two prd surfaces stay byte-comparable. Exists because `scan --prd` is the only
+    surface that hands a TARGET's finding to a build loop, and until now its document
+    was byte-identical to `radar prd --gap <id>`: the locators the scan had just found
+    never reached the loop that was built to fix them.
+    """
+    return {**prd, "finding": {key: finding[key] for key in _FINDING_KEYS}}
+
+
 def _citable_domain(gaps: list[Gap]) -> list[Gap]:
     """Narrow the record DOMAIN to the statuses a build loop may act on.
 
@@ -778,10 +802,10 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # function and must not depend on it having run.
     from .diff import (diff_json, diff_registers, regression_verdict,
                        render_diff)
-    from .prd import render_prd
+    from .prd import prd_for, render_prd
     from .registry import RegistryError, load_all, load_one
-    from .render import document, gap_brief, radar_report
-    from .scan import (BaselineError, gate_verdict, load_baseline,
+    from .render import document, gap_brief, json_document, radar_report
+    from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
                        new_since_baseline, render_baseline_line, render_scan,
                        scan, scan_json, select_for_prd, unanswered)
     from .scoring import rank
@@ -873,8 +897,10 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     f"(priority {finding.priority:.1f}, "
                     f"confidence {finding.confidence}) -- below the "
                     f"confidence floor {floor}.\n")
-            sys.stdout.write(render_prd(selection.selected.gap,
-                                        project=result.target.name))
+            sys.stdout.write(json_document(
+                _prd_with_finding(prd_for(selection.selected.gap,
+                                          project=result.target.name),
+                                  _finding_json(selection.selected, floor))))
             return EXIT_OK
         # Decided BEFORE a byte is written, because a scan that verdicted NOTHING
         # is a refusal and the published `2` row promises stdout stays empty on
