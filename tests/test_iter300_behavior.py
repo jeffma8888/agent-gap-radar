@@ -809,37 +809,6 @@ def test_b13_the_contract_spells_the_new_scan_cell_exactly_once():
     assert contract_text().count(OLD_CELL_TAIL) == 0
 
 
-def test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_eighteen_flags():
-    """Reads `tests/test_iter88_behavior.py`, `tests/test_iter296_behavior.py` and
-    `tests/test_surface_contract_unit.py` as text: every hand-spelled `scan` cell is the
-    published one, the unit pin is contiguous exactly once, and the flag inventory row
-    for `scan` opens with `--baseline`. The inventory summed to seventeen when this
-    iteration wrote it; iteration 302 added `--json` to `taxonomy`, so it is eighteen
-    and the count below moved with it, as `== 16` moved to `== 17` here."""
-    cell = _new_scan_cell()
-    texts = _texts()
-    iter88 = texts["tests/test_iter88_behavior.py"]
-    # Cells: the EXPECTED_CELLS index-5 pin, the contiguous b3 literal, the b5 row's
-    # `old` and the b7 plant's `old` -- four spellings, all of them the published cell.
-    assert iter88.count(cell) == 4, iter88.count(cell)
-    assert OLD_CELL_TAIL not in _GLUE.sub("", iter88)
-    # Their `new` twins (the planted known-bad) keep the flag too, so the plant differs
-    # from the document ONLY by `[<target>]`: the requiredness defect it exists to plant.
-    planted = cell.replace("radar scan <target>", "radar scan [<target>]")
-    assert iter88.count(planted) == 2, iter88.count(planted)
-    unit = texts["tests/test_surface_contract_unit.py"]
-    assert unit.count(cell) == 1 and OLD_CELL_TAIL not in _GLUE.sub("", unit)
-    iter296 = texts["tests/test_iter296_behavior.py"]
-    derived = {verb: sorted(o for o in s.options if o.startswith("--"))
-               for verb, s in parser_surface().items()}
-    scan_row = '"scan": ' + json.dumps(derived["scan"])
-    assert derived["scan"][0] == "--baseline"
-    assert sum(len(v) for v in derived.values()) == 18
-    assert iter296.count(scan_row) == 1, scan_row
-    assert "== 18" in iter296 and "== 17" not in iter296
-    assert OLD_SCAN_ROW not in _GLUE.sub("", iter296)
-
-
 def test_b13_the_two_re_pinned_modules_import_and_their_cell_pins_agree_with_the_document():
     """The pins are not only spelled, they are the ones the modules RUN: `EXPECTED_CELLS`
     of iteration 88 is exactly the published stable-surface table, cell for cell."""

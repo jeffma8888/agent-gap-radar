@@ -34,6 +34,7 @@ import tarfile
 import pytest
 
 from _surface_contract import parser_surface
+from _surface_inventory import EXPECTED_SURFACE, long_flags
 from agent_gap_radar.cli import PublishedErrorParser, build_parser
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -120,25 +121,18 @@ def _prefix_cases() -> list[tuple[str, str, bool]]:
 PREFIX_CASES = _prefix_cases()
 
 
-def test_iter296_b1_the_derived_inventory_is_the_spec_s_eighteen_flags() -> None:
-    """The oracle sees what the spec hand-listed at the pre-change commit.
+def test_iter296_b1_the_derived_inventory_is_the_pinned_inventory() -> None:
+    """The oracle sees exactly what `tests/_surface_inventory.py` hand-spells.
 
-    Sixteen flags when iteration 296 wrote this; iteration 300 added `--baseline`
-    to `scan` (sorted first in its row) and iteration 302 added `--json` to
-    `taxonomy`, so the inventory is eighteen and the function is named for the
-    count it now pins.
+    Iteration 296 pinned a second copy of the per-verb flag dict here, plus its
+    flag count, and each new flag (300, 302) re-baselined both; iteration 303
+    derives the expectation from the one inventory instead, so a flag that lands
+    in `EXPECTED_SURFACE` lands here without an edit and a flag that lands ONLY
+    in the parser still fails.
     """
     per_verb = {verb: sorted(o for o in s.options if o.startswith("--"))
                 for verb, s in parser_surface().items()}
-    assert per_verb == {
-        "list": ["--floor", "--json", "--layer"],
-        "report": ["--floor"],
-        "prd": ["--floor", "--gap", "--project", "--with-fixtures"],
-        "scan": ["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json", "--prd"],
-        "diff": ["--exit-code", "--json"],
-        "validate": [], "show": [], "taxonomy": ["--json"],
-    }
-    assert sum(len(v) for v in per_verb.values()) == 18
+    assert per_verb == {verb: long_flags(verb) for verb in EXPECTED_SURFACE}
     assert len(PREFIX_CASES) >= 60, len(PREFIX_CASES)
     # The exclusion rule, by construction: `--gap` is exact on `scan`, so it is not a case.
     assert ("scan", "--gap") not in {(v, p) for v, p, _ in PREFIX_CASES}

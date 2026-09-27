@@ -32,6 +32,8 @@ import tarfile
 
 import pytest
 
+from _surface_inventory import EXPECTED_ARGUMENTS
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 TESTS = REPO_ROOT / "tests"
 CONTRACT = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
@@ -378,16 +380,11 @@ def test_iter294_b6_prd_help_lists_floor_with_default_2_mirroring_report() -> No
 
 
 def test_iter294_b6_argument_census_gains_the_floor_row_after_gap_id() -> None:
-    text = (TESTS / "test_iter111_behavior.py").read_text(encoding="utf-8")
-    start = text.index('"prd": [')
-    end = text.index("\n    ],", start)
-    block = text[start:end]
-    gap_row = '("gap_id", ["--gap"], False, None, None)'
-    floor_row = '("floor", ["--floor"], False, 2, None)'
-    assert gap_row in block and floor_row in block, block
-    assert block.index(gap_row) < block.index(floor_row)
-    project_row = '("project", ["--project"]'
-    assert block.index(floor_row) < block.index(project_row)
+    """Derived from the shared inventory (iter 303), not from another test's text."""
+    rows = EXPECTED_ARGUMENTS["prd"]
+    assert ("floor", ["--floor"], False, 2, None) in rows, rows
+    dests = [row[0] for row in rows]
+    assert dests.index("gap_id") < dests.index("floor") < dests.index("project"), dests
 
 
 def test_iter294_b6_a_non_integer_floor_is_a_usage_error_on_stderr_with_exit_2() -> None:

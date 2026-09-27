@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-303
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- the CLI's flag inventory is pinned by equality in SIX test files plus a seventh that reads three of them as TEXT, so iteration 302 re-baselined 61 lines in 7 files to add ONE flag; keep one pin, delete the other five and the text-reading meta-pin
+    - Candidate A2 -- `checks.py:1632` `required_literal_sets` and `:1675` `_required_literal_sets_ascii` are the same four statements copied twice (one call differs); collapse the two DNF bodies into one private function and keep the audited floor -- the wide "three provers to one" version is priced here (134 test refs, 12 seam substitutions, one tool counter) and NOT recommended
+    - Candidate A3 -- `cli.py:469` still binds one class to two names (`_PublishedErrorParser = PublishedErrorParser`), and the ONLY consumer of the second name is a test asserting the two names are the same object; delete the alias and that assertion
+    - Candidate B1 -- the suite still spawns the live self-scan from every test module except the one iteration 297 memoized; measure the spawn count and wall-clock at HEAD and share one snapshot across modules
+    - Candidate B2 -- `pathlib.relative_to` is still called once per (file, check) inside the scan critical path for ~300 distinct answers; memoize per scan
+    - Candidate B3 -- `scan --json` on the self-scan is ~144 KB and the gate re-emits and re-parses it per run; measure repeated prose share and bound the payload
+    winner: A1
+    ship: pending (not yet decided)
   iter-302
     lenses: simplification-and-deletion
     - Candidate A1 -- `scan --json` publishes the identity of the register it applied, and `--baseline` (shipped 300) refuses a baseline built from a DIFFERENT register the way it already refuses a different target
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the suite still special-cases the `(no match)` diagnostic that iteration 265 moved OUT of `scan --json`'s `locations`; delete the workaround and assert purity directly
     - Candidate B3 -- `checks.py` runs two literal provers per pattern (`required_literals` and `required_literal_sets`, plus iteration 298's private unfolded DNF) although production reads only the DNF result; collapse to one prover and keep the cross-check as a test
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 8308ab4
   iter-301
     lenses: hardening/DX -- iteration 301
     - Candidate A1 -- harden the one-iteration-old `scan --baseline`: a baseline built from a DIFFERENT target or register must be refused, not silently compared
@@ -1373,4 +1383,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-137 scouted iterations
+138 scouted iterations

@@ -55,6 +55,7 @@ from agent_gap_radar.cli import main
 from agent_gap_radar.diff import COMPARED_FIELDS as PUBLISHED_COMPARED_FIELDS
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scoring import confidence, priority
+from _surface_inventory import verbs_without
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -716,15 +717,16 @@ def _a_live_gap_id() -> str:
     return rows[0]["gap_id"]
 
 
-@pytest.mark.parametrize("verb", ["validate", "report", "show", "prd"])
+@pytest.mark.parametrize("verb", verbs_without("--json"))
 def test_no_other_verb_gained_a_json_flag(verb):
     """Non-vacuous on purpose: each argv is otherwise VALID and the refusal must NAME the
     flag. Measured first -- `show --json` on its own fails with `the following arguments
     are required: gap_id`, so without a real gap id that case would pass for the wrong
     reason and would keep passing even if `show` DID gain `--json`.
 
-    `taxonomy` left this list in iteration 302 when it gained `--json`, the same way
-    `scan` did before it; it now sits in the published-JSON parametrize below.
+    The list is DERIVED from `tests/_surface_inventory.py` (iteration 303), so a verb
+    that gains `--json` leaves it without an edit here; `scan` and `taxonomy` left it
+    that way and now sit in the published-JSON parametrize below.
     """
     if verb == "show":
         argv = ["show", _a_live_gap_id(), ".", "--json"]
