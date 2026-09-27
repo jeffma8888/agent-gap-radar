@@ -809,11 +809,13 @@ def test_b13_the_contract_spells_the_new_scan_cell_exactly_once():
     assert contract_text().count(OLD_CELL_TAIL) == 0
 
 
-def test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_seventeen_flags():
+def test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_eighteen_flags():
     """Reads `tests/test_iter88_behavior.py`, `tests/test_iter296_behavior.py` and
     `tests/test_surface_contract_unit.py` as text: every hand-spelled `scan` cell is the
     published one, the unit pin is contiguous exactly once, and the flag inventory row
-    for `scan` opens with `--baseline` and sums to seventeen."""
+    for `scan` opens with `--baseline`. The inventory summed to seventeen when this
+    iteration wrote it; iteration 302 added `--json` to `taxonomy`, so it is eighteen
+    and the count below moved with it, as `== 16` moved to `== 17` here."""
     cell = _new_scan_cell()
     texts = _texts()
     iter88 = texts["tests/test_iter88_behavior.py"]
@@ -832,9 +834,9 @@ def test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_seventeen_fl
                for verb, s in parser_surface().items()}
     scan_row = '"scan": ' + json.dumps(derived["scan"])
     assert derived["scan"][0] == "--baseline"
-    assert sum(len(v) for v in derived.values()) == 17
+    assert sum(len(v) for v in derived.values()) == 18
     assert iter296.count(scan_row) == 1, scan_row
-    assert "== 17" in iter296 and "== 16" not in iter296
+    assert "== 18" in iter296 and "== 17" not in iter296
     assert OLD_SCAN_ROW not in _GLUE.sub("", iter296)
 
 

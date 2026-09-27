@@ -698,7 +698,7 @@ def test_stable_surface_taxonomy_row_restates_no_count():
     the cell cannot decay when a vocabulary grows -- the rule `README.md` already
     publishes for its own register section, applied to the one cell this change would
     otherwise falsify."""
-    row = _contract_row(STABLE_SURFACE_HEADING, "`radar taxonomy`")
+    row = _contract_row(STABLE_SURFACE_HEADING, "`radar taxonomy [--json]`")
     text = " | ".join(row)
     digits = sorted({ch for ch in text if ch.isdigit()})
     assert digits == [], (

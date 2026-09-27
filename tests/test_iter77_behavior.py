@@ -716,17 +716,18 @@ def _a_live_gap_id() -> str:
     return rows[0]["gap_id"]
 
 
-@pytest.mark.parametrize("verb", ["validate", "report", "show", "prd", "taxonomy"])
+@pytest.mark.parametrize("verb", ["validate", "report", "show", "prd"])
 def test_no_other_verb_gained_a_json_flag(verb):
     """Non-vacuous on purpose: each argv is otherwise VALID and the refusal must NAME the
     flag. Measured first -- `show --json` on its own fails with `the following arguments
     are required: gap_id`, so without a real gap id that case would pass for the wrong
     reason and would keep passing even if `show` DID gain `--json`.
+
+    `taxonomy` left this list in iteration 302 when it gained `--json`, the same way
+    `scan` did before it; it now sits in the published-JSON parametrize below.
     """
     if verb == "show":
         argv = ["show", _a_live_gap_id(), ".", "--json"]
-    elif verb == "taxonomy":
-        argv = ["taxonomy", "--json"]
     else:
         argv = [verb, ".", "--json"]
     proc = _run(*argv)
@@ -743,9 +744,10 @@ def test_the_argv_the_flag_guard_builds_is_otherwise_valid():
         assert proc.returncode == 0, (argv, proc.stderr.decode("utf-8", "replace")[-200:])
 
 
-@pytest.mark.parametrize("verb", ["list", "diff"])
+@pytest.mark.parametrize("verb", ["list", "diff", "taxonomy"])
 def test_the_verbs_that_already_published_json_still_do(verb, tmp_path):
-    argv = ["list", ".", "--json"] if verb == "list" else ["diff", ".", ".", "--json"]
+    argv = {"list": ["list", ".", "--json"], "diff": ["diff", ".", ".", "--json"],
+            "taxonomy": ["taxonomy", "--json"]}[verb]
     proc = _run(*argv)
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
     assert json.loads(proc.stdout.decode("utf-8")) is not None

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-302
+    lenses: simplification-and-deletion
+    - Candidate A1 -- `scan --json` publishes the identity of the register it applied, and `--baseline` (shipped 300) refuses a baseline built from a DIFFERENT register the way it already refuses a different target
+    - Candidate A2 -- `radar taxonomy --json`, wired to the one out-of-process consumer that hand-copies the vocabularies today: the research pass's `research/CANDIDATE_CONTRACT.md`
+    - Candidate A3 -- `radar scan --sarif`: the five verdicts on the exchange format a CI gate's existing consumers already read
+    - Candidate B1 -- `cli.py` still spells one parser class two ways (`PublishedErrorParser` / `_PublishedErrorParser`); retire the alias
+    - Candidate B2 -- the suite still special-cases the `(no match)` diagnostic that iteration 265 moved OUT of `scan --json`'s `locations`; delete the workaround and assert purity directly
+    - Candidate B3 -- `checks.py` runs two literal provers per pattern (`required_literals` and `required_literal_sets`, plus iteration 298's private unfolded DNF) although production reads only the DNF result; collapse to one prover and keep the cross-check as a test
+    winner: A2
+    ship: pending (not yet decided)
   iter-301
     lenses: hardening/DX -- iteration 301
     - Candidate A1 -- harden the one-iteration-old `scan --baseline`: a baseline built from a DIFFERENT target or register must be refused, not silently compared
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- two machine payloads still do not echo the argument that shaped them: `list --json --layer L` (roadmap row 81, open since iteration 84) and `prd --floor N` (shipped 294 with no echo)
     - Candidate B3 -- `radar taxonomy` is the only verb with no `--json`: the closed vocabularies every consumer must validate against (`layer`, `gap_type`, `status`, the evidence ladder) exist as a markdown document and four Python functions, and nothing outside this process can read them without scraping
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 5e016da
   iter-300
     lenses: new-capability, hardening/DX -- iteration 300
     - Candidate A1 -- re-land `radar scan --baseline <prior scan.json>`, with the six old-cell pins named as engineering step ONE
@@ -1363,4 +1373,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-136 scouted iterations
+137 scouted iterations

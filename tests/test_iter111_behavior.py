@@ -162,7 +162,9 @@ EXPECTED_SURFACE = {
     "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
               "--prd"], 1, ["target"], ["target"]),
     "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
-    "taxonomy": ([], 0, [], []),
+    # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
+    # with a `False` default, so it earns no `## Defaults` row.
+    "taxonomy": (["--json"], 0, [], []),
     "validate": ([], 1, [], ["path"]),
 }
 
@@ -230,6 +232,9 @@ EXPECTED_ARGUMENTS = {
     ],
     "taxonomy": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
+        # Iteration 302: the same dest, spelling, default and nargs as the `--json`
+        # rows of `list`, `scan` and `diff` above -- one name for one concept.
+        ("json", ["--json"], False, False, 0),
     ],
     "validate": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

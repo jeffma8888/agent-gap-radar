@@ -654,7 +654,15 @@ def build_parser() -> argparse.ArgumentParser:
                              "a gap, 0 when neither, 2 when the old side is an "
                              "empty baseline; same document either way")
 
-    sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
+    p_tax = sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
+    # Same help wording as `scan --json` and `diff --json`, for the reason `diff` gives:
+    # one machine surface must not read as a different KIND of thing on a neighbouring
+    # verb. The only verb with no machine form until this flag: the closed vocabularies
+    # reached humans as markdown and reached `list --layer nope` as an error line, so
+    # the one document an out-of-process record writer reads before producing a record
+    # (`research/CANDIDATE_CONTRACT.md`) hand-copied all four sets with no oracle.
+    p_tax.add_argument("--json", action="store_true",
+                       help="emit a stable object for a machine consumer")
     return parser
 
 
@@ -811,6 +819,25 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .scoring import rank
 
     if args.command == "taxonomy":
+        if args.json:
+            # The SAME six names the markdown below reads, in the order its sections
+            # publish them, so the two surfaces cannot disagree: the maps keep their
+            # module insertion order, the ladder stays ladder-ordered (strongest first,
+            # which is why it is a list of objects and not a name -> weight map that
+            # a consumer could re-sort), `statuses` is ordered by `STATUSES` -- the
+            # tuple `models.py` validates against -- and the partition arrays come
+            # from the taxonomy module's own derivation, never from `gaps/`.
+            payload: dict[str, object] = {
+                "layers": LAYERS,
+                "gap_types": GAP_TYPES,
+                "source_classes": [{"name": c, "weight": SOURCE_WEIGHTS[c]}
+                                   for c in SOURCE_CLASSES],
+                "statuses": {s: STATUS_GLOSSES[s] for s in STATUSES},
+                "citable": list(citable_statuses()),
+                "terminal": list(terminal_statuses()),
+            }
+            sys.stdout.write(json_document(payload))
+            return EXIT_OK
         out = ["# Taxonomy", "", "## Layers", ""]
         out += [f"- `{k}` -- {v}" for k, v in LAYERS.items()]
         out += ["", "## Gap types", ""]

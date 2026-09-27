@@ -209,7 +209,12 @@ TAXONOMY_PROMISE = (
     "the closed vocabularies -- layers, gap types, the evidence ladder with its "
     "weights, and record statuses. Sizes are deliberately not restated in this cell: "
     "a hand-maintained count of a machine-published vocabulary decays silently and "
-    "then misleads with authority")
+    "then misleads with authority. `--json` publishes the same vocabularies as one "
+    "stable object with six top-level keys, in order `layers`, `gap_types`, "
+    "`source_classes`, `statuses`, `citable`, `terminal` -- name-to-gloss maps, "
+    "ladder-ordered `name`/`weight` objects, and the two partition arrays -- read "
+    "from the same `taxonomy` names the markdown reads, so the two surfaces cannot "
+    "disagree")
 
 
 # --- the comparison, both directions ----------------------------------------
@@ -233,14 +238,14 @@ def test_an_invented_flag_is_reported():
 
 def test_a_missing_verb_row_is_reported():
     document = _replace_once(
-        contract_text(), "| `radar taxonomy` | "
+        contract_text(), "| `radar taxonomy [--json]` | "
                          + TAXONOMY_PROMISE + " |\n", "")
     assert surface_violations(document) == [
         "verb set: missing ['taxonomy'], unexpected []"]
 
 
 def test_a_duplicated_verb_row_is_reported_because_set_equality_cannot_see_it():
-    row = "| `radar taxonomy` | " + TAXONOMY_PROMISE + " |"
+    row = "| `radar taxonomy [--json]` | " + TAXONOMY_PROMISE + " |"
     document = _replace_once(contract_text(), row + "\n", row + "\n" + row + "\n")
     # The two counts are DERIVED from the parser, not restated. Written as literals
     # ("8 row(s) for 7 verb(s)") this assertion was a closed-set census over the live

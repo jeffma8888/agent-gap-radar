@@ -85,7 +85,7 @@ EXPECTED_CELLS = [
     "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
     "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
     "`radar diff <old> <new> [--json] [--exit-code]`",
-    "`radar taxonomy`",
+    "`radar taxonomy [--json]`",
 ]
 
 #: Behavior 3 -- the drifted spellings, quoted from `pm.md`'s measurement table. Each
@@ -268,7 +268,7 @@ def test_b3_each_corrected_cell_is_present_exactly_once():
         assert document.count(cell) == 1, cell
     # `radar taxonomy` is a substring of the longer prose references to the verb, so it
     # is counted as a whole table row instead.
-    assert document.count("| `radar taxonomy` |") == 1
+    assert document.count("| `radar taxonomy [--json]` |") == 1
 
 
 def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
@@ -286,9 +286,9 @@ def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
     pinned = (REPO_ROOT / "tests" / "test_surface_contract_unit.py").read_text(
         encoding="utf-8")
     assert pinned.count(scan_cell) == 1
-    assert "`radar taxonomy`" in EXPECTED_CELLS
+    assert "`radar taxonomy [--json]`" in EXPECTED_CELLS
     assert (REPO_ROOT / "tests" / "test_iter71_behavior.py").read_text(
-        encoding="utf-8").count("`radar taxonomy`") > 0
+        encoding="utf-8").count("`radar taxonomy [--json]`") > 0
 
 
 # --- behavior 4: direction A -- optional documented as REQUIRED is refused -------

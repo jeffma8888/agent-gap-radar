@@ -24,6 +24,7 @@ uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar prd .               # emit a build-loop prd.json for the top gap
 uv run radar taxonomy            # the fixed vocabularies
+uv run radar taxonomy --json     # the same vocabularies as one object, for a consumer
 uv run radar diff OLD NEW        # what changed between two register states (two directories you materialise)
 
 uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo have?

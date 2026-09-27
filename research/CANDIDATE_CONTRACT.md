@@ -65,6 +65,10 @@ secondary-summary 1, model-output 0
 
 `status`: open, partially-addressed, addressed, retired
 
+These four lines are hand-copied for a reader with nothing installed;
+`radar taxonomy --json` is the oracle they are pinned to, and a committed test fails
+the day they drift.
+
 ## Rule kinds available to a check
 
 `content_matches` / `content_absent` (`globs`, `pattern` — Python `re`),
