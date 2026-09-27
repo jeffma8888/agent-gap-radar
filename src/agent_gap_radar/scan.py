@@ -11,9 +11,12 @@ from __future__ import annotations
 import pathlib
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict
+
 from .checks import (CheckOutcome, LocationNote, UNKNOWN_MEANING, Verdict,
                      file_cache_scope, read_cache_scope, run_check)
 from .models import Gap
+from .registry import RegistryError, parse_record
 from .render import document, json_document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 
@@ -133,6 +136,21 @@ class PrdSelection:
     passed_over: list[Finding]
 
 
+def clears_floor(finding: Finding, confidence_floor: int) -> bool:
+    """THE floor comparison: does this finding's EVIDENCE reach `confidence_floor`?
+
+    One spelling for the rule every verdict surface applies. `select_for_prd` walks
+    with it (so `--prd`'s selection and `--exit-code`'s verdict inherit it), and
+    `new_since_baseline` filters with it, so a change to the comparison moves every
+    surface together and no surface can tell a consumer a different story about one
+    record than the others do. `_finding_json`'s `below_floor` is documented as this
+    predicate's exact complement and keeps its own `<` deliberately: it must read a
+    confidence it has ALREADY evaluated once, and passing the finding here would score
+    the record a second time.
+    """
+    return finding.confidence >= confidence_floor
+
+
 def select_for_prd(result: ScanResult,
                    confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
                    ) -> PrdSelection:
@@ -154,7 +172,7 @@ def select_for_prd(result: ScanResult,
     """
     passed_over: list[Finding] = []
     for finding in result.actionable:
-        if finding.confidence >= confidence_floor:
+        if clears_floor(finding, confidence_floor):
             return PrdSelection(selected=finding, passed_over=passed_over)
         passed_over.append(finding)
     return PrdSelection(selected=None, passed_over=passed_over)
@@ -185,6 +203,136 @@ def gate_verdict(result: ScanResult,
     if result.records_applied == 0:
         return None
     return select_for_prd(result, confidence_floor).selected is not None
+
+
+@dataclass(frozen=True)
+class Baseline:
+    """A prior `scan --json` document, reduced to the three facts a target gate reads.
+
+    `present` is every gap id whose baseline verdict was PRESENT, at ANY confidence:
+    the baseline's `below_floor` flags and `confidence_floor` are deliberately not
+    read. A finding the prior scan already displayed is CARRIED whatever the floor
+    said about it then, because the question this object answers is "was it there?",
+    not "did it clear a floor?" -- the floor is applied exactly once, to the CURRENT
+    scan, by `new_since_baseline`, so raising the floor between two scans cannot turn
+    an old finding into a "new" one. `spelling` is the path as the caller typed it,
+    echoed into the document for the reason `ScanResult.requested_spelling` is: a
+    resolved path makes the document reproducible only on the machine that wrote it.
+    """
+
+    spelling: str
+    target_name: str
+    present: frozenset[str]
+
+
+class BaselineError(Exception):
+    """Raised when a `--baseline` argument is not a scan document this gate can read."""
+
+
+class _BaselineFinding(BaseModel):
+    """The two keys of a published finding the baseline reads.
+
+    `extra="ignore"` (never `forbid`) on both models: the payload's keys are APPENDED
+    over time, and a gate holding last release's baseline must still read a document
+    this release wrote. Anything less than these two keys is not a finding at all.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    gap_id: str
+    verdict: str
+
+
+class _BaselineDocument(BaseModel):
+    """As much of the shape `scan_json` publishes as `load_baseline` needs to trust."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    target_name: str
+    findings: list[_BaselineFinding]
+
+
+def load_baseline(spelling: str) -> Baseline:
+    """Read a prior `scan --json` document, or refuse in one of two sentences.
+
+    Both refusals name the path AS TYPED, because that is the token the caller can fix.
+    `not a file` covers a missing path and a directory alike; `not a scan document`
+    covers everything a readable file can be that is not the payload `scan_json`
+    writes -- not JSON, not an object, no `target_name` or `findings`, a finding
+    without `gap_id` and `verdict`, or an object that repeats a key. The last goes
+    through `registry.parse_record` rather than `json.loads` on purpose: Python keeps
+    the LAST of two identical keys and raises nothing, so a `findings` array pasted
+    twice into a committed baseline would hand this gate whichever copy came second,
+    silently. pydantic's `ValidationError` and a `UnicodeDecodeError` are both
+    `ValueError`s, which is why the clause names no third class.
+
+    WHY REFUSE RATHER THAN FALL BACK TO "NO BASELINE": a gate whose baseline could not
+    be read and that then reported 0 would publish a clean gate it never earned -- the
+    fail-open direction `gate_verdict`'s `None` exists to stop. Refusing the OTHER way,
+    to the flagless verdict, would red a build over a typo in a path, which teaches a
+    consumer to drop the flag. Exit 2 with the path named is the only answer that
+    sends the caller to the actual defect.
+    """
+    path = pathlib.Path(spelling)
+    if not path.is_file():
+        raise BaselineError(f"not a file: {spelling}")
+    try:
+        parsed = _BaselineDocument.model_validate(
+            parse_record(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, RegistryError) as exc:
+        raise BaselineError(f"not a scan document: {spelling}") from exc
+    present = frozenset(f.gap_id for f in parsed.findings
+                        if f.verdict == Verdict.PRESENT.value)
+    return Baseline(spelling=spelling, target_name=parsed.target_name,
+                    present=present)
+
+
+def new_since_baseline(result: ScanResult, confidence_floor: int,
+                       baseline_present: frozenset[str]) -> tuple[str, ...]:
+    """The above-floor PRESENT gap ids of `result` the baseline did not carry, ascending.
+
+    THE non-regression predicate for a TARGET, kept beside `gate_verdict` because it
+    answers the other half of the gate rule `docs/CONSUMER_CONTRACT.md` binds a consumer
+    to. `gate_verdict` asks "is anything above-floor PRESENT here?" and reddens a target
+    with a backlog forever, until the whole backlog is fixed or the floor is raised until
+    it is vacuous; this asks "is anything above-floor PRESENT here that was NOT PRESENT
+    last time?", so a team can adopt the gate today and pay the backlog down under it.
+    `diff --exit-code` answers non-regression for the REGISTER and refuses a scan payload
+    outright, so before this a target had no non-regression surface at all.
+
+    The exit code is this tuple's truthiness. It returns the IDS rather than a bool
+    because the document names them: a bool here plus a second walk for the names would
+    be two predicates that agree only while nobody edits one of them.
+
+    The floor is applied ONCE, to the CURRENT scan, through `clears_floor` -- the same
+    comparison `select_for_prd` and the exit code already make -- and never to the
+    baseline (see `Baseline.present`). Three shapes are therefore NOT new, on purpose: a
+    gap PRESENT both times (carried), a gap PRESENT then and fixed now (a fix is never
+    bad news), and a gap below the floor now (a research task, exactly as `gate_verdict`
+    treats it). A gap ABSENT or unverdicted then and PRESENT now IS new: that is the
+    regression this predicate exists to catch. Nothing here filters the DOCUMENT -- every
+    finding is still displayed -- so the register's protected rule is untouched.
+
+    Ordered by id rather than by priority so the document's list reads the same for two
+    scans that happen to rank the same new gaps differently.
+    """
+    return tuple(sorted(
+        f.gap.id for f in result.by_verdict(Verdict.PRESENT)
+        if clears_floor(f, confidence_floor) and f.gap.id not in baseline_present))
+
+
+def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...]) -> str:
+    """The ONE line `--baseline` adds to the markdown document.
+
+    Spelled here, beside the predicate that produced `new_ids`, so `render_scan`
+    inserts a string and never re-derives a count the exit code was decided from.
+    `carried` is the baseline's WHOLE PRESENT set, floor included, because that is
+    the set the gate compared against; the literal `none` stands in for an empty id
+    list so the line keeps one shape whatever the verdict.
+    """
+    return (f"Baseline: {baseline.spelling} -- carried PRESENT: "
+            f"{len(baseline.present)}; new above-floor PRESENT: {len(new_ids)} "
+            f"({', '.join(new_ids) or 'none'})")
 
 
 #: The verdicts that ANSWER a gate's question about a target. Named positively and
@@ -364,12 +512,17 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
                       requested_spelling=requested)
 
 
-def render_scan(result: ScanResult) -> str:
+def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
     """Markdown scan report.
 
     The one-newline tail and the table formatting are `render.document` and
     `render.table`, not copies of them: an invariant with two implementations
     holds only while the copies happen to agree.
+
+    `baseline_line` is the string `render_baseline_line` built, or `None`, which is
+    what every flagless caller passes: the document then carries exactly the bytes it
+    always has. Taken as a rendered line rather than as a `Baseline` so this renderer
+    holds no second copy of the gate's arithmetic.
     """
     # The heading names the RESOLVED base name (what was scanned) while the
     # Target line echoes the caller's spelling (what they asked for); both read
@@ -396,6 +549,12 @@ def render_scan(result: ScanResult) -> str:
     # first cannot tell a scan of nothing from a scan that found nothing.
     lines += ["", f"Register records applied: {result.records_applied}",
               f"Gaps with no check yet: {len(result.uncheckable)}"]
+    if baseline_line is not None:
+        # DIRECTLY under the census pair, because it is a third count of the same
+        # kind -- what the gate compared and what it found new -- and a reader who
+        # takes the exit code without this line cannot tell a carried backlog from
+        # a clean target.
+        lines.append(baseline_line)
     if result.records_applied == 0:
         lines.append(EMPTY_REGISTER_NOTE)
     lines.append("")

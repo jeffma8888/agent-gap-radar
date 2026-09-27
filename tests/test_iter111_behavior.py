@@ -157,8 +157,10 @@ EXPECTED_SURFACE = {
     "report": (["--floor"], 1, [], ["path"]),
     # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
     # `report` do; the sorted list is the inventory, not a ranking.
-    "scan": (["--exit-code", "--floor", "--gap", "--gaps", "--json", "--prd"], 1,
-             ["target"], ["target"]),
+    # Iteration 299 added `--baseline`, the prior-scan document `--exit-code` gates
+    # against; it takes a value and defaults to None, like `--gap`.
+    "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
+              "--prd"], 1, ["target"], ["target"]),
     "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
     "taxonomy": ([], 0, [], []),
     "validate": ([], 1, [], ["path"]),
@@ -216,6 +218,10 @@ EXPECTED_ARGUMENTS = {
         ("floor", ["--floor"], False, 2, None),
         ("prd", ["--prd"], False, False, 0),
         ("exit_code", ["--exit-code"], False, False, 0),
+        # Iteration 299: the prior `scan --json` document `--exit-code` gates against.
+        # Registered LAST so the rows above keep their positions; `None` default
+        # like `--gap`, so it earns no `## Defaults` row.
+        ("baseline", ["--baseline"], False, None, None),
     ],
     "show": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

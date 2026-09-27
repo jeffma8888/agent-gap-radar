@@ -147,8 +147,8 @@ def test_only_the_first_cell_of_a_row_is_read():
     """
     document = _replace_once(
         contract_text(),
-        "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code]`",
-        "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--exit-code]`")
+        "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
+        "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--exit-code] [--baseline BASELINE]`")
     scan_row = next(line for line in document.splitlines()
                     if line.startswith("| `radar scan"))
     assert "--prd" in scan_row, "the fail-open this test guards is not set up"

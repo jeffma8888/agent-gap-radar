@@ -585,6 +585,24 @@ def build_parser() -> argparse.ArgumentParser:
                                  help="confidence floor gated: exit 1 when this "
                                       "target has an above-floor PRESENT gap, 0 "
                                       "when it has none; same document either way")
+    # OUTSIDE the group above, and registered LAST so the argument order
+    # `tests/test_iter111_behavior.py` reads is extended rather than reshuffled. Not a
+    # member of the group because it is not a verdict surface of its own: it MODIFIES
+    # `--exit-code`'s verdict and carries no code vocabulary for `--prd` to contradict.
+    # It is nonetheless meaningless without `--exit-code`, and argparse cannot express
+    # "this flag requires that one", so `_dispatch` refuses the lone flag in the
+    # published `Error: ` vocabulary rather than accepting it as a silent no-op -- a
+    # consumer who typed the flag asked a question, and a document that ignored it
+    # would answer a different one. `metavar` is spelled so `--help` and the contract's
+    # surface row carry one token; `default=None` keeps it out of the `## Defaults`
+    # table, exactly like `--gap`. "prior scan --json" leads the help text because
+    # argparse wraps on whitespace and the artifact's name must survive a narrow
+    # terminal.
+    p_scan.add_argument("--baseline", default=None, metavar="BASELINE",
+                        help="prior scan --json document to gate against: with "
+                             "--exit-code, exit 1 only for an above-floor PRESENT "
+                             "gap that document did not list as PRESENT; same "
+                             "document plus one Baseline: line")
 
     p_diff = sub.add_parser(
         "diff", help="Report what changed between two register states.")
@@ -763,8 +781,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .prd import render_prd
     from .registry import RegistryError, load_all, load_one
     from .render import document, gap_brief, radar_report
-    from .scan import (gate_verdict, render_scan, scan, scan_json,
-                       select_for_prd, unanswered)
+    from .scan import (BaselineError, gate_verdict, load_baseline,
+                       new_since_baseline, render_baseline_line, render_scan,
+                       scan, scan_json, select_for_prd, unanswered)
     from .scoring import rank
 
     if args.command == "taxonomy":
@@ -798,6 +817,16 @@ def _dispatch(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "scan":
+        # The one pairing argparse cannot refuse for us, refused BEFORE any register or
+        # target is touched: it is a shape defect of the invocation, like the
+        # exclusive-group refusal argparse fires ahead of dispatch, not a fact about
+        # either directory -- so no directory error may pre-empt it and no document may
+        # be produced under it. `--prd --baseline` lands here too, because `--prd`
+        # excludes `--exit-code` by construction.
+        if args.baseline is not None and not args.exit_code:
+            return _fail("--baseline requires --exit-code: a baseline only changes "
+                         "the verdict, and without --exit-code there is no verdict "
+                         "to change")
         try:
             # `_resolve` is INSIDE the guard because it, too, can refuse in this
             # vocabulary: an unreadable argument makes the nested-`gaps/` probe
@@ -880,8 +909,32 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     "applies 1 record even when its check cannot decide, and 0 "
                     "would publish a clean gate this scan never earned. Run "
                     "without --exit-code to read what the scan does say.")
+        # Consulted only after every refusal above has had its turn, so the
+        # zero-records and unanswered-record doors keep firing first: a baseline
+        # can MODIFY a verdict, never manufacture one where the scan reached none.
+        # Both refusals here are decided BEFORE a byte is written, so the published
+        # `2` row (stdout empty) holds. The mismatch compares the RESOLVED base name
+        # on both sides -- the baseline's `target_name` was written from the same
+        # accessor -- because a gate that silently compared two different targets
+        # would report every one of this target's gaps as new, or none of them.
+        baseline_line = None
+        if args.baseline is not None:
+            try:
+                baseline = load_baseline(args.baseline)
+            except BaselineError as exc:
+                return _fail(str(exc))
+            if baseline.target_name != result.target.name:
+                return _fail(f"baseline target mismatch: {baseline.target_name} "
+                             f"(baseline) vs {result.target.name} (target)")
+            # ONE walk feeds both the exit code and the document's line, so the two
+            # cannot disagree about which gaps are new. `--json`'s payload is untouched:
+            # its key set is pinned by three iterations of tests, and the answer a
+            # machine consumer asked for is the exit code.
+            new_ids = new_since_baseline(result, floor, baseline.present)
+            verdict = bool(new_ids)
+            baseline_line = render_baseline_line(baseline, new_ids)
         sys.stdout.write(scan_json(result, floor) if args.json
-                         else render_scan(result))
+                         else render_scan(result, baseline_line))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 
     if args.command == "diff":

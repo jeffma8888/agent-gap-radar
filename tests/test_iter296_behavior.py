@@ -120,19 +120,24 @@ def _prefix_cases() -> list[tuple[str, str, bool]]:
 PREFIX_CASES = _prefix_cases()
 
 
-def test_iter296_b1_the_derived_inventory_is_the_spec_s_sixteen_flags() -> None:
-    """The oracle sees what the spec hand-listed at the pre-change commit."""
+def test_iter296_b1_the_derived_inventory_is_the_spec_s_seventeen_flags() -> None:
+    """The oracle sees what the spec hand-listed at the pre-change commit.
+
+    Sixteen flags when iteration 296 wrote this; iteration 300 added `--baseline`
+    to `scan` (sorted first in its row), so the inventory is seventeen and the
+    function is named for the count it now pins.
+    """
     per_verb = {verb: sorted(o for o in s.options if o.startswith("--"))
                 for verb, s in parser_surface().items()}
     assert per_verb == {
         "list": ["--floor", "--json", "--layer"],
         "report": ["--floor"],
         "prd": ["--floor", "--gap", "--project", "--with-fixtures"],
-        "scan": ["--exit-code", "--floor", "--gap", "--gaps", "--json", "--prd"],
+        "scan": ["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json", "--prd"],
         "diff": ["--exit-code", "--json"],
         "validate": [], "show": [], "taxonomy": [],
     }
-    assert sum(len(v) for v in per_verb.values()) == 16
+    assert sum(len(v) for v in per_verb.values()) == 17
     assert len(PREFIX_CASES) >= 60, len(PREFIX_CASES)
     # The exclusion rule, by construction: `--gap` is exact on `scan`, so it is not a case.
     assert ("scan", "--gap") not in {(v, p) for v, p, _ in PREFIX_CASES}

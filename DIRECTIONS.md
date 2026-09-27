@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-300
+    lenses: new-capability, hardening/DX -- iteration 300
+    - Candidate A1 -- re-land `radar scan --baseline <prior scan.json>`, with the six old-cell pins named as engineering step ONE
+    - Candidate A2 -- `radar scan --answers <answers.json>`: a MANUAL finding is resolved by a target-side CITATION the tool verifies byte-for-byte, never by a bare claim
+    - Candidate A3 -- `radar list --status S`: the one record axis the contract says "the consumer selects on" and the gate keys a verdict on, with no listing
+    - Candidate B1 -- one suite-owned oracle for the stable-surface cells, so a contract-cell change is ONE pin edit, not six files found by the gate
+    - Candidate B2 -- a line break inside `title` passes `radar validate` and splits `list` (README promises "one line per record" twice), `show`'s H1 and `report`'s ranked table row
+    - Candidate B3 -- `radar <verb> <dir-with-no-register>` still answers with a 12-item pydantic schema dump; make `_resolve` say `no register at <path>` (the log records this as SHIPPED in 296; it is not)
+    winner: A1
+    ship: pending (not yet decided)
+  iter-299
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- README.md:74 and CONSUMER_CONTRACT.md:463 both make a quantitative claim about the self-scan's verdict split, both claims are FALSE at HEAD, and each document says two screens earlier that it never restates such a figure
+    - Candidate A2 -- five of the nine `tools/*.py` brakes that enforce the quality bar are named in no hand-maintained document, and four of the nine refuse `--help`, so the enforcement of "offline", "public repo" and "byte-identical REGISTER.md" is undiscoverable from anything a reader is told to read
+    - Candidate A3 -- the confidence floor is `2`, every surface publishes the number, and no document or comment anywhere says WHY 2 -- a decision the ladder makes derivable is left as an unexplained constant
+    - Candidate B1 -- `radar scan --baseline <prior scan.json>`: the target-side non-regression half of the gate, so a target with a pre-existing PRESENT backlog can fail on NEW gaps instead of never going green
+    - Candidate B2 -- `Gap.resolution`: a terminal status still closes a gap with a one-word edit and zero evidence; re-land iteration 263 with the fixture re-baseline as engineering step ONE, because the log's "shipped" is false
+    - Candidate B3 -- roadmap row 119: give the 213 lookalike pairs already IN the register a surface, because the duplicate detector the vision names as in-scope only ever runs on a candidate at the door and never on the ranking a builder reads
+    winner: B1
+    ship: REVERTED
   iter-298
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- the `(?i)` literal prefilter proves only the `i`/`s`-free FRAGMENT of every literal (`vector_store` -> `tore`, `thread_id` -> `d`), and 95% of the self-scan's regex time is zero-hit passes it admitted; prove the whole run for ASCII texts
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- README.md:74 says `MANUAL` is "usually the majority verdict"; on the only target the repo measures offline it is third of five (29/119) and NOT_APPLICABLE is the plurality (61/119), which is what the contract already says -- reconcile the two documents and pin the one claim a test can hold
     - Candidate B3 -- the `roadmap-index` WARN prescribes a remedy the numbers do not support: archiving the whole done ledger (141,214 chars) leaves PRODUCT.md at 221,112 chars, 4.1x the 54,000 wall, and the wall "the quality suite enforces" exists nowhere in `tests/` or `tools/` -- write the arithmetic down where the next PM will read it before acting on the WARN, and give the roadmap the size figure its brake actually measures
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 95a0a55
   iter-297
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- Collapse near-duplicate render paths (report vs brief) into one shared table renderer
@@ -1333,4 +1353,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-133 scouted iterations
+135 scouted iterations
