@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-308
+    lenses: unknown
+    - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
+    - Candidate A2 -- `scan --json` does not publish the register identity, so two scans from different registers look comparable
+    - Candidate A3 -- `list --status S`: the record axis the gate keys on has no listing filter
+    - Candidate B1 -- Delete the `_PublishedErrorParser` alias in `cli.py:470` and its self-referential test assertion
+    - Candidate B2 -- Extract the shared assembly-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
+    - Candidate B3 -- Inline `_status_list` in `cli.py:50-57`: a 2-line body behind an 8-line definition used at exactly 2 call sites
+    winner: A1
+    ship: pending (not yet decided)
   iter-307
     lenses: hardening/DX -- iteration 307
     - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
     - Candidate B3 -- `scan --json` does not publish the register identity, so two scans built from different registers look comparable
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED d15a7a8
   iter-306
     lenses: unknown
     - Candidate A1 -- `radar scan --answers <answers.json>`: a MANUAL finding gets a target-side citation the tool verifies offline
@@ -1423,4 +1433,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-142 scouted iterations
+143 scouted iterations

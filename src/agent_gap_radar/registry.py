@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -252,6 +253,28 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     return gaps
 
 
+_LOOSE_GAP_ID_RE = re.compile(r"^(?:gap-)?0*(\d+)$", re.IGNORECASE)
+
+
+def canonicalize_gap_id(raw: str) -> str:
+    """Normalize a user-typed gap id to the canonical ``GAP-NNN`` form.
+
+    Accepts ``GAP-9``, ``gap-009``, ``9``, ``GAP-009`` and anything else that
+    is an optional case-insensitive ``GAP-`` prefix followed by digits.  The
+    numeric part is zero-padded to three digits so the result always matches
+    ``models.GAP_ID_RE``.  Returns the canonical string, or the ORIGINAL input
+    unchanged when it cannot be interpreted -- ``select_one`` will then refuse
+    it with the standard ``no such gap:`` sentence.
+    """
+    m = _LOOSE_GAP_ID_RE.match(raw)
+    if m is None:
+        return raw
+    num = int(m.group(1))
+    if num < 1 or num > 999:
+        return raw
+    return f"GAP-{num:03d}"
+
+
 def select_one(gaps: Iterable[Gap], gap_id: str) -> Gap:
     """The one record named `gap_id`, or refuse naming it.
 
@@ -262,14 +285,20 @@ def select_one(gaps: Iterable[Gap], gap_id: str) -> Gap:
     bytes because they run the same line, not because two strings happen to agree; a
     consumer matching that sentence cannot be told two stories about one input.
 
+    Canonicalizes `gap_id` before lookup so that ``GAP-9``, ``gap-009``, and bare
+    ``9`` all resolve to the same record as the canonical ``GAP-009``.  The refusal
+    sentence names the CANONICAL form, so a builder who mistyped a valid shorthand
+    never sees the shorthand echoed back as an unknown id.
+
     Raises rather than returning `None`: every caller here turns the miss into a
     published `Error: ` line and exit 2, and an ignorable `None` is how a mistyped id
     silently becomes "the whole register".
     """
+    canonical = canonicalize_gap_id(gap_id)
     for gap in gaps:
-        if gap.id == gap_id:
+        if gap.id == canonical:
             return gap
-    raise RegistryError(f"no such gap: {gap_id}")
+    raise RegistryError(f"no such gap: {canonical}")
 
 
 def load_one(directory: pathlib.Path | str, gap_id: str) -> Gap:
