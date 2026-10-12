@@ -60,7 +60,6 @@ VERSION_BYTES = b"0.1.0\n"
 BYTE_CONTROL_VERBS = {
     "validate": ["validate", "."],
     "list": ["list", "."],
-    "list-json": ["list", "--json", "."],
     "report": ["report", "."],
     "show": ["show", "<first-id>", "."],
     "prd": ["prd", "."],

@@ -286,8 +286,9 @@ def test_b6_json_flag_position_does_not_change_the_document(capsys):
 def test_b7_top_level_shape_and_key_order(capsys):
     assert main(["list", "--json", str(REPO_ROOT)]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert list(payload) == ["confidence_floor", "counts", "records"]
+    assert list(payload) == ["confidence_floor", "layer", "counts", "records"]
     assert isinstance(payload["confidence_floor"], int)
+    assert payload["layer"] is None
     assert list(payload["counts"]) == ["total", "ranked", "below_floor"]
     assert isinstance(payload["records"], list)
 

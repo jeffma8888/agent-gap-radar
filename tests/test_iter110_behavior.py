@@ -74,7 +74,7 @@ PRE_EXISTING_RECORD_KEYS = [
 RECORD_KEYS = PRE_EXISTING_RECORD_KEYS + ["strongest_source", "needs"]
 
 #: Behavior 1. The top-level and `counts` shapes, which this iteration must NOT touch.
-TOP_LEVEL_KEYS = ["confidence_floor", "counts", "records"]
+TOP_LEVEL_KEYS = ["confidence_floor", "layer", "counts", "records"]
 COUNTS_KEYS = ["total", "ranked", "below_floor"]
 
 #: Behavior 4/5. The floors swept. 6 exceeds the maximum reachable confidence (the ladder's

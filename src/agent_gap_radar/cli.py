@@ -225,7 +225,7 @@ def _needs(gap: Gap, is_below: bool, confidence_floor: int) -> list[str] | None:
     return list(promotion_options(gap, confidence_floor)) if is_below else None
 
 
-def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
+def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None) -> str:
     """A stable record list for a machine consumer.
 
     A flat array with a `below_floor` boolean, not two arrays: the text marker
@@ -257,6 +257,7 @@ def _list_json(rows: list[ListRow], confidence_floor: int) -> str:
 
     payload = {
         "confidence_floor": confidence_floor,
+        "layer": layer,
         "counts": {
             "total": len(rows),
             "ranked": sum(1 for row in rows if not row[3]),
@@ -1066,7 +1067,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
 
         if args.command == "list":
             rows = _list_rows(_select_layer(gaps, args.layer), args.floor)
-            sys.stdout.write(_list_json(rows, args.floor) if args.json
+            sys.stdout.write(_list_json(rows, args.floor, args.layer) if args.json
                              else _list_text(rows))
             return EXIT_OK
 

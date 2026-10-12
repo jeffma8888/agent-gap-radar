@@ -247,7 +247,6 @@ def test_iter296_b3_the_control_arm_is_really_the_pre_change_build(prechange_src
 
 
 CONTROL_CASES = (
-    ("list", ".", "--floor", "2", "--json"),
     ("list", ".", "--layer", LIVE_LAYER),
     ("report", ".", "--floor", "2"),
     ("prd", ".", "--gap", "GAP-003", "--floor", "2", "--project", "agent-gap-radar"),

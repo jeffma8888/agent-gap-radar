@@ -85,7 +85,7 @@ FALSE_ATTRIBUTIONS = ("no gap records found", "no gap clears the confidence floo
 PINNED = {
     "validate": ("d6e83d9e896de68050e94f8245dd7ae2a4fb94797480ddb396bbd6f9083bbf5e", 27),
     "list": ("ec9a0774697712a4c0394c15fdac6023bc2ae3559c89b0cda21d012d74ae1a5e", 80),
-    "listjson": ("93ce864da30c0073c8fbe574509721f1ebf9caa2bc61f6994e06de2318f8dd26", 742),
+    "listjson": ("181222258c520f463b312a8402dc1526e9dcf785fed5700c9a57d7ce4b033f60", 759),
     "report": ("286cd5cf6fa473b79bb60e3c1b41152fa70ef2b5f3d7ab11a0fd82dead448d0c", 2716),
     "show": ("490b6d3c3bee7691e01b0b6b16d6bf4bafdcd21b8e508550233f5e663c59dc12", 952),
     "prd": ("807264bd1ed44276a5e77ea0233eb22f66bdd7617c2a8c98268c352141483b19", 2527),

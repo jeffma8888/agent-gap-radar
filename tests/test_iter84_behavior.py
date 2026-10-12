@@ -339,7 +339,7 @@ def test_b6_an_empty_layer_json_payload_is_an_empty_record_list(tmp_path, capsys
     layer, other = _two_layers()
     root = _register(tmp_path, [_rec("GAP-001", layer)])
     payload = json.loads(_run(capsys, ["list", "--layer", other, "--json", str(root)]))
-    assert list(payload) == ["confidence_floor", "counts", "records"]
+    assert list(payload) == ["confidence_floor", "layer", "counts", "records"]
     assert payload["records"] == []
     assert payload["counts"] == {"total": 0, "ranked": 0, "below_floor": 0}
 
@@ -358,7 +358,7 @@ def test_b7_json_filters_the_same_domain_in_the_same_order(capsys):
         payload = json.loads(
             _run(capsys, ["list", "--layer", layer, "--json", str(REPO_ROOT)]))
 
-        assert list(payload) == ["confidence_floor", "counts", "records"], sorted(payload)
+        assert list(payload) == ["confidence_floor", "layer", "counts", "records"], sorted(payload)
         assert [r["gap_id"] for r in payload["records"]] == text_ids, layer
         assert all(r["layer"] == layer for r in payload["records"]), layer
 
@@ -407,7 +407,7 @@ def test_b8_the_unfiltered_json_surface_keeps_its_key_set_and_every_layer(capsys
     import test_iter01_behavior as it01
 
     payload = json.loads(_run(capsys, ["list", str(REPO_ROOT), "--json"]))
-    assert list(payload) == ["confidence_floor", "counts", "records"], sorted(payload)
+    assert list(payload) == ["confidence_floor", "layer", "counts", "records"], sorted(payload)
     for record in payload["records"]:
         assert list(record) == it01.RECORD_KEYS, record.get("gap_id")
     # no default filtering: every layer the register uses is represented

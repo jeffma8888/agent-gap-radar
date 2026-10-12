@@ -579,7 +579,7 @@ def test_b7_list_json_stays_a_stable_object_with_no_new_key(capsys):
     """
     assert main(["list", str(REPO_ROOT), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert set(payload) == {"confidence_floor", "counts", "records"}, sorted(payload)
+    assert set(payload) == {"confidence_floor", "layer", "counts", "records"}, sorted(payload)
     rows = payload["records"]
     assert rows, payload
     for row in rows:

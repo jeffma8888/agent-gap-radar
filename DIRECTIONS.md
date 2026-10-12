@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-307
+    lenses: hardening/DX -- iteration 307
+    - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
+    - Candidate A2 -- `list --json --layer L` does not echo the layer it was narrowed to
+    - Candidate A3 -- `scan --json` does not publish the register identity, so two scans built from different registers look comparable
+    - Candidate B1 -- `list --json --layer L` does not echo the layer it was narrowed to (roadmap row 81)
+    - Candidate B2 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
+    - Candidate B3 -- `scan --json` does not publish the register identity, so two scans built from different registers look comparable
+    winner: A2
+    ship: pending (not yet decided)
   iter-306
     lenses: unknown
     - Candidate A1 -- `radar scan --answers <answers.json>`: a MANUAL finding gets a target-side citation the tool verifies offline
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- a newline in `title` passes `radar validate` and breaks `list`, `show`, and `report`
     - Candidate B3 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 7731896
   iter-305
     lenses: narrative-and-docs, new-capability
     - Candidate A1 -- re-land the iteration-304 ledger repair (now 11 revert rows + `unexplained_reverts` brake) with the clean-clone question ANSWERED, not guessed
@@ -1413,4 +1423,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-141 scouted iterations
+142 scouted iterations

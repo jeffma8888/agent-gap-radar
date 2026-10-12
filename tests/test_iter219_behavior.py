@@ -71,7 +71,7 @@ PRECHANGE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
     ("list", "gaps"):
         (17446, "06906c37e424382884cf2890fa7b57fc101b7eca545a92dcba415cb15f7b2f88"),
     ("list", "gaps", "--json"):
-        (50218, "0a6abac448d375df019b45f6af1a9770998a27d445c2d43d565903a776374468"),
+        (50235, "29fc2b9ffcd2466505548ed62d41685a61325515cfb330f222247a1fe00956aa"),
     ("validate", "gaps"):
         (29, "5320bce7a70985f99078db703925a635926e4f1fff9dfe908cd5e57b6b930720"),
 }

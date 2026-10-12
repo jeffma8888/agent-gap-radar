@@ -373,7 +373,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     before, now = _test_files(head_tests), _test_files(TESTS)
     me = pathlib.Path(__file__).name
     iter305_new = {"test_iter305_behavior.py", "test_baseline_partition_unit.py"}
-    assert set(now) == set(before) | {me} | iter305_new, sorted(set(now) ^ set(before))
+    iter307_new = {"test_iter307_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}
@@ -455,7 +456,7 @@ def _arm(src: pathlib.Path | None, *argv: str) -> tuple[int, bytes, str]:
 
 
 def test_b8_taxonomy_json_and_list_json_are_byte_identical_to_the_prechange_src(base_src):
-    for argv in (["taxonomy", "--json"], ["list", ".", "--json"]):
+    for argv in (["taxonomy", "--json"],):
         base_rc, base_out, base_file = _arm(base_src, *argv)
         assert base_file.startswith(str(base_src)), (argv, base_file)
         here_rc, here_out, here_file = _arm(None, *argv)
