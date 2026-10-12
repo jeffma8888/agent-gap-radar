@@ -318,8 +318,10 @@ def test_b5_absent_in_baseline_and_present_now_is_new(bed):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tree, expected_tail", [
-    ("a_and_b", f"new above-floor PRESENT: 1 ({GAP['B']})"),
-    ("only_a", "new above-floor PRESENT: 0 (none)"),
+    ("a_and_b", f"new above-floor PRESENT: 1 ({GAP['B']}); "
+                f"scanned by the baseline: 1 ({GAP['B']}); unscanned by the baseline: 0 (none)"),
+    ("only_a", "new above-floor PRESENT: 0 (none); "
+               "scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)"),
 ])
 def test_b6_one_line_inserted_directly_after_the_no_check_census(bed, tree, expected_tail):
     plain_rc, plain_out, plain_err = _scan(bed, tree)
@@ -504,7 +506,9 @@ def test_t6_two_new_ids_join_ascending_after_a_zero_carry(bed, b_none):
     assert (rc, err) == (NEW, "")
     assert GAP["A"] < GAP["B"], "the fixture must sort the way the line is expected to"
     assert _baseline_line(out) == (f"Baseline: {b_none} -- carried PRESENT: 0; "
-                                   f"new above-floor PRESENT: 2 ({GAP['A']}, {GAP['B']})")
+                                   f"new above-floor PRESENT: 2 ({GAP['A']}, {GAP['B']}); "
+                                   f"scanned by the baseline: 2 ({GAP['A']}, {GAP['B']}); "
+                                   "unscanned by the baseline: 0 (none)")
     assert out.endswith("\n") and not out.endswith("\n\n")
 
 
@@ -523,7 +527,7 @@ def test_t6_floor_composes_with_the_line_and_gates_only_the_current_set(bed, b_n
     assert flagged[:anchor + 1] == plain[:anchor + 1]
     assert flagged[anchor + 2:] == plain[anchor + 1:]
     assert flagged[anchor + 1] == (f"Baseline: {b_none} -- carried PRESENT: 0; "
-                                   "new above-floor PRESENT: 0 (none)")
+                                   "new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
     # The same tree at the default floor IS red against this baseline: the 0 was the floor.
     assert _scan(bed, "a_and_b", "--exit-code", "--baseline", str(b_none))[0] == NEW
 
@@ -543,7 +547,7 @@ def test_t10_dot_from_inside_the_tree_resolves_to_the_same_base_name(bed, monkey
                          "--baseline", str(bed["b_only_a"])])
     assert (rc, err) == (CLEAN, "")
     assert _baseline_line(out) == (f"Baseline: {bed['b_only_a']} -- carried PRESENT: 1; "
-                                   "new above-floor PRESENT: 0 (none)")
+                                   "new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
 
 
 def test_t6_relative_baseline_is_echoed_as_typed_on_the_success_arm(bed, monkeypatch):
@@ -555,7 +559,7 @@ def test_t6_relative_baseline_is_echoed_as_typed_on_the_success_arm(bed, monkeyp
                          "--baseline", typed])
     assert (rc, err) == (CLEAN, "")
     assert _baseline_line(out) == (f"Baseline: {typed} -- carried PRESENT: 1; "
-                                   "new above-floor PRESENT: 0 (none)")
+                                   "new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
     assert str(bed["b_only_a"]) not in out, "resolved, not as typed"
 
 
@@ -611,14 +615,17 @@ def test_t4_a_present_entry_without_confidence_keys_still_carries(bed):
     rc, out, err = _scan(bed, "a_and_b", "--exit-code", "--baseline", str(path))
     assert (rc, err) == (NEW, "")
     assert _baseline_line(out) == (f"Baseline: {path} -- carried PRESENT: 1; "
-                                   f"new above-floor PRESENT: 1 ({GAP['A']})")
+                                   f"new above-floor PRESENT: 1 ({GAP['A']}); "
+                                   "scanned by the baseline: 0 (none); "
+                                   f"unscanned by the baseline: 1 ({GAP['A']})")
 
 
 # --- Composition with `--gap`: the current set is the narrowed domain ------------------
 
 @pytest.mark.parametrize("letter, expected_rc, tail", [
-    ("A", CLEAN, "new above-floor PRESENT: 0 (none)"),
-    ("B", NEW, f"new above-floor PRESENT: 1 ({GAP['B']})"),
+    ("A", CLEAN, "new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)"),
+    ("B", NEW, f"new above-floor PRESENT: 1 ({GAP['B']}); "
+               f"scanned by the baseline: 1 ({GAP['B']}); unscanned by the baseline: 0 (none)"),
 ])
 def test_t2_gap_narrowing_leaves_only_that_record_in_the_current_set(bed, letter,
                                                                      expected_rc, tail):
@@ -683,7 +690,9 @@ def test_t2_a_record_added_since_the_baseline_makes_its_present_finding_new(bed,
     rc, out, err = _scan(bed, "a_and_b", "--exit-code", "--baseline", str(path))
     assert (rc, err) == (NEW, "")
     assert _baseline_line(out) == (f"Baseline: {path} -- carried PRESENT: 1; "
-                                   f"new above-floor PRESENT: 1 ({GAP['B']})")
+                                   f"new above-floor PRESENT: 1 ({GAP['B']}); "
+                                   "scanned by the baseline: 0 (none); "
+                                   f"unscanned by the baseline: 1 ({GAP['B']})")
     # The same tree against the same baseline with the register that WROTE it: clean.
     rc, out, err = _run(["scan", str(bed["trees"]["a_and_b"]), "--gaps", str(reg_a_only),
                          "--exit-code", "--baseline", str(path)])
@@ -707,7 +716,7 @@ def test_t6_carried_count_is_the_baseline_present_count_not_the_current_one(bed)
     rc, out = _gate(bed, "only_a", "b_a_and_w_floor6")
     assert rc == CLEAN
     assert _baseline_line(out) == (f"Baseline: {bed['b_a_and_w_floor6']} -- carried "
-                                   "PRESENT: 2; new above-floor PRESENT: 0 (none)")
+                                   "PRESENT: 2; new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
 
 
 def test_t1_baseline_without_a_value_is_a_parser_refusal(bed):

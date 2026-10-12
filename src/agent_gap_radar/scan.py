@@ -207,7 +207,7 @@ def gate_verdict(result: ScanResult,
 
 @dataclass(frozen=True)
 class Baseline:
-    """A prior `scan --json` document, reduced to the three facts a target gate reads.
+    """A prior `scan --json` document, reduced to the four facts a target gate reads.
 
     `present` is every gap id whose baseline verdict was PRESENT, at ANY confidence:
     the baseline's `below_floor` flags and `confidence_floor` are deliberately not
@@ -215,14 +215,21 @@ class Baseline:
     said about it then, because the question this object answers is "was it there?",
     not "did it clear a floor?" -- the floor is applied exactly once, to the CURRENT
     scan, by `new_since_baseline`, so raising the floor between two scans cannot turn
-    an old finding into a "new" one. `spelling` is the path as the caller typed it,
-    echoed into the document for the reason `ScanResult.requested_spelling` is: a
-    resolved path makes the document reproducible only on the machine that wrote it.
+    an old finding into a "new" one. `scanned` is every gap id the baseline holds a
+    finding for, at ANY verdict, so `present <= scanned` always: it tells a NEW id's
+    two possible histories apart -- scanned-then-not-PRESENT means the target (or the
+    record's check) moved, while never-scanned means the record joined the register
+    after the baseline was written, or the baseline was narrowed with `--gap`, and the
+    remedy is to re-baseline rather than to hunt a phantom regression. `spelling` is
+    the path as the caller typed it, echoed into the document for the reason
+    `ScanResult.requested_spelling` is: a resolved path makes the document
+    reproducible only on the machine that wrote it.
     """
 
     spelling: str
     target_name: str
     present: frozenset[str]
+    scanned: frozenset[str]
 
 
 class BaselineError(Exception):
@@ -283,8 +290,9 @@ def load_baseline(spelling: str) -> Baseline:
         raise BaselineError(f"not a scan document: {spelling}") from exc
     present = frozenset(f.gap_id for f in parsed.findings
                         if f.verdict == Verdict.PRESENT.value)
+    scanned = frozenset(f.gap_id for f in parsed.findings)
     return Baseline(spelling=spelling, target_name=parsed.target_name,
-                    present=present)
+                    present=present, scanned=scanned)
 
 
 def new_since_baseline(result: ScanResult, confidence_floor: int,
@@ -321,6 +329,34 @@ def new_since_baseline(result: ScanResult, confidence_floor: int,
         if clears_floor(f, confidence_floor) and f.gap.id not in baseline_present))
 
 
+def partition_by_baseline(new_ids: tuple[str, ...], scanned: frozenset[str],
+                          ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split the NEW ids into (scanned by the baseline, unscanned by the baseline).
+
+    Both halves keep `new_ids`' order, so they read ascending whenever it does, and
+    they are a partition by construction: every id lands in exactly one half. Taken
+    over `new_ids` rather than the whole current PRESENT set so the floor is applied
+    ONCE, upstream, by `new_since_baseline` -- an id below the floor now is not new,
+    and so is in neither half, whatever the baseline knew about it.
+
+    WHY THIS EXISTS: the two halves have different remedies and print the same `new
+    above-floor PRESENT: 1 (<id>)` without it. A scanned id had a finding in the
+    baseline at some non-PRESENT verdict, so the target (or the record's check) moved
+    -- fix the target. An unscanned id had NO finding, so the register grew after the
+    baseline was written, or the baseline was built with `--gap` -- re-baseline. The
+    exit code is deliberately NOT split along this line (see `new_since_baseline`): a
+    `--gap`-narrowed baseline that passed a full scan would be a fail-open gate.
+    """
+    scanned_new = tuple(i for i in new_ids if i in scanned)
+    unscanned_new = tuple(i for i in new_ids if i not in scanned)
+    return scanned_new, unscanned_new
+
+
+def _id_list(ids: tuple[str, ...]) -> str:
+    """`(GAP-001, GAP-002)` or `(none)`: one shape for an id list whatever its length."""
+    return f"({', '.join(ids) or 'none'})"
+
+
 def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...]) -> str:
     """The ONE line `--baseline` adds to the markdown document.
 
@@ -328,11 +364,17 @@ def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...]) -> str:
     inserts a string and never re-derives a count the exit code was decided from.
     `carried` is the baseline's WHOLE PRESENT set, floor included, because that is
     the set the gate compared against; the literal `none` stands in for an empty id
-    list so the line keeps one shape whatever the verdict.
+    list so the line keeps one shape whatever the verdict. The prefix through the
+    `new above-floor PRESENT` clause is the line as it was first published; the two
+    clauses after it are `partition_by_baseline`'s halves of that same id list, so
+    `scanned + unscanned == new` on every line this renders.
     """
+    scanned_new, unscanned_new = partition_by_baseline(new_ids, baseline.scanned)
     return (f"Baseline: {baseline.spelling} -- carried PRESENT: "
             f"{len(baseline.present)}; new above-floor PRESENT: {len(new_ids)} "
-            f"({', '.join(new_ids) or 'none'})")
+            f"{_id_list(new_ids)}; scanned by the baseline: {len(scanned_new)} "
+            f"{_id_list(scanned_new)}; unscanned by the baseline: "
+            f"{len(unscanned_new)} {_id_list(unscanned_new)}")
 
 
 #: The verdicts that ANSWER a gate's question about a target. Named positively and

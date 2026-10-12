@@ -372,7 +372,8 @@ def test_b6_test_iter300_deletes_the_text_pin_and_keeps_the_four_tests_and_helpe
 def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head_tests):
     before, now = _test_files(head_tests), _test_files(TESTS)
     me = pathlib.Path(__file__).name
-    assert set(now) == set(before) | {me}, sorted(set(now) ^ set(before))
+    iter305_new = {"test_iter305_behavior.py", "test_baseline_partition_unit.py"}
+    assert set(now) == set(before) | {me} | iter305_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

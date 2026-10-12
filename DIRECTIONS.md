@@ -1,6 +1,36 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-306
+    lenses: unknown
+    - Candidate A1 -- `radar scan --answers <answers.json>`: a MANUAL finding gets a target-side citation the tool verifies offline
+    - Candidate A2 -- `radar list --status S`: filter the listing by the record axis the gate already keys on
+    - Candidate A3 -- `radar report --layer L`: the register document scoped to the one layer a builder owns
+    - Candidate B1 -- re-land the iter-305 baseline partition (reviewer APPROVED, only tester + gate remain)
+    - Candidate B2 -- a newline in `title` passes `radar validate` and breaks `list`, `show`, and `report`
+    - Candidate B3 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
+    winner: B1
+    ship: pending (not yet decided)
+  iter-305
+    lenses: narrative-and-docs, new-capability
+    - Candidate A1 -- re-land the iteration-304 ledger repair (now 11 revert rows + `unexplained_reverts` brake) with the clean-clone question ANSWERED, not guessed
+    - Candidate A2 -- README shows 0 of 5 flags a builder needs to run the gate the docs describe, and its `radar prd .` line promises what the verb refuses
+    - Candidate A3 -- the nine `tools/*.py` brakes: four refuse `--help` with exit 2, five are named in no hand-maintained document, and the roadmap brake that gates every ship is one of the undocumented ones
+    - Candidate B1 -- `scan --exit-code --baseline` tells a register update apart from a target regression: the one baseline line partitions "new" into REGRESSED (the baseline scanned it and it was not PRESENT) and UNSCANNED (the baseline never carried the id)
+    - Candidate B2 -- `radar diff OLD.json NEW.json` over two `scan --json` documents of one target: verdict moves per gap (`PRESENT -> ABSENT`), findings added/removed, `--json` object, `--exit-code` = 1 on a move INTO PRESENT
+    - Candidate B3 -- `radar show GAP-XXX` gains a `## Lookalikes` section: the record's neighbours at containment >= 0.20 from the detector `tools/promote.py` already runs at the door (roadmap row 119, re-shaped from a `report` section to a `show` section)
+    winner: B1
+    ship: unknown
+  iter-304
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- the suite still spawns the live self-scan from every test module except the one iteration 297 memoized; count the spawns and the wall-clock at HEAD, then share one snapshot across modules
+    - Candidate A2 -- `pathlib.relative_to` is called once per (file, check) inside the scan critical path for ~300 distinct answers; memoize per scan
+    - Candidate A3 -- `scan --json` on the self-scan is ~144 KB and every gate run re-emits and re-parses it; measure repeated prose share and bound the payload
+    - Candidate B1 -- the done ledger promises a row for every iteration whose ship never landed, and 10 of the 16 reverts the committed `DIRECTIONS.md` records have none: write the 10 rows and make `tools/roadmap_integrity.py` cross `ship: REVERTED` against `- iter NN`
+    - Candidate B2 -- the confidence floor `2` is spelled by hand in seven places in `src/` with no named constant and no sentence saying WHY 2; publish one constant whose docstring is the reasoning, derive the three `(default 2)` help strings from it, and pin `--help` to the `confidence_floor` `--json` publishes
+    - Candidate B3 -- README never shows 5 of the 11 published long flags (`--floor`, `--layer`, `--project`, `--with-fixtures`, `--version`) and its `radar prd .` line says "for the top gap" where the verb is floor-gated and refuses with exit 2; add the missing lines and a test that reads README's flag coverage off `tests/_surface_inventory.py`
+    winner: B1
+    ship: REVERTED
   iter-303
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- the CLI's flag inventory is pinned by equality in SIX test files plus a seventh that reads three of them as TEXT, so iteration 302 re-baselined 61 lines in 7 files to add ONE flag; keep one pin, delete the other five and the text-reading meta-pin
@@ -10,7 +40,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `pathlib.relative_to` is still called once per (file, check) inside the scan critical path for ~300 distinct answers; memoize per scan
     - Candidate B3 -- `scan --json` on the self-scan is ~144 KB and the gate re-emits and re-parses it per run; measure repeated prose share and bound the payload
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED b21ec25
   iter-302
     lenses: simplification-and-deletion
     - Candidate A1 -- `scan --json` publishes the identity of the register it applied, and `--baseline` (shipped 300) refuses a baseline built from a DIFFERENT register the way it already refuses a different target
@@ -1383,4 +1413,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-138 scouted iterations
+141 scouted iterations
