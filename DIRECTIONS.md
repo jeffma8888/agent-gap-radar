@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-310
+    lenses: unknown
+    - Candidate A1 — hoist `_iter_tracked`'s relative-path list out of the per-glob loop
+    - Candidate A2 — cache compiled regexes across `_validate_rule` and `evaluate`
+    - Candidate A3 — the suite still spawns the live self-scan from 8+ test files; share one snapshot
+    - Candidate B1 — CONSUMER_CONTRACT:469 stale NOT_APPLICABLE count and ratio
+    - Candidate B2 — confidence floor = 2: the constant is published, the reasoning is nowhere
+    - Candidate B3 — README:123 "seeded with ten records spanning" six layers: stale at 120 records and 11 layers
+    winner: B1
+    ship: pending (not yet decided)
   iter-309
     lenses: unknown
     - Candidate A1 -- Delete the `_PublishedErrorParser` alias and its self-referential test
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the test suite's slowest 20 tests are dominated by repeated subprocess scans that share identical HEAD output
     - Candidate B3 -- cache compiled regexes per pattern string so the hot-path re.compile runs ~282 times instead of ~1,146
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 3f2cc32
   iter-308
     lenses: unknown
     - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
@@ -1443,4 +1453,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-144 scouted iterations
+145 scouted iterations

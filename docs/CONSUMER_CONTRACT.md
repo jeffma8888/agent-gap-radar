@@ -466,9 +466,9 @@ two spellings of one directory agree key-for-key except in `target`.
 
 A `NOT_APPLICABLE` finding NAMES THE RULE THAT FAILED. Its `reason` is
 `applies_when did not match: ` followed by a render of that record's own
-`applies_when` rule as AUTHORED, so the largest claim a scan publishes -- 62 of
-119 findings on this repo, 2.7x more than the only other verdict that asserts
-safety -- is checkable by hand instead of resting on one identical eight-word
+`applies_when` rule as AUTHORED, so the largest claim a scan publishes -- the
+most common verdict on this repo's own self-scan by a wide margin, as
+`radar scan . --json` shows -- is checkable by hand instead of resting on one identical eight-word
 sentence repeated once per record. The form is the rule, never a result: a leaf
 reads `content_matches /PATTERN/ in GLOB, GLOB`, `content_absent /PATTERN/ in
 <scope>`, `file_exists <scope>` or `file_absent <scope>`; a combinator reads
