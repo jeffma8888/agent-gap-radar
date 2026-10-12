@@ -465,11 +465,6 @@ class PublishedErrorParser(argparse.ArgumentParser):
         raise SystemExit(_fail(message))
 
 
-#: The name iteration 109 introduced, kept so every committed reference to the class keeps
-#: resolving -- one class under two names, never a subclass and never a copy.
-_PublishedErrorParser = PublishedErrorParser
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = PublishedErrorParser(
         prog="radar",

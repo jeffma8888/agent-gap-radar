@@ -219,9 +219,6 @@ def test_b1_the_two_error_names_are_public_and_the_private_ones_are_aliases() ->
     )
     # Aliases, not copies: every committed reference to the private names keeps working.
     assert cli._fail is cli.fail, "cli._fail must be the SAME object as cli.fail"
-    assert cli._PublishedErrorParser is cli.PublishedErrorParser, (
-        "cli._PublishedErrorParser must be the SAME object as cli.PublishedErrorParser"
-    )
     assert cli.EXIT_ERROR == 2, f"the published refusal exit code is 2, got {cli.EXIT_ERROR!r}"
 
 

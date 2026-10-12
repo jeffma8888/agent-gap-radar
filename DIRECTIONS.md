@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-309
+    lenses: unknown
+    - Candidate A1 -- Delete the `_PublishedErrorParser` alias and its self-referential test
+    - Candidate A2 -- Extract the shared assembly-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
+    - Candidate A3 -- Inline `_status_list` in `cli.py:50-57`: a 2-line body behind an 8-line definition used at exactly 2 call sites
+    - Candidate B1 -- hoist the relative-path list out of _iter_tracked so it is built once per scan, not 160 times
+    - Candidate B2 -- the test suite's slowest 20 tests are dominated by repeated subprocess scans that share identical HEAD output
+    - Candidate B3 -- cache compiled regexes per pattern string so the hot-path re.compile runs ~282 times instead of ~1,146
+    winner: A1
+    ship: pending (not yet decided)
   iter-308
     lenses: unknown
     - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Extract the shared assembly-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
     - Candidate B3 -- Inline `_status_list` in `cli.py:50-57`: a 2-line body behind an 8-line definition used at exactly 2 call sites
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 533ee74
   iter-307
     lenses: hardening/DX -- iteration 307
     - Candidate A1 -- `show GAP-9`, `show gap-009`, `scan --gap 9` all refuse where the canonical spelling is unambiguous
@@ -1433,4 +1443,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-143 scouted iterations
+144 scouted iterations
