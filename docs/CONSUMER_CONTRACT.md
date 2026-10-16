@@ -121,7 +121,12 @@ actually meets: not a constant some module names, and not a count taken once and
 remembered. Roadmap row 52 remembered six defaults from the iteration that
 measured them; there are ten.
 
-`--floor 2` is the row a gate should read first. Since `scan --floor` arrived it
+`--floor 2` is the row a gate should read first. The value is derived from the
+evidence ladder: the ladder awards one point per independent citation (strongest
+source weight as ceiling, plus one for a corroborating pair differing in both
+class and source document), so floor 2 is the minimum that rules out a
+single-source claim -- any two citations differing in class or source document
+reach at least 2. Since `scan --floor` arrived it
 decides three answers a consumer CONSUMES rather than displays: `--exit-code`'s
 verdict, `--prd`'s selection, and the `confidence_floor` / `below_floor` fields
 `--json` publishes. Until this table a consumer adopting that gate inherited the

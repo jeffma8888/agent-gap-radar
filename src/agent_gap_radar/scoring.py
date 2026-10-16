@@ -39,6 +39,16 @@ W_FREQUENCY = 2
 W_TRACTABILITY = 1
 _MAX_WEIGHTED = 5 * (W_SEVERITY + W_FREQUENCY + W_TRACTABILITY)
 
+# The ladder awards one point per independent citation (the strongest source's
+# weight sets the ceiling; a corroborating pair from a different class AND a
+# different source document adds one).  Floor 2 is the minimum that rules out
+# a single-source claim: one `secondary-summary` (weight 1) with no
+# corroboration scores 1 and stays below, while any two citations that differ
+# in class or source document reach at least 2.  Lowering to 1 would admit
+# uncorroborated single-source claims; raising to 3 would require either a
+# `practitioner-report`-tier source (weight 3) or corroboration at weight 2,
+# which no current rung supplies -- so every record with exactly two
+# independent low-weight sources would be silently demoted.
 CONFIDENCE_FLOOR_DEFAULT = 2
 
 #: The supported import surface, matching what `docs/CONSUMER_CONTRACT.md` publishes for a
