@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-322
+    lenses: performance-and-throughput
+    - Candidate A1 -- Hoist the tracked-to-relative conversion out of _iter_tracked
+    - Candidate A2 -- Memoize `pathlib.relative_to` per (path, target) inside the evaluate loop
+    - Candidate A3 -- Pre-compute the per-scan `target.resolve()` once instead of per _iter_tracked call
+    - Candidate B1 — README:123 stale "seeded with ten records spanning" claim
+    - Candidate B2 — Confidence floor = 2: the constant is published, the reasoning is nowhere
+    - Candidate B3 — Five of nine `tools/*.py` scripts are unnamed in any hand-maintained document
+    winner: A1
+    ship: pending (not yet decided)
   iter-310
     lenses: unknown
     - Candidate A1 — hoist `_iter_tracked`'s relative-path list out of the per-glob loop
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — confidence floor = 2: the constant is published, the reasoning is nowhere
     - Candidate B3 — README:123 "seeded with ten records spanning" six layers: stale at 120 records and 11 layers
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED a64f0aa
   iter-309
     lenses: unknown
     - Candidate A1 -- Delete the `_PublishedErrorParser` alias and its self-referential test
@@ -1453,4 +1463,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-145 scouted iterations
+146 scouted iterations

@@ -349,6 +349,33 @@ def _match_globs(target: pathlib.Path, relatives: list[str],
     return sorted(seen)
 
 
+def _tracked_relatives(target: pathlib.Path,
+                       tracked: frozenset[pathlib.Path]) -> list[str]:
+    """Build the target-relative POSIX path list ONCE per scan, not per call.
+
+    The conversion is pure -- same resolved target, same tracked set, same
+    result -- and `_iter_tracked` is called 159 times per self-scan, each
+    rebuilding ~307 `relative_to` calls for ~49,000 total. Caching the list
+    under `_RELATIVES_CACHE_STACK` (managed by `file_cache_scope`) reduces that
+    to ~307 calls total. Outside a scope, the list is computed and returned
+    without caching, matching the uncached-by-default contract of `iter_files`.
+    """
+    root = target.resolve()
+    if _RELATIVES_CACHE_STACK:
+        frame = _RELATIVES_CACHE_STACK[-1]
+        if root in frame:
+            return frame[root]
+    relatives: list[str] = []
+    for path in tracked:
+        try:
+            relatives.append(path.relative_to(root).as_posix())
+        except ValueError:
+            continue
+    if _RELATIVES_CACHE_STACK:
+        _RELATIVES_CACHE_STACK[-1][root] = relatives
+    return relatives
+
+
 def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
                   globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
     """Match globs against the tracked paths instead of walking the filesystem.
@@ -361,14 +388,8 @@ def _iter_tracked(target: pathlib.Path, tracked: frozenset[pathlib.Path],
     The tracked set is loaded before the first glob, so the information needed
     to skip that walk was already in hand and thrown away.
     """
-    root = target.resolve()
-    relatives: list[str] = []
-    for path in tracked:
-        try:
-            relatives.append(path.relative_to(root).as_posix())
-        except ValueError:
-            continue  # a tracked path outside the target cannot match a glob
-    return _match_globs(target, relatives, globs, exclude_tests)
+    return _match_globs(target, _tracked_relatives(target, tracked),
+                        globs, exclude_tests)
 
 
 def _iter_walked(target: pathlib.Path, globs: list[str],
@@ -425,6 +446,12 @@ _FileDomainKey = tuple[str, tuple[str, ...], bool]
 #: own snapshot, and leaving it must leave the enclosing scan's snapshot intact.
 _FILE_CACHE_STACK: list[dict[_FileDomainKey, list[pathlib.Path]]] = []
 
+#: Target-relative path list frames, innermost last. The tracked-to-relative
+#: conversion is pure -- same target, same tracked set, same result -- but was
+#: recomputed on every `_iter_tracked` call (~49,000 `relative_to` calls per
+#: scan). This stack gives it the scan lifetime `file_cache_scope` manages.
+_RELATIVES_CACHE_STACK: list[dict[pathlib.Path, list[str]]] = []
+
 
 @contextlib.contextmanager
 def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
@@ -452,12 +479,14 @@ def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
     """
     frame: dict[_FileDomainKey, list[pathlib.Path]] = {}
     _FILE_CACHE_STACK.append(frame)
+    _RELATIVES_CACHE_STACK.append({})
     try:
         yield frame
     finally:
         # Pop rather than clear, and in `finally`: an exception raised mid-scan
         # must not leave a frame open for the next scan to answer from.
         _FILE_CACHE_STACK.pop()
+        _RELATIVES_CACHE_STACK.pop()
 
 
 def _enumerate_files(target: pathlib.Path, globs: list[str],
@@ -491,11 +520,11 @@ def _memoised_domain(frame: dict[_FileDomainKey, list[pathlib.Path]],
 
     The prize is stated as that COUNT and never as seconds, the doctrine
     `tools/scan_cost.py` already carries, because the two disagree: splitting a set
-    into its globs RAISES `_enumerate_files` calls from 88 to 159 and every one of
-    them rebuilds the target-relative path list and re-`resolve()`s the root, so the
-    per-call fixed cost eats most of the regex saving and the wall-clock prize is a
-    prototyped 1.5% of an 11.6s scan. Hoisting that fixed cost is a separate,
-    unmeasured change and is filed as an open roadmap row, deliberately not bundled.
+    into its globs RAISES `_enumerate_files` calls from 88 to 159, and the per-call
+    regex saving was measured at 1.5% of an 11.6s scan when the target-relative path
+    list was rebuilt on every call. That per-call fixed cost is now hoisted into
+    `_tracked_relatives`, cached under `_RELATIVES_CACHE_STACK` for the scan lifetime,
+    so `target.resolve()` and the `relative_to` loop run once rather than 159 times.
 
     The base case is a set of at most ONE glob, where the set key IS its own per-glob
     key: a single-glob ask therefore stores exactly one entry and enumerates exactly
