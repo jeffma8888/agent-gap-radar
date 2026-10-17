@@ -298,3 +298,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 310 docs: CONSUMER_CONTRACT:469 stale count replaced with derivation sentence; test guards against reintroduction
 - iter 322 row 122 perf: hoist target-relative path list out of `_iter_tracked`; built once per scan not 159 times; ~49K `relative_to` calls → 307
 - iter 323 docs: document WHY `CONFIDENCE_FLOOR_DEFAULT = 2` in `scoring.py` comment and `CONSUMER_CONTRACT.md` Defaults table
+- iter 324 hardening: scan error path echoes user's typed argument not the resolved absolute path; regression test

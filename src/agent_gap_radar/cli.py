@@ -889,8 +889,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return _fail(str(exc))
         try:
             result = scan(gaps, args.target)
-        except (NotADirectoryError, OSError) as exc:
-            return _fail(f"cannot scan target: {exc}")
+        except (NotADirectoryError, OSError):
+            return _fail(f"cannot scan target: {args.target}")
         # Read the floor ONCE, ahead of every surface branch, and let that one local
         # feed every decision and every message about it -- so a message can never
         # name a floor other than the one actually applied, and the three floor-gated

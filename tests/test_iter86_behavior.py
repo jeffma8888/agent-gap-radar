@@ -354,8 +354,10 @@ def test_b8_a_non_directory_target_still_exits_2_with_one_resolved_error_line(
     lines = err.splitlines()
     assert len(lines) == 1, f"exactly one stderr line; got {lines}"
     assert lines[0].startswith("Error: "), f"stderr must be prefixed; got {lines[0]!r}"
-    assert str(victim.resolve()) in lines[0], (
-        f"the diagnostic still names the RESOLVED path; got {lines[0]!r}")
+    assert "not_a_dir" in lines[0], (
+        f"the diagnostic echoes the user's typed argument; got {lines[0]!r}")
+    assert str(victim.resolve()) not in lines[0], (
+        f"the diagnostic must NOT leak the resolved absolute path; got {lines[0]!r}")
 
 
 # --- behavior 9: one rule, one implementation -------------------------------------------
