@@ -7,7 +7,7 @@ under a one-line statement that a zero means unexamined rather than clean.
 ISOLATION CONTRACT HONORED. Nothing in this module reads `src/`, the engineer's notes,
 the reviewer's notes, or any diff. The oracles are
 
-* `taxonomy.layer_names()`, obtained by CALLING it -- never a hand-copied list and never
+* `tuple(taxonomy.LAYERS)`, obtained by IMPORTING it -- never a hand-copied list and never
   the literal `11`, so the file survives a taxonomy that legitimately grows;
 * the document bytes that `render.radar_report` and `cli.main(["report", ...])` write,
   parsed by a section splitter written here from the spec's own words; and
@@ -18,7 +18,7 @@ The repository's own `gaps/` register is grown by an unattended research pass, s
 assertion keyed on a live id, a live count, or on WHICH layers are empty today would go
 red against a CORRECT register days from now. Every register in this module is built
 under `tmp_path`. The one place a live number could leak in -- "how many layers are
-there" -- is derived from `layer_names()` at assert time instead.
+there" -- is derived from `tuple(taxonomy.LAYERS)` at assert time instead.
 
 BEHAVIOR 8, AND WHAT THE COMMITTED LITERALS BUY
 Behavior 8 says the ONLY byte change anywhere in the document is inside `## By layer`.
@@ -124,12 +124,12 @@ def test_by_layer_has_one_data_row_per_taxonomy_layer(tmp_path):
     """Behavior 1. One layer holds every record; the table still lists them all."""
     root = _register(tmp_path, [RECORD, {**RECORD, "id": "GAP-002"}])
     rows = _data_rows(_section(_render(root), BY_LAYER))
-    assert len(rows) == len(taxonomy.layer_names())
+    assert len(rows) == len(tuple(taxonomy.LAYERS))
 
 
 def test_row_count_is_independent_of_how_many_layers_are_populated(tmp_path):
     """Behavior 1, second reading: spreading records over layers changes no row count."""
-    layers = taxonomy.layer_names()
+    layers = tuple(taxonomy.LAYERS)
     spread = [{**RECORD, "id": f"GAP-00{i + 1}", "layer": layer}
               for i, layer in enumerate(layers[:3])]
     one = _data_rows(_section(_render(_register(tmp_path / "a", [RECORD])), BY_LAYER))
@@ -143,7 +143,7 @@ def test_rows_are_in_taxonomy_order_with_bare_layer_names(tmp_path):
     """Behavior 2. First cell is exactly the layer name: no description, no decoration."""
     root = _register(tmp_path, [RECORD])
     rows = _data_rows(_section(_render(root), BY_LAYER))
-    assert [cells[0] for cells in rows] == list(taxonomy.layer_names())
+    assert [cells[0] for cells in rows] == list(tuple(taxonomy.LAYERS))
 
 
 # --- behavior 3: an empty layer renders 0 ----------------------------------
@@ -153,7 +153,7 @@ def test_unpopulated_layers_render_zero_never_blank_or_dash(tmp_path):
     root = _register(tmp_path, [RECORD])
     rows = _data_rows(_section(_render(root), BY_LAYER))
     counts = {cells[0]: cells[1] for cells in rows}
-    for layer in taxonomy.layer_names():
+    for layer in tuple(taxonomy.LAYERS):
         if layer == RECORD["layer"]:
             continue
         assert counts[layer] == "0", layer
@@ -162,7 +162,7 @@ def test_unpopulated_layers_render_zero_never_blank_or_dash(tmp_path):
 
 def test_populated_layers_render_their_true_count(tmp_path):
     """Behavior 3's other half: publishing zeros must not corrupt the real counts."""
-    layers = taxonomy.layer_names()
+    layers = tuple(taxonomy.LAYERS)
     records = [{**RECORD, "id": "GAP-001", "layer": layers[0]},
                {**RECORD, "id": "GAP-002", "layer": layers[1]},
                {**RECORD, "id": "GAP-003", "layer": layers[1]}]
@@ -176,7 +176,7 @@ def test_populated_layers_render_their_true_count(tmp_path):
 
 def test_records_column_sums_to_the_header_record_count(tmp_path):
     """Behavior 4. Includes a below-floor record, which counts toward the total."""
-    weak = {**RECORD, "id": "GAP-002", "layer": taxonomy.layer_names()[4],
+    weak = {**RECORD, "id": "GAP-002", "layer": tuple(taxonomy.LAYERS)[4],
             "evidence": [{**RECORD["evidence"][0], "source_class": "model-output"}]}
     out = _render(_register(tmp_path, [RECORD, weak]))
     rows = _data_rows(_section(out, BY_LAYER))
@@ -224,7 +224,7 @@ def test_empty_register_still_publishes_every_layer_at_zero():
     """Behavior 6, through the renderer with zero records."""
     out = radar_report([])
     rows = _data_rows(_section(out, BY_LAYER))
-    assert [cells[0] for cells in rows] == list(taxonomy.layer_names())
+    assert [cells[0] for cells in rows] == list(tuple(taxonomy.LAYERS))
     assert {cells[1] for cells in rows} == {"0"}
     assert _header_record_count(out) == 0
     assert PURPOSE_LINE in out
@@ -240,13 +240,13 @@ def test_cli_report_exits_zero_with_stdout_only_and_one_trailing_newline(tmp_pat
     assert captured.out.startswith("# Agent infrastructure gap radar\n")
     assert captured.out.endswith("\n") and not captured.out.endswith("\n\n")
     rows = _data_rows(_section(captured.out, BY_LAYER))
-    assert len(rows) == len(taxonomy.layer_names())
+    assert len(rows) == len(tuple(taxonomy.LAYERS))
 
 
 def test_cli_report_is_byte_identical_across_runs_and_to_the_renderer(tmp_path, capsys):
     """Determinism: the published surface must not depend on dict or filesystem order."""
     root = _register(tmp_path, [RECORD, {**RECORD, "id": "GAP-002",
-                                         "layer": taxonomy.layer_names()[-1]}])
+                                         "layer": tuple(taxonomy.LAYERS)[-1]}])
     assert main(["report", str(root)]) == 0
     first = capsys.readouterr().out
     assert main(["report", str(root)]) == 0
@@ -301,7 +301,7 @@ def test_the_ranked_section_is_unaffected_by_empty_layers(tmp_path):
     out = _render(_register(tmp_path, [RECORD, _B8_WEAK]))
     ranked = _section(out, RANKED)
     below = _section(out, BELOW_FLOOR)
-    for layer in taxonomy.layer_names():
+    for layer in tuple(taxonomy.LAYERS):
         if layer == RECORD["layer"]:
             continue
         assert layer not in ranked, layer
@@ -314,5 +314,5 @@ def test_row_count_holds_across_register_sizes(tmp_path, count):
     """Behaviors 1 and 6 together: the denominator is published at any size."""
     records = [{**RECORD, "id": f"GAP-00{i + 1}"} for i in range(count)]
     out = radar_report([]) if count == 0 else _render(_register(tmp_path, records))
-    assert len(_data_rows(_section(out, BY_LAYER))) == len(taxonomy.layer_names())
+    assert len(_data_rows(_section(out, BY_LAYER))) == len(tuple(taxonomy.LAYERS))
     assert _header_record_count(out) == count

@@ -55,7 +55,7 @@ from _surface_contract import (CONTRACT_PATH, STABLE_SURFACE_HEADING,
 from agent_gap_radar.cli import main
 from agent_gap_radar.models import Evidence, Gap
 from agent_gap_radar.scoring import confidence, priority
-from agent_gap_radar.taxonomy import gap_type_names, layer_names
+from agent_gap_radar.taxonomy import GAP_TYPES, LAYERS
 
 #: Behavior 1 and behaviors 2/3/5: the four headings this iteration publishes.
 SECTION_HEADING = "## The record file surface"
@@ -585,11 +585,11 @@ REGISTER_DIR = REPO_ROOT / "gaps"
 def _record(**overrides):
     """A minimal VALID record, vocabulary read from the public taxonomy.
 
-    `layer_names()[0]` and `gap_type_names()[0]` rather than retyped strings: a closed
+    `tuple(LAYERS)[0]` and `tuple(GAP_TYPES)[0]` rather than retyped strings: a closed
     vocabulary that is edited must not red this module for a reason it is not about.
     """
-    fields = dict(id="GAP-999", title="a gap", layer=layer_names()[0],
-                  gap_type=gap_type_names()[0], problem="p", symptom="s", why_now="w",
+    fields = dict(id="GAP-999", title="a gap", layer=tuple(LAYERS)[0],
+                  gap_type=tuple(GAP_TYPES)[0], problem="p", symptom="s", why_now="w",
                   severity=3, frequency=3, tractability=3,
                   evidence=[_evidence("https://example.invalid/a")])
     fields.update(overrides)

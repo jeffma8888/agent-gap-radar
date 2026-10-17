@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-326
+    lenses: unknown
+    - Candidate A1 — `radar show --json`: the machine-readable brief for one gap record
+    - Candidate A2 — `radar scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate A3 — `radar list --status S`: filter the listing by the record axis the gate keys on
+    - Candidate B1 — Delete test-only `layer_names()` and `gap_type_names()` convenience wrappers from taxonomy.py
+    - Candidate B2 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
+    - Candidate B3 — README:123 stale "seeded with ten records spanning ... six layers" claim replaced with a derivation sentence
+    winner: B1
+    ship: pending (not yet decided)
   iter-325
     lenses: unknown
     - Candidate B1 -- Five `add_argument` calls across five verbs carry no `help=` text, and no brake prevents more
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — `radar report --layer L`: the register document scoped to one layer
     - Candidate B3 — `radar list --status S`: filter the listing by the record axis the gate keys on
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 7957a75
   iter-324
     lenses: unknown
     - Candidate A1 — `radar scan --answers <file>`: resolve MANUAL findings with a target-side answer file
@@ -1493,4 +1503,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-149 scouted iterations
+150 scouted iterations

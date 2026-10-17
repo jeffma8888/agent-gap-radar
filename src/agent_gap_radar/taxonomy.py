@@ -124,9 +124,3 @@ def terminal_statuses() -> tuple[str, ...]:
     return tuple(s for s in STATUSES if s in TERMINAL_STATUSES)
 
 
-def layer_names() -> tuple[str, ...]:
-    return tuple(LAYERS)
-
-
-def gap_type_names() -> tuple[str, ...]:
-    return tuple(GAP_TYPES)

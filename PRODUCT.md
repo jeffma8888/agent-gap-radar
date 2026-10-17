@@ -300,3 +300,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 323 docs: document WHY `CONFIDENCE_FLOOR_DEFAULT = 2` in `scoring.py` comment and `CONSUMER_CONTRACT.md` Defaults table
 - iter 324 hardening: scan error path echoes user's typed argument not the resolved absolute path; regression test
 - iter 325 integration: `report --layer L` narrows the report verb to one layer via the shipped `_select_layer` filter
+- iter 326 deletion: remove test-only `layer_names()` and `gap_type_names()` from `taxonomy.py`; 21 test refs inlined

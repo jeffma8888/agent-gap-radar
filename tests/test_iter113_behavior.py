@@ -19,7 +19,7 @@ The repository's own `gaps/` register is grown by an unattended research pass, s
 assertion keyed on a live tag value, a live count, a live layer set or a live id would go
 red against a CORRECT register days from now. Every register in this module is built under
 pytest's `tmp_path`, every tag value is invented here, every layer name is taken from
-`taxonomy.layer_names()` BY CALLING IT, and every locator is under the reserved
+`taxonomy.LAYERS` BY IMPORTING IT, and every locator is under the reserved
 `example.test` domain. Nothing here reaches the network.
 
 STRUCTURAL NOTES, so this file cannot lie later:
@@ -58,7 +58,7 @@ import pytest
 from agent_gap_radar.cli import main
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.render import radar_report
-from agent_gap_radar.taxonomy import layer_names
+from agent_gap_radar.taxonomy import LAYERS
 
 RANKED = "## Ranked gaps"
 BY_LAYER = "## By layer"
@@ -88,8 +88,8 @@ BASE = "https://example.test"
 
 #: Layers are CALLED for, never retyped: a taxonomy that legitimately grows must not red
 #: this file, and the closed taxonomy is the only source of a valid `layer`.
-LAYERS = sorted(layer_names())
-L0, L1, L2 = LAYERS[0], LAYERS[1], LAYERS[2]
+_LAYERS = sorted(tuple(LAYERS))
+L0, L1, L2 = _LAYERS[0], _LAYERS[1], _LAYERS[2]
 
 _RECORD = {
     "id": "GAP-001", "title": "A thing is broken", "layer": L0,
@@ -654,9 +654,9 @@ def test_b10_the_named_constant_is_the_threshold_the_table_actually_applies(tmp_
     """Fixtures are sized FROM the constant, so a change to it moves this test's oracle."""
     scoring = importlib.import_module("agent_gap_radar.scoring")
     minimum = scoring.TAG_COVERAGE_MIN_RECORDS
-    below = [_rec(f"GAP-{i:03d}", LAYERS[i % len(LAYERS)], ["under"])
+    below = [_rec(f"GAP-{i:03d}", _LAYERS[i % len(_LAYERS)], ["under"])
              for i in range(1, minimum)]
-    at = [_rec(f"GAP-{i:03d}", LAYERS[i % len(LAYERS)], ["under", "over"])
+    at = [_rec(f"GAP-{i:03d}", _LAYERS[i % len(_LAYERS)], ["under", "over"])
           for i in range(1, minimum + 1)]
     under_section = _tags_section(_register(tmp_path / "under", below))
     assert [row[0] for row in _data_rows(under_section)] == []
@@ -668,7 +668,7 @@ def test_b10_the_named_constant_is_the_threshold_the_table_actually_applies(tmp_
 
 def test_b10_the_withheld_population_is_announced_and_never_truncated(tmp_path):
     """Acceptance: the count the threshold withholds is PUBLISHED, not silently dropped."""
-    singletons = [_rec(f"GAP-{i:03d}", LAYERS[i % len(LAYERS)], [f"solo-{i:03d}"])
+    singletons = [_rec(f"GAP-{i:03d}", _LAYERS[i % len(_LAYERS)], [f"solo-{i:03d}"])
                   for i in range(1, 13)]
     shared = [_rec("GAP-900", L0, ["shared"]), _rec("GAP-901", L1, ["shared"])]
     section = _tags_section(_register(tmp_path, singletons + shared))
