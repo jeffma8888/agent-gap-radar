@@ -43,7 +43,7 @@ EXPECTED_SURFACE = {
     # Iteration 294 added `--floor`, the same flag and default `list`/`report`/`scan`
     # carry; the list is SORTED, so it lands first.
     "prd": (["--floor", "--gap", "--project", "--with-fixtures"], 1, [], ["path"]),
-    "report": (["--floor"], 1, [], ["path"]),
+    "report": (["--floor", "--layer"], 1, [], ["path"]),
     # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
     # `report` do; the sorted list is the inventory, not a ranking.
     # Iteration 299 added `--baseline`, the prior-scan document `--exit-code` gates
@@ -93,6 +93,7 @@ EXPECTED_ARGUMENTS = {
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("path", [], False, ".", "?"),
         ("floor", ["--floor"], False, 2, None),
+        ("layer", ["--layer"], False, None, None),
     ],
     "scan": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

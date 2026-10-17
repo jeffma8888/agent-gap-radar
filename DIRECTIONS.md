@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-325
+    lenses: unknown
+    - Candidate B1 -- Five `add_argument` calls across five verbs carry no `help=` text, and no brake prevents more
+    - Candidate B2 -- Four `tools/*.py` scripts treat `--help` as a filesystem path and refuse with exit 2
+    - Candidate B3 -- The research contract's self-verify command (row 50) is not round-tripped against `promote.py`'s parser
+    - Candidate B1 — `radar scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B2 — `radar report --layer L`: the register document scoped to one layer
+    - Candidate B3 — `radar list --status S`: filter the listing by the record axis the gate keys on
+    winner: B2
+    ship: pending (not yet decided)
   iter-324
     lenses: unknown
     - Candidate A1 — `radar scan --answers <file>`: resolve MANUAL findings with a target-side answer file
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar scan` error messages leak the resolved absolute path instead of echoing the user's input
     - Candidate B3 -- Five of nine `tools/*.py` scripts appear in zero hand-maintained `.md` files
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED f7b3fe9
   iter-323
     lenses: unknown
     - Candidate B1 — README:123 stale "seeded with ten records spanning … six" claim
@@ -1483,4 +1493,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-148 scouted iterations
+149 scouted iterations

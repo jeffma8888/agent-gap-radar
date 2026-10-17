@@ -81,7 +81,7 @@ EXPECTED_CELLS = [
     "`radar validate [<repo>]`",
     "`radar list [<repo>] [--json] [--floor N] [--layer L]`",
     "`radar show <ID> [<repo>]`",
-    "`radar report [<repo>] [--floor N]`",
+    "`radar report [<repo>] [--floor N] [--layer L]`",
     "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
     "`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
     "`radar diff <old> <new> [--json] [--exit-code]`",
@@ -295,8 +295,8 @@ def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
 
 @pytest.mark.parametrize("verb, old, new", [
     ("validate", "`radar validate [<repo>]`", "`radar validate <repo>`"),
-    ("report", "`radar report [<repo>] [--floor N]`",
-     "`radar report <repo> [--floor N]`"),
+    ("report", "`radar report [<repo>] [--floor N] [--layer L]`",
+     "`radar report <repo> [--floor N] [--layer L]`"),
     ("prd", "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
      "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`"),
 ])
@@ -443,7 +443,7 @@ def test_b7_every_planted_known_bad_differs_from_the_committed_document():
     committed = contract_text()
     plants = [
         ("`radar validate [<repo>]`", "`radar validate <repo>`"),
-        ("`radar report [<repo>] [--floor N]`", "`radar report <repo> [--floor N]`"),
+        ("`radar report [<repo>] [--floor N] [--layer L]`", "`radar report <repo> [--floor N] [--layer L]`"),
         ("`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
          "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`"),
         ("`radar scan <target> [--gaps R] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",

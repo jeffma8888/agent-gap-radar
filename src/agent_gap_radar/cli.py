@@ -490,15 +490,7 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--json", action="store_true",
                            help="emit a stable record list for a machine "
                                 "consumer")
-            # No `choices=LAYERS` deliberately. argparse would refuse a bad
-            # value with ITS vocabulary on stderr and exit 2 -- a code this
-            # module reserves for a refusal it explains in its own published
-            # `Error: ` line -- and the usage block it prints would carry the
-            # whole layer list into every `list` usage message. Validated in
-            # `_dispatch` instead, through `_fail`, so the one published error
-            # site answers for it. "layer" leads the help text because argparse
-            # wraps on whitespace and the word a reader greps for must survive
-            # a narrow terminal.
+        if name in ("list", "report"):
             p.add_argument("--layer", default=None, metavar="L",
                            help="layer to narrow the listing to; one value "
                                 "from the closed taxonomy that `radar "
@@ -1029,7 +1021,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # the wrong thing. Read off `args` only under the verb that declares the option
     # rather than through a `getattr` default -- a default would silently pass a
     # renamed `dest` as "no layer given", turning this whole branch dead.
-    if args.command == "list" and args.layer is not None:
+    if args.command in ("list", "report") and args.layer is not None:
         if args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
 
@@ -1067,7 +1059,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return EXIT_OK
 
         if args.command == "report":
-            sys.stdout.write(radar_report(gaps, args.floor))
+            sys.stdout.write(radar_report(
+                _select_layer(gaps, args.layer), args.floor))
             return EXIT_OK
 
         if args.command == "prd":
