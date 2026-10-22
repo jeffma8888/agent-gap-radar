@@ -80,7 +80,7 @@ REQUIRED_BY_VERB = {
 EXPECTED_CELLS = [
     "`radar validate [<repo>]`",
     "`radar list [<repo>] [--json] [--floor N] [--layer L]`",
-    "`radar show <ID> [<repo>]`",
+    "`radar show <ID> [<repo>] [--json]`",
     "`radar report [<repo>] [--floor N] [--layer L]`",
     "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",
     "`radar scan <target> [--gaps R] [--layer L] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
@@ -329,7 +329,7 @@ def test_b4_the_gap_flag_cell_is_the_one_that_costs_a_consumer_something():
 @pytest.mark.parametrize("verb, old, new", [
     ("scan", "`radar scan <target> [--gaps R] [--layer L] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
      "`radar scan [<target>] [--gaps R] [--layer L] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`"),
-    ("show", "`radar show <ID> [<repo>]`", "`radar show [<ID>] [<repo>]`"),
+    ("show", "`radar show <ID> [<repo>] [--json]`", "`radar show [<ID>] [<repo>] [--json]`"),
 ])
 def test_b5_a_required_argument_documented_as_optional_is_refused(verb, old, new):
     document = _replace_once(contract_text(), old, new)
@@ -342,8 +342,8 @@ def test_b5_a_required_argument_documented_as_optional_is_refused(verb, old, new
 def test_b5_the_message_names_both_the_documented_token_and_the_parser_dest():
     """The documented spelling is what an editor changes; the dest is what makes the
     verdict checkable against the parser. Naming only one of the two is not actionable."""
-    document = _replace_once(contract_text(), "`radar show <ID> [<repo>]`",
-                             "`radar show [<ID>] [<repo>]`")
+    document = _replace_once(contract_text(), "`radar show <ID> [<repo>] [--json]`",
+                             "`radar show [<ID>] [<repo>] [--json]`")
     violations = requiredness_violations(parser_surface(), document)
     assert len(violations) == 1, violations
     assert "'<ID>'" in violations[0]
@@ -356,8 +356,8 @@ def test_b5_this_direction_now_holds_for_a_row_iteration_11_never_checked():
     `show` is a row that older assertion could not see, so its refusal here is the part
     of behavior 5 that is genuinely new rather than already covered.
     """
-    document = _replace_once(contract_text(), "`radar show <ID> [<repo>]`",
-                             "`radar show [<ID>] [<repo>]`")
+    document = _replace_once(contract_text(), "`radar show <ID> [<repo>] [--json]`",
+                             "`radar show [<ID>] [<repo>] [--json]`")
     assert requiredness_violations(parser_surface(), document) != []
     untouched = "`radar diff <old> <new> [--json] [--exit-code]`"
     assert document.count(untouched) == 1
@@ -448,7 +448,7 @@ def test_b7_every_planted_known_bad_differs_from_the_committed_document():
          "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures]`"),
         ("`radar scan <target> [--gaps R] [--layer L] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`",
          "`radar scan [<target>] [--gaps R] [--layer L] [--gap <ID>] [--json] [--floor N] [--prd] [--exit-code] [--baseline BASELINE]`"),
-        ("`radar show <ID> [<repo>]`", "`radar show [<ID>] [<repo>]`"),
+        ("`radar show <ID> [<repo>] [--json]`", "`radar show [<ID>] [<repo>] [--json]`"),
     ]
     for old, new in plants:
         assert committed.count(old) == 1, old

@@ -720,18 +720,13 @@ def _a_live_gap_id() -> str:
 @pytest.mark.parametrize("verb", verbs_without("--json"))
 def test_no_other_verb_gained_a_json_flag(verb):
     """Non-vacuous on purpose: each argv is otherwise VALID and the refusal must NAME the
-    flag. Measured first -- `show --json` on its own fails with `the following arguments
-    are required: gap_id`, so without a real gap id that case would pass for the wrong
-    reason and would keep passing even if `show` DID gain `--json`.
+    flag.
 
     The list is DERIVED from `tests/_surface_inventory.py` (iteration 303), so a verb
-    that gains `--json` leaves it without an edit here; `scan` and `taxonomy` left it
-    that way and now sit in the published-JSON parametrize below.
+    that gains `--json` leaves it without an edit here; `scan`, `taxonomy` and `show`
+    left it that way and now sit in the published-JSON parametrize below.
     """
-    if verb == "show":
-        argv = ["show", _a_live_gap_id(), ".", "--json"]
-    else:
-        argv = [verb, ".", "--json"]
+    argv = [verb, ".", "--json"]
     proc = _run(*argv)
     assert proc.returncode != 0, f"`{' '.join(argv)}` was accepted"
     assert proc.stdout == b"", proc.stdout
@@ -740,16 +735,16 @@ def test_no_other_verb_gained_a_json_flag(verb):
 
 def test_the_argv_the_flag_guard_builds_is_otherwise_valid():
     """Control for the test above: strip `--json` and every one of those argvs succeeds."""
-    for argv in (["validate", "."], ["report", "."], ["taxonomy"],
-                 ["show", _a_live_gap_id(), "."]):
+    for argv in (["validate", "."], ["report", "."], ["taxonomy"]):
         proc = _run(*argv)
         assert proc.returncode == 0, (argv, proc.stderr.decode("utf-8", "replace")[-200:])
 
 
-@pytest.mark.parametrize("verb", ["list", "diff", "taxonomy"])
+@pytest.mark.parametrize("verb", ["list", "diff", "taxonomy", "show"])
 def test_the_verbs_that_already_published_json_still_do(verb, tmp_path):
     argv = {"list": ["list", ".", "--json"], "diff": ["diff", ".", ".", "--json"],
-            "taxonomy": ["taxonomy", "--json"]}[verb]
+            "taxonomy": ["taxonomy", "--json"],
+            "show": ["show", _a_live_gap_id(), ".", "--json"]}[verb]
     proc = _run(*argv)
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
     assert json.loads(proc.stdout.decode("utf-8")) is not None

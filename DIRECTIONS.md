@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-344
+    lenses: unknown
+    - Candidate A1 — `show --json`: the machine-readable brief for one gap record
+    - Candidate A2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate A3 — `validate --json`: machine-readable validation output for CI consumers
+    - Candidate B1 — Collapse `_scope_note`'s inline glob formatting into a call to `_render_scope`
+    - Candidate B2 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii`
+    - Candidate B3 — Collapse `_read` and `_folded` duplicate caching pattern into one helper
+    winner: A1
+    ship: pending (not yet decided)
   iter-343
     lenses: unknown
     - Candidate A1 — Four `tools/*.py` scripts treat `--help` as a filesystem path and exit 2
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
     - Candidate B3 — `validate --json`: machine-readable validation output for CI consumers
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 094b8c4
   iter-342
     lenses: unknown
     - Candidate A1 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
@@ -1570,4 +1580,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-157 scouted iterations
+158 scouted iterations

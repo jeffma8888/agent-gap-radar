@@ -209,13 +209,13 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
     before = _literal_assignments(_read(head_tests / "test_iter111_behavior.py"),
                                   {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"})
     assert set(before) == {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"}, sorted(before)
-    changed_surface = {"report", "scan"}
+    changed_surface = {"report", "scan", "show"}
     for verb in before["EXPECTED_SURFACE"]:
         if verb not in changed_surface:
             assert EXPECTED_SURFACE[verb] == before["EXPECTED_SURFACE"][verb], (
                 f"EXPECTED_SURFACE[{verb!r}] moved with a change; "
                 "it must be the pre-change literal verbatim")
-    changed_arguments = {"report", "scan"}
+    changed_arguments = {"report", "scan", "show"}
     for verb in before["EXPECTED_ARGUMENTS"]:
         if verb not in changed_arguments:
             assert EXPECTED_ARGUMENTS[verb] == before["EXPECTED_ARGUMENTS"][verb], (
@@ -247,14 +247,14 @@ def test_b2_long_flags_and_verbs_without_are_read_off_the_inventory():
     assert long_flags("scan") == ["--baseline", "--exit-code", "--floor", "--gap", "--gaps",
                                   "--json", "--layer", "--prd"], long_flags("scan")
     assert long_flags("taxonomy") == ["--json"], long_flags("taxonomy")
-    assert long_flags("show") == [], long_flags("show")
+    assert long_flags("show") == ["--json"], long_flags("show")
     with pytest.raises(KeyError):
         long_flags("nope")
     for verb in VERBS:
         flags = long_flags(verb)
         assert flags == sorted(flags) and all(f.startswith("--") for f in flags), (verb, flags)
         assert set(flags) == {o for o in EXPECTED_SURFACE[verb][0] if o.startswith("--")}, verb
-    assert verbs_without("--json") == ["prd", "report", "show", "validate"], (
+    assert verbs_without("--json") == ["prd", "report", "validate"], (
         verbs_without("--json"))
     assert verbs_without("--floor") == ["diff", "show", "taxonomy", "validate"], (
         verbs_without("--floor"))
@@ -340,12 +340,13 @@ def test_b5_test_iter77_parametrizes_the_json_refusers_from_the_inventory(head_t
         ast.dump(source))
     head_list = ast.literal_eval(
         _parametrize_source(_function(before, "test_no_other_verb_gained_a_json_flag"), "verb"))
-    assert set(head_list) == set(verbs_without("--json")) == {"prd", "report", "show", "validate"}
-    assert verbs_without("--json") == ["prd", "report", "show", "validate"], "ids, in order"
+    assert set(head_list) == {"prd", "report", "show", "validate"}
+    assert verbs_without("--json") == ["prd", "report", "validate"], "ids, in order"
     published = "test_the_verbs_that_already_published_json_still_do"
-    assert (ast.literal_eval(_parametrize_source(_function(now, published), "verb"))
-            == ast.literal_eval(_parametrize_source(_function(before, published), "verb"))
-            == ["list", "diff", "taxonomy"])
+    assert ast.literal_eval(
+        _parametrize_source(_function(before, published), "verb")) == ["list", "diff", "taxonomy"]
+    assert ast.literal_eval(
+        _parametrize_source(_function(now, published), "verb")) == ["list", "diff", "taxonomy", "show"]
     # The pre-change sentence, whitespace-normalized (it wrapped across two lines and
     # backticked the verb): `taxonomy` left this list in iteration 302 ...
     left_in_302 = "left this list in iteration 302"
@@ -393,7 +394,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter341_new = {"test_iter341_behavior.py"}
     iter342_new = {"test_iter342_behavior.py"}
     iter343_new = {"test_iter343_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new, sorted(set(now) ^ set(before))
+    iter344_new = {"test_iter344_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

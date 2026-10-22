@@ -22,6 +22,7 @@ uv run radar validate .          # schema-check every record; exit 2 on any prob
 uv run radar list .              # one line per record, below-floor rows flagged
 uv run radar report .            # the full ranked radar (markdown)
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
+uv run radar show GAP-003 . --json  # the same gap as a stable JSON object, for a consumer
 uv run radar prd .               # emit a build-loop prd.json for the top gap
 uv run radar taxonomy            # the fixed vocabularies
 uv run radar taxonomy --json     # the same vocabularies as one object, for a consumer

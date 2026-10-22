@@ -50,7 +50,7 @@ EXPECTED_SURFACE = {
     # against; it takes a value and defaults to None, like `--gap`.
     "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
               "--layer", "--prd"], 1, ["target"], ["target"]),
-    "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
+    "show": (["--json"], 2, ["gap_id"], ["gap_id", "path"]),
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
     "taxonomy": (["--json"], 0, [], []),
@@ -121,6 +121,7 @@ EXPECTED_ARGUMENTS = {
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("gap_id", [], True, None, None),
         ("path", [], False, ".", "?"),
+        ("json", ["--json"], False, False, 0),
     ],
     "taxonomy": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

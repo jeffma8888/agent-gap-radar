@@ -282,6 +282,49 @@ def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None) ->
     return json_document(payload)
 
 
+def _show_json(gap: Gap) -> str:
+    """The full gap brief as a stable JSON object for a machine consumer.
+
+    Mirrors `gap_brief`'s content — the full evidence ladder with per-citation
+    `confidence_without` — so the two surfaces cannot disagree about one record.
+    `confidence_without` uses `CONFIDENCE_FLOOR_DEFAULT` for the floor annotation,
+    matching the markdown brief's derivation in `_without_line`.
+    """
+    from .render import json_document
+    from .scoring import (CONFIDENCE_FLOOR_DEFAULT, confidence,
+                          confidence_without, priority, strongest_source)
+
+    payload = {
+        "gap_id": gap.id,
+        "title": gap.title,
+        "layer": gap.layer,
+        "gap_type": gap.gap_type,
+        "status": gap.status,
+        "priority": priority(gap),
+        "confidence": confidence(gap),
+        "below_floor": confidence(gap) < CONFIDENCE_FLOOR_DEFAULT,
+        "strongest_source": strongest_source(gap),
+        "problem": gap.problem,
+        "symptom": gap.symptom,
+        "why_now": gap.why_now,
+        "existing": list(gap.existing) if gap.existing else [],
+        "build_hypothesis": gap.build_hypothesis or None,
+        "tags": list(gap.tags) if gap.tags else [],
+        "evidence": [
+            {
+                "source_class": ev.source_class,
+                "title": ev.title,
+                "locator": ev.locator,
+                "date": ev.date,
+                "quote": ev.quote,
+                "confidence_without": confidence_without(gap, ev.locator),
+            }
+            for ev in gap.evidence
+        ],
+    }
+    return json_document(payload)
+
+
 def _unknown_layer(layer: str) -> str:
     """The refusal for a `--layer` value outside the closed vocabulary.
 
@@ -499,6 +542,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_show = sub.add_parser("show", help="Full brief for one gap (markdown).")
     p_show.add_argument("gap_id")
     p_show.add_argument("path", nargs="?", default=".")
+    p_show.add_argument("--json", action="store_true",
+                        help="emit the full gap brief as a stable object "
+                             "for a machine consumer")
 
     p_prd = sub.add_parser("prd", help="Emit a build-loop prd.json for one gap.")
     p_prd.add_argument("path", nargs="?", default=".")
@@ -1038,7 +1084,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
         directory = _resolve(args.path)
 
         if args.command == "show":
-            sys.stdout.write(gap_brief(load_one(directory, args.gap_id)))
+            gap = load_one(directory, args.gap_id)
+            sys.stdout.write(_show_json(gap) if args.json
+                             else gap_brief(gap))
             return EXIT_OK
 
         gaps = load_all(directory)
