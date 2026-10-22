@@ -287,10 +287,15 @@ def test_iter296_b4_scan_gap_and_gaps_keep_both_exact_meanings(prechange_src) ->
     new = _radar(*argv)
     old = _radar(*argv, env=_env(prechange_src))
     assert new.returncode == old.returncode, new.stderr
-    # iter-341 added a top-level `layer` key; compare minus that key
-    skip = {"layer"}
-    old_doc = {k: v for k, v in json.loads(old.stdout).items() if k not in skip}
-    new_doc = {k: v for k, v in json.loads(new.stdout).items() if k not in skip}
+    skip_top = {"layer"}
+    skip_finding = {"skipped_files"}
+    def _strip(doc):
+        d = {k: v for k, v in doc.items() if k not in skip_top}
+        d["findings"] = [{k: v for k, v in f.items() if k not in skip_finding}
+                         for f in d["findings"]]
+        return d
+    old_doc = _strip(json.loads(old.stdout))
+    new_doc = _strip(json.loads(new.stdout))
     assert new_doc == old_doc
     payload = json.loads(new.stdout.decode("utf-8"))
     assert payload["records_applied"] == 1

@@ -128,7 +128,7 @@ def test_iter265_b2_location_notes_is_appended_last_and_prior_keys_keep_their_or
     """Additive only: every pre-change key keeps its index; the new key is the tail."""
     for before, now in zip(prechange_scan_json["findings"], self_scan_json["findings"]):
         assert now["gap_id"] == before["gap_id"]
-        assert list(now.keys()) == list(before.keys()) + ["location_notes"], list(now.keys())
+        assert list(now.keys()) == list(before.keys()) + ["location_notes", "skipped_files"], list(now.keys())
 
 
 def test_iter265_b2_every_note_is_one_of_the_three_prose_dialects(self_scan_json) -> None:
@@ -169,7 +169,7 @@ def test_iter265_b3_two_sided_the_prechange_tree_mixed_prose_into_locations(
 
 def test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged(
         self_scan_json, prechange_scan_json) -> None:
-    strip = {"locations", "location_notes"}
+    strip = {"locations", "location_notes", "skipped_files"}
     for before, now in zip(prechange_scan_json["findings"], self_scan_json["findings"]):
         assert {k: v for k, v in before.items() if k not in strip} == \
                {k: v for k, v in now.items() if k not in strip}, before["gap_id"]
@@ -283,7 +283,7 @@ def _assert_all_findings_are_split_cleanly(payload: dict) -> None:
         assert isinstance(f["locations"], list) and isinstance(f["location_notes"], list)
         assert all(LOCATOR.match(x) for x in f["locations"]), (f["gap_id"], f["locations"])
         assert all(_is_note(n) for n in f["location_notes"]), (f["gap_id"], f["location_notes"])
-        assert list(f.keys())[-1] == "location_notes", list(f.keys())
+        assert list(f.keys())[-1] == "skipped_files", list(f.keys())
 
 
 @pytest.fixture()

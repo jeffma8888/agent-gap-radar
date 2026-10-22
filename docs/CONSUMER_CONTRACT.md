@@ -425,7 +425,11 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
 `confidence_floor`, `layer`, `records_applied`, `counts` keyed by verdict, `uncheckable`,
 `findings`, and per finding `gap_id`, `title`, `layer`, `gap_type`, `verdict`,
 `priority`, `confidence`, `below_floor`, `reason`, `question`, `locations`,
-`build_hypothesis`, `status`, `location_notes`. `status` is the record's own
+`build_hypothesis`, `status`, `location_notes`, `skipped_files`. `skipped_files`
+counts files the tool could not decode (oversized, non-UTF-8, or unreadable) during
+the content rule evaluation; a consumer can use it to assess the completeness of an
+`ABSENT` verdict. The integer is always present on every finding (0 when no files
+were skipped), not conditionally omitted. `status` is the record's own
 stored value, passed through unchanged, so the traceability clause's
 citable-status test is answerable payload instead of requiring a second read of
 the register; publishing it selects nothing, and a below-floor or non-`open`

@@ -195,11 +195,18 @@ def test_b4_scan_no_layer_json_identical(base_src):
     assert not here_file.startswith(str(base_src)), here_file
     assert here_rc == 0
 
-    skip = {"layer"}
-    base_doc = {k: v for k, v in _json.loads(base_out).items() if k not in skip}
-    here_doc = {k: v for k, v in _json.loads(here_out).items() if k not in skip}
+    skip_top = {"layer"}
+    skip_finding = {"skipped_files"}
+    def _strip(doc):
+        d = {k: v for k, v in doc.items() if k not in skip_top}
+        d["findings"] = [{k: v for k, v in f.items() if k not in skip_finding}
+                         for f in d["findings"]]
+        return d
+    base_doc = _strip(_json.loads(base_out))
+    here_doc = _strip(_json.loads(here_out))
     assert here_doc == base_doc, (
-        f"`radar scan --json` changed against {PRECHANGE_COMMIT} beyond the `layer` key")
+        f"`radar scan --json` changed against {PRECHANGE_COMMIT} beyond the "
+        f"`layer`/`skipped_files` keys")
 
 
 # ---------------------------------------------------------------------------

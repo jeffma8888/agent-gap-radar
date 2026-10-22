@@ -460,6 +460,7 @@ def _finding_json(finding: Finding, confidence_floor: int) -> dict[str, object]:
         # because a cut remainder or an absence with no matched line is part of
         # the evidence and hiding it would overstate what the search covered.
         "location_notes": notes,
+        "skipped_files": finding.outcome.skipped_files,
     }
 
 

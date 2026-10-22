@@ -103,6 +103,11 @@ class RuleHit:
     #: `run_check`. It is deliberately the domain TOTAL rather than a boolean:
     #: a reader deciding whether to widen the cap needs the size it was cut to.
     truncated_files: int = 0
+    #: Files `_decode` returned None for during a content rule evaluation:
+    #: oversized, non-UTF-8, or unreadable. A non-zero count means the search
+    #: skipped bytes it never examined, and the consumer can use it to assess
+    #: whether an ABSENT verdict rests on a complete search.
+    skipped_files: int = 0
 
     def __bool__(self) -> bool:
         return self.matched
@@ -114,6 +119,7 @@ class CheckOutcome:
     locations: list[str] = field(default_factory=list)
     question: str = ""
     reason: str = ""
+    skipped_files: int = 0
 
 
 _TRACKED_CACHE: dict[pathlib.Path, frozenset[pathlib.Path] | None] = {}
@@ -810,16 +816,18 @@ def evaluate(rule: dict, target: pathlib.Path,
         # this would let a capped sub-rule launder its incompleteness into a
         # clean-looking composite answer, which is the same fail-open one level up.
         truncated = 0
+        skipped = 0
         for sub in rule.get("rules", []):
             # `boolean_only` forwarded, never invented: this combinator hands its
             # sub-rules' locations straight up, so it discards them exactly when
             # its own caller does.
             hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             truncated = max(truncated, hit.truncated_files)
+            skipped = max(skipped, hit.skipped_files)
             if hit.matched:
                 matched = True
                 locations.extend(hit.locations)
-        return RuleHit(matched, locations, truncated)
+        return RuleHit(matched, locations, truncated, skipped)
 
     if kind == "all_of":
         subs = rule.get("rules", [])
@@ -827,16 +835,18 @@ def evaluate(rule: dict, target: pathlib.Path,
             raise ValueError("all_of with no sub-rules is vacuously true; forbidden")
         locations = []
         truncated = 0
+        skipped = 0
         for sub in subs:
             hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             # Accumulated BEFORE the short circuit: the sub-rule that failed was
             # evaluated, so if the cap cut its domain the composite `False` rests
             # on an incomplete search and must say so.
             truncated = max(truncated, hit.truncated_files)
+            skipped = max(skipped, hit.skipped_files)
             if not hit.matched:
-                return RuleHit(False, [], truncated)
+                return RuleHit(False, [], truncated, skipped)
             locations.extend(hit.locations)
-        return RuleHit(True, locations, truncated)
+        return RuleHit(True, locations, truncated, skipped)
 
     if kind == "not":
         inner = rule.get("rule")
@@ -848,7 +858,8 @@ def evaluate(rule: dict, target: pathlib.Path,
         hit = evaluate(inner, target, exclude_tests, boolean_only=True)
         # Negation flips the BOOLEAN, never the completeness: a search that read
         # part of its domain is equally partial whichever way its answer is read.
-        return RuleHit(not hit.matched, [], hit.truncated_files)
+        return RuleHit(not hit.matched, [], hit.truncated_files,
+                       hit.skipped_files)
 
     if kind in ("file_exists", "file_absent"):
         files = iter_files(target, rule["globs"], exclude_tests)
@@ -931,9 +942,11 @@ def evaluate(rule: dict, target: pathlib.Path,
         # this loop is the exact cost term the flag exists to reduce, so paying for
         # the test per file would spend part of the saving on computing it.
         stop_at_first_hit = kind == "content_absent" or boolean_only
+        skipped = 0
         for path in files[:MAX_SCAN_FILES]:
             text = _read(path)
             if text is None:
+                skipped += 1
                 continue
             # Read once per file and reused by the fast-path gate below: it is the
             # ONE fact that makes the unfolded DNF sound for this text.
@@ -1042,10 +1055,11 @@ def evaluate(rule: dict, target: pathlib.Path,
                 break
         found = bool(code_hits or test_hits)
         if kind == "content_matches":
-            return RuleHit(found, _rank_locations(code_hits, test_hits), truncated)
+            return RuleHit(found, _rank_locations(code_hits, test_hits), truncated,
+                           skipped)
         return RuleHit(not found,
                        [_scope_note(rule["globs"], rule["pattern"])] if not found else [],
-                       truncated)
+                       truncated, skipped)
 
     raise ValueError(f"unknown rule kind: {kind!r}")
 
@@ -1153,17 +1167,21 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     except ValueError as exc:
         return CheckOutcome(Verdict.UNKNOWN, reason=str(exc))
 
+    skipped = max(present.skipped_files, mitigated.skipped_files)
+
     if present.matched and mitigated.matched:
         return CheckOutcome(
             Verdict.MANUAL, locations=present.locations + mitigated.locations,
             question=question or
             "Both the gap signature and a mitigation were found. Confirm the "
             "mitigation actually covers the code path where the signature appears.",
-            reason="ambiguous: both signatures present")
+            reason="ambiguous: both signatures present",
+            skipped_files=skipped)
 
     if present.matched:
         return CheckOutcome(Verdict.PRESENT, locations=present.locations,
-                            reason="gap signature found")
+                            reason="gap signature found",
+                            skipped_files=skipped)
 
     if mitigated.matched:
         if present.truncated_files:
@@ -1179,16 +1197,19 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
                 reason=("present_when read only the first "
                         f"{MAX_SCAN_FILES} of {present.truncated_files} files "
                         "(MAX_SCAN_FILES), so its non-match cannot support "
-                        "ABSENT over the unread remainder"))
+                        "ABSENT over the unread remainder"),
+                skipped_files=skipped)
         return CheckOutcome(Verdict.ABSENT, locations=mitigated.locations,
-                            reason="mitigation positively identified")
+                            reason="mitigation positively identified",
+                            skipped_files=skipped)
 
     # Nothing found either way. This is NOT absence of the gap.
     return CheckOutcome(
         Verdict.MANUAL, question=question or
         "Neither the gap signature nor a mitigation was detected. Absence of a "
         "pattern is not evidence of safety - confirm by hand.",
-        reason="no signature and no mitigation detected")
+        reason="no signature and no mitigation detected",
+        skipped_files=skipped)
 
 
 # --- Required-literal extraction ---------------------------------------------

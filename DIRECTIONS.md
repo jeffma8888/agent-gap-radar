@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-342
+    lenses: unknown
+    - Candidate A1 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate A2 — `report --json`: the register document as a machine-readable object
+    - Candidate A3 — `validate --json`: machine-readable validation output for CI consumers
+    - Candidate B1 -- Row 114: the product decision on `ABSENT` over unread bytes
+    - Candidate B2 -- Row 89: `verify_mutations.py` counts any non-zero exit as CAUGHT
+    - Candidate B3 -- Five positional arguments across four verbs have no `help=` text
+    winner: B1
+    ship: pending (not yet decided)
   iter-341
     lenses: unknown
     - Candidate B1 — README:123 stale "ten records spanning six" claim replaced with derivation sentence plus drift brake
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
     - Candidate B3 — `report --json`: the register document as a machine-readable object
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED b058e8d
   iter-337
     lenses: unknown
     - Candidate A1 — Five CLI arguments have no `help=` text and no brake prevents more
@@ -1550,4 +1560,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-155 scouted iterations
+156 scouted iterations

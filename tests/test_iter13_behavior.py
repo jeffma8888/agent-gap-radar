@@ -56,7 +56,7 @@ TOP_KEYS = ["target", "target_name", "confidence_floor", "layer", "records_appli
 #: and its index; only its prose tails moved to the new last key.
 FINDING_KEYS = ["gap_id", "title", "layer", "gap_type", "verdict", "priority",
                 "confidence", "below_floor", "reason", "question", "locations",
-                "build_hypothesis", "status", "location_notes"]
+                "build_hypothesis", "status", "location_notes", "skipped_files"]
 
 #: Below the floor with real evidence: one `secondary-summary` citation scores 1.
 WEAK = _record("GAP-500", 5, 3, 5, classes=("secondary-summary",), check_id="CHK-500")

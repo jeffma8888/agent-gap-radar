@@ -101,7 +101,7 @@ FROZEN_TREE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
     ("scan", ".", "--gaps", "gaps"):
         (25116, "7dc7c366b3575024ca75a37db24547b9b985128457e3b91f42a3517fdd38a966"),
     ("scan", ".", "--gaps", "gaps", "--json"):
-        (146840, "fe3455fe548dbe98e17af35c1160b07cd67623cca21afc1d2f355e7565cda50b"),
+        (149934, "b76f2fe688e922e2de4b53b1bc0bfa4fb886a28727d60872f2b08dd58e3398ba"),
 }
 
 PY = "**/*.py"

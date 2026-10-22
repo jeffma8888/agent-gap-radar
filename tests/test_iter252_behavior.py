@@ -88,7 +88,7 @@ PREFIX = "applies_when did not match: "
 FINDING_KEYS = frozenset({
     "gap_id", "title", "layer", "gap_type", "verdict", "priority", "confidence",
     "below_floor", "reason", "question", "locations", "build_hypothesis", "status",
-    "location_notes",
+    "location_notes", "skipped_files",
 })
 
 #: The `scan --json` DOCUMENT's own top-level keys, measured on HEAD's implementation
@@ -438,7 +438,7 @@ def test_b2_the_prechange_implementation_agrees_on_every_finding_but_the_reason(
     for gap_id, before in PRECHANGE_FIXTURE_FINDINGS.items():
         after = got[gap_id]
         for key in sorted(FINDING_KEYS):
-            if key == "reason":
+            if key == "reason" or key not in before:
                 continue
             assert after[key] == before[key], (
                 f"{gap_id}.{key} moved: pre-change {before[key]!r}, now {after[key]!r}")
