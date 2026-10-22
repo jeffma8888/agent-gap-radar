@@ -88,6 +88,10 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
+
 #: One character of an account, host or volume name. Requiring at least one of these AFTER a
 #: marker is what lets this module scan itself: every marker below is held once as a bare string
 #: literal ending in a closing quote, which is not a member of this class, and the patterns
@@ -368,7 +372,13 @@ def main(
     would capture this module's function forever and silently ignore any later substitution --
     a failure that reads as a broken repository rather than as an unusable seam.
     """
-    root = pathlib.Path(argv[1] if len(argv) > 1 else ".")
+    parser = PublishedErrorParser(
+        prog="check_public_safety",
+        description="Refuse to ship a public-repo leak, over every shippable file.",
+    )
+    parser.add_argument("repo_root", nargs="?", default=".")
+    parsed = parser.parse_args(argv[1:])
+    root = pathlib.Path(parsed.repo_root)
     if not root.is_dir():
         sys.stderr.write(f"Error: not a directory: {root}\n")
         return 2

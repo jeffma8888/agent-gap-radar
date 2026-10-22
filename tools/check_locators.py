@@ -18,6 +18,7 @@ Exit codes: 0 every CHECKED locator resolves, 1 at least one does not, 2 bad usa
 
 from __future__ import annotations
 
+import argparse
 import collections
 import json
 import pathlib
@@ -25,6 +26,24 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
+from typing import NoReturn
+
+
+class _ErrorParser(argparse.ArgumentParser):
+    """Argparse subclass that speaks the repo's `Error: ` vocabulary on refusal.
+
+    Mirrors `cli.PublishedErrorParser` without importing the package, so the tool
+    stays stdlib-pure -- a committed test enforces that contract.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("allow_abbrev", False)  # type: ignore[arg-type]
+        super().__init__(*args, **kwargs)
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        sys.stderr.write(f"Error: {message}\n")
+        raise SystemExit(2)
 
 TIMEOUT_S = 45
 
@@ -104,7 +123,13 @@ def main(argv: list[str], check_fn: _CheckFn | None = None) -> int:
     would capture this module's `check` forever and silently ignore any later substitution
     of it. That failure reads as a dead network rather than as an unusable seam.
     """
-    gaps_dir = pathlib.Path(argv[1] if len(argv) > 1 else "gaps")
+    parser = _ErrorParser(
+        prog="check_locators",
+        description="Verify every evidence locator in the register still resolves.",
+    )
+    parser.add_argument("gaps_dir", nargs="?", default="gaps")
+    parsed = parser.parse_args(argv[1:])
+    gaps_dir = pathlib.Path(parsed.gaps_dir)
     if not gaps_dir.is_dir():
         sys.stderr.write(f"Error: not a directory: {gaps_dir}\n")
         return 2

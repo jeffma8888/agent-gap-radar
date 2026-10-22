@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-343
+    lenses: unknown
+    - Candidate A1 — Four `tools/*.py` scripts treat `--help` as a filesystem path and exit 2
+    - Candidate A2 — Bidirectional tool inventory: 2 of 9 tools missing from `test_iter206_behavior.py`
+    - Candidate A3 — Five CLI `add_argument` calls carry no `help=` text, and no brake prevents more
+    - Candidate B1 — `show --json`: machine-readable brief for one gap record
+    - Candidate B2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B3 — `validate --json`: machine-readable validation output for CI consumers
+    winner: A1
+    ship: pending (not yet decided)
   iter-342
     lenses: unknown
     - Candidate A1 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Row 89: `verify_mutations.py` counts any non-zero exit as CAUGHT
     - Candidate B3 -- Five positional arguments across four verbs have no `help=` text
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 74e0219
   iter-341
     lenses: unknown
     - Candidate B1 — README:123 stale "ten records spanning six" claim replaced with derivation sentence plus drift brake
@@ -1560,4 +1570,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-156 scouted iterations
+157 scouted iterations

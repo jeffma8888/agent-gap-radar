@@ -303,3 +303,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 326 deletion: remove test-only `layer_names()` and `gap_type_names()` from `taxonomy.py`; 21 test refs inlined
 - iter 341 new-capability: `scan --layer L` narrows the scan domain to one taxonomy layer; reuses `_select_layer`; JSON gains `layer` key
 - iter 342 hardening: row 114 count-and-disclose — `skipped_files` surfaces `_decode`-skipped file count in scan --json
+- iter 343 DX: argparse in 4 hand-parsed tool scripts so `--help` exits 0 with usage instead of exit 2

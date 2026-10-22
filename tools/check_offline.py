@@ -53,10 +53,28 @@ be read or parsed -- an unread file is not a cleared file.
 
 from __future__ import annotations
 
+import argparse
 import ast
 import pathlib
 import sys
-from typing import NamedTuple
+from typing import NamedTuple, NoReturn
+
+
+class _ErrorParser(argparse.ArgumentParser):
+    """Argparse subclass that speaks the repo's `Error: ` vocabulary on refusal.
+
+    Mirrors `cli.PublishedErrorParser` without importing the package, so the tool
+    stays stdlib-pure -- a committed test enforces that contract.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("allow_abbrev", False)  # type: ignore[arg-type]
+        super().__init__(*args, **kwargs)
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        sys.stderr.write(f"Error: {message}\n")
+        raise SystemExit(2)
 
 #: Every module root that reaches the network, as the UNION of the roots this repo's five
 #: existing hand-copied vocabularies already name, sorted. Every element is a bare root with
@@ -221,7 +239,13 @@ def main(argv: list[str]) -> int:
     carries only the document. Exit 2 also covers a domain file that cannot be read or
     parsed, which is fail-CLOSED on the one case a checker must never call clean.
     """
-    repo = pathlib.Path(argv[1]) if len(argv) > 1 else default_repo()
+    parser = _ErrorParser(
+        prog="check_offline",
+        description="Refuse a network import in the tool or its maintainer scripts.",
+    )
+    parser.add_argument("repo_root", nargs="?", default=None)
+    args = parser.parse_args(argv[1:])
+    repo = pathlib.Path(args.repo_root) if args.repo_root is not None else default_repo()
     if not repo.is_dir():
         sys.stderr.write(f"Error: not a directory: {repo}\n")
         return 2

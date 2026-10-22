@@ -51,6 +51,10 @@ import sys
 from collections.abc import Sequence
 from typing import NamedTuple
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+from agent_gap_radar.cli import PublishedErrorParser  # noqa: E402
+
 #: The only two status values a roadmap row may carry. There is deliberately no third:
 #: the retired `iter NN` value was ambiguous, and an ambiguous state cannot be checked.
 ALLOWED_STATUSES: tuple[str, ...] = ("open", "shipped")
@@ -450,7 +454,13 @@ def archive_findings(archive_text: str | None) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    roadmap = pathlib.Path(argv[1]) if len(argv) > 1 else default_roadmap()
+    parser = PublishedErrorParser(
+        prog="roadmap_integrity",
+        description="Roadmap-ledger integrity checks over PRODUCT.md.",
+    )
+    parser.add_argument("roadmap", nargs="?", default=None)
+    parsed = parser.parse_args(argv[1:])
+    roadmap = pathlib.Path(parsed.roadmap) if parsed.roadmap is not None else default_roadmap()
     if not roadmap.is_file():
         sys.stderr.write(f"Error: not a file: {roadmap}\n")
         return 2
