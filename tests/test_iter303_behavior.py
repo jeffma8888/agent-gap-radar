@@ -209,13 +209,13 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
     before = _literal_assignments(_read(head_tests / "test_iter111_behavior.py"),
                                   {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"})
     assert set(before) == {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"}, sorted(before)
-    changed_surface = {"report"}
+    changed_surface = {"report", "scan"}
     for verb in before["EXPECTED_SURFACE"]:
         if verb not in changed_surface:
             assert EXPECTED_SURFACE[verb] == before["EXPECTED_SURFACE"][verb], (
                 f"EXPECTED_SURFACE[{verb!r}] moved with a change; "
                 "it must be the pre-change literal verbatim")
-    changed_arguments = {"report"}
+    changed_arguments = {"report", "scan"}
     for verb in before["EXPECTED_ARGUMENTS"]:
         if verb not in changed_arguments:
             assert EXPECTED_ARGUMENTS[verb] == before["EXPECTED_ARGUMENTS"][verb], (
@@ -245,7 +245,7 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
 
 def test_b2_long_flags_and_verbs_without_are_read_off_the_inventory():
     assert long_flags("scan") == ["--baseline", "--exit-code", "--floor", "--gap", "--gaps",
-                                  "--json", "--prd"], long_flags("scan")
+                                  "--json", "--layer", "--prd"], long_flags("scan")
     assert long_flags("taxonomy") == ["--json"], long_flags("taxonomy")
     assert long_flags("show") == [], long_flags("show")
     with pytest.raises(KeyError):
@@ -390,7 +390,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter324_new = {"test_iter324_behavior.py"}
     iter325_new = {"test_iter325_behavior.py"}
     iter326_new = {"test_iter326_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new, sorted(set(now) ^ set(before))
+    iter341_new = {"test_iter341_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

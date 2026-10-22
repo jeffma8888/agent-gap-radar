@@ -151,6 +151,7 @@ def test_b3_scan_happy_path_byte_identical(base_src):
 
 
 def test_b3_scan_json_happy_path_byte_identical(base_src):
+    import json as _json
     verb = ("scan", str(REPO), "--gaps", str(GAPS), "--json")
     base_rc, base_out, base_file = _arm(base_src, *verb)
     assert base_file.startswith(str(base_src))
@@ -160,14 +161,12 @@ def test_b3_scan_json_happy_path_byte_identical(base_src):
     assert not here_file.startswith(str(base_src)), here_file
     assert here_rc == 0
 
-    if here_out != base_out:
-        base_lines = base_out.decode("utf-8", "replace").splitlines()
-        here_lines = here_out.decode("utf-8", "replace").splitlines()
-        diffs = [(i, b, h) for i, (b, h) in enumerate(zip(base_lines, here_lines)) if b != h]
-        snippet = diffs[:5] if diffs else f"len {len(base_out)} vs {len(here_out)}"
-        assert here_out == base_out, (
-            f"`radar scan --json` changed against {PRECHANGE_COMMIT}; "
-            f"first diffs: {snippet}")
+    # iter-341 added a top-level `layer` key; exclude it from the comparison
+    skip = {"layer"}
+    base_doc = {k: v for k, v in _json.loads(base_out).items() if k not in skip}
+    here_doc = {k: v for k, v in _json.loads(here_out).items() if k not in skip}
+    assert here_doc == base_doc, (
+        f"`radar scan --json` changed against {PRECHANGE_COMMIT} beyond the `layer` key")
 
 
 # ---------------------------------------------------------------------------

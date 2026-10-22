@@ -58,8 +58,8 @@ ROADMAP = REPO_ROOT / "PRODUCT.md"
 
 #: Behavior 6, re-spelled independently of the module that already pins it. See the
 #: docstring: importing the older constant alone cannot detect that constant being edited.
-EXPECTED_TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
-                     "counts", "uncheckable", "findings"]
+EXPECTED_TOP_KEYS = ["target", "target_name", "confidence_floor", "layer",
+                     "records_applied", "counts", "uncheckable", "findings"]
 
 #: Two records that both clear the default confidence floor and both fire on the
 #: `_target` fixture tree, so every document under test carries real findings.

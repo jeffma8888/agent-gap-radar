@@ -54,7 +54,7 @@ TABLE_HEADER = "| Verdict | Count | Meaning |"
 VACUITY_LINE = "**No records were applied, so this scan verdicted nothing.** An all-zero census is vacuous here, not a clean target: check the register path."
 
 #: Spec behavior 4: the ORDER is the contract, not merely the key set.
-TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
+TOP_KEYS = ["target", "target_name", "confidence_floor", "layer", "records_applied",
             "counts", "uncheckable", "findings"]
 
 #: Three records that carry a check (they become findings) and two that do not (they

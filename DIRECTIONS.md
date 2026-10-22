@@ -1,6 +1,53 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-341
+    lenses: unknown
+    - Candidate B1 — README:123 stale "ten records spanning six" claim replaced with derivation sentence plus drift brake
+    - Candidate B2 — Five `tools/*.py` scripts absent from any hand-maintained `.md` file
+    - Candidate B3 — `scan --prd` and `scan --exit-code --baseline` are documented in quickstart but not in the "Scanning a real target" prose section
+    - Candidate B1 — `scan --layer L`: narrow the scan domain to one layer of the closed taxonomy
+    - Candidate B2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B3 — `report --json`: the register document as a machine-readable object
+    winner: B1
+    ship: pending (not yet decided)
+  iter-337
+    lenses: unknown
+    - Candidate A1 — Five CLI arguments have no `help=` text and no brake prevents more
+    - Candidate A2 — Four `tools/*.py` scripts treat `--help` as a filesystem path and refuse with exit 2
+    - Candidate A3 — `test_iter206_behavior.py`'s tool inventory covers 7 of 9 tools, and the completeness test is one-directional
+    - Candidate B1 — `show --json`: the machine-readable brief for one gap record
+    - Candidate B2 — `scan --answers <file>`: a return channel for the 29 MANUAL findings every self-scan produces
+    - Candidate B3 — `test_iter206_behavior.py` tool inventory is one-directional: 7 of 9 tools covered, and drift is undetectable
+    winner: B1
+    ship: unknown
+  iter-335
+    lenses: narrative-and-docs, new-capability
+    - Candidate B1 — README stale record/layer counts
+    - Candidate B2 — Five CLI arguments have no `help=` text
+    - Candidate B3 — Tool scripts absent from contributor-facing docs
+    - Candidate B1 — `show --json`: the machine-readable brief for one gap record
+    - Candidate B2 — `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B3 — `list --gap-type T`: filter the listing by gap type
+    winner: B1
+    ship: unknown
+  iter-334
+    lenses: unknown
+    - Candidate A1 — Cache `required_literal_sets` and `_required_literal_sets_ascii` per pattern string
+    - Candidate A2 — Pre-compile regex patterns once per register load and reuse via a module-level cache dict
+    - Candidate A3 — Sort literal-set conjunctions by descending literal length for earlier `all()` short-circuit
+    winner: absent (no pm.md)
+    ship: unknown
+  iter-327
+    lenses: unknown
+    - Candidate B1 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
+    - Candidate B2 — Replace `radar_report`'s hard-coded `= 2` default with `CONFIDENCE_FLOOR_DEFAULT`
+    - Candidate B3 — Collapse `_scope_note`'s inline glob formatting into a call to `_render_scope`
+    - Candidate B1 — Pre-compile the `_FOLD_UNSAFE` split pattern in `_leading_literal_run`
+    - Candidate B2 — Cache compiled regexes in `evaluate` across rules sharing the same pattern string
+    - Candidate B3 — Sort literal-set conjunctions by descending length so the prefilter short-circuits earlier
+    winner: B2
+    ship: unknown
   iter-326
     lenses: unknown
     - Candidate A1 — `radar show --json`: the machine-readable brief for one gap record
@@ -10,7 +57,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii` into a private helper
     - Candidate B3 — README:123 stale "seeded with ten records spanning ... six layers" claim replaced with a derivation sentence
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 8bffe14
   iter-325
     lenses: unknown
     - Candidate B1 -- Five `add_argument` calls across five verbs carry no `help=` text, and no brake prevents more
@@ -1503,4 +1550,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-150 scouted iterations
+155 scouted iterations

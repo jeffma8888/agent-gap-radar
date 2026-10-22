@@ -489,10 +489,9 @@ def test_b10_list_help_lists_the_new_option(capsys):
 
 
 def test_b10_the_option_is_on_the_list_subparser_only(capsys):
-    """Out of Scope: `scan`, `show` and `prd` do not gain `--layer`."""
+    """Out of Scope: `show` and `prd` do not gain `--layer`."""
     layer = LAYER_NAMES[0]
-    for argv in (["scan", "--layer", layer, str(REPO_ROOT)],
-                 ["show", "GAP-003", "--layer", layer, str(REPO_ROOT)],
+    for argv in (["show", "GAP-003", "--layer", layer, str(REPO_ROOT)],
                  ["prd", "--layer", layer, str(REPO_ROOT)]):
         with pytest.raises(SystemExit) as exc:
             main(argv)

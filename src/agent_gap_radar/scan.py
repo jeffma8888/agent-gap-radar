@@ -477,7 +477,8 @@ def _split_locations(entries: list[str]) -> tuple[list[str], list[str]]:
 
 
 def scan_json(result: ScanResult,
-              confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT) -> str:
+              confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT,
+              layer: str | None = None) -> str:
     """A stable object for machine consumers (a CI gate, a build loop).
 
     Separate from the markdown brief on purpose: a gate that regex-scrapes prose
@@ -508,6 +509,7 @@ def scan_json(result: ScanResult,
         "target": result.displayed_target,
         "target_name": result.target.name,
         "confidence_floor": confidence_floor,
+        "layer": layer,
         "records_applied": result.records_applied,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],

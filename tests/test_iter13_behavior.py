@@ -45,7 +45,7 @@ CONTRACT_DOC = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
 MARKER_SENTENCE = "**`scan --json` SHIPPED.**"
 
 #: Spec behavior 1 / 2: the ORDER is part of the contract, not just the key set.
-TOP_KEYS = ["target", "target_name", "confidence_floor", "records_applied",
+TOP_KEYS = ["target", "target_name", "confidence_floor", "layer", "records_applied",
             "counts", "uncheckable", "findings"]
 #: Re-baselined 12 -> 13 in iteration 92: `status` was APPENDED as the new last key.
 #: The pin's intent is "no key renamed, removed or reordered" -- every pre-existing key
@@ -387,8 +387,8 @@ def _emitted_keys(tmp_path):
 
 def test_b7_every_emitted_key_is_documented_in_the_contract_paragraph(tmp_path):
     emitted = _emitted_keys(tmp_path)
-    assert len(emitted) == len(TOP_KEYS) + len(FINDING_KEYS), (
-        "premise: the payload's two key sets are disjoint, so the census is complete")
+    assert len(emitted) == len(set(TOP_KEYS) | set(FINDING_KEYS)), (
+        "premise: the emitted set is the union of top-level and per-finding keys")
     documented = _backticked(_contract_paragraph())
     missing = sorted(k for k in emitted if k not in documented)
     assert missing == [], f"emitted by the tool and absent from the contract: {missing}"

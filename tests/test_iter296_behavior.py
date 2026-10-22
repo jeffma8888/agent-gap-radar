@@ -251,7 +251,7 @@ CONTROL_CASES = (
     ("report", ".", "--floor", "2"),
     ("prd", ".", "--gap", "GAP-003", "--floor", "2", "--project", "agent-gap-radar"),
     ("prd", ".", "--gap", "GAP-003", "--with-fixtures"),
-    ("scan", ".", "--gaps", "gaps", "--json"),
+    # scan --json excluded: iter-341 added a top-level `layer` key
     ("scan", ".", "--gaps", "gaps", "--floor", "2"),
     ("diff", "gaps", "gaps", "--json"),
     # verbs with NO long flags: the change must not have touched their documents either
@@ -287,7 +287,11 @@ def test_iter296_b4_scan_gap_and_gaps_keep_both_exact_meanings(prechange_src) ->
     new = _radar(*argv)
     old = _radar(*argv, env=_env(prechange_src))
     assert new.returncode == old.returncode, new.stderr
-    assert new.stdout == old.stdout
+    # iter-341 added a top-level `layer` key; compare minus that key
+    skip = {"layer"}
+    old_doc = {k: v for k, v in json.loads(old.stdout).items() if k not in skip}
+    new_doc = {k: v for k, v in json.loads(new.stdout).items() if k not in skip}
+    assert new_doc == old_doc
     payload = json.loads(new.stdout.decode("utf-8"))
     assert payload["records_applied"] == 1
 

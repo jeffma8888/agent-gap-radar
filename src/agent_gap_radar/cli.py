@@ -531,6 +531,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_scan.add_argument("target", help="path to the repository/service to inspect")
     p_scan.add_argument("--gaps", default=".",
                         help="register location (default: current dir)")
+    p_scan.add_argument("--layer", default=None, metavar="L",
+                        help="layer to narrow the scanned register to; one "
+                             "value from the closed taxonomy that `radar "
+                             "taxonomy` publishes")
     # `--gap` (a record SELECTION) next to `--gaps` (the register LOCATION) is a
     # one-character difference, and until iteration 120 `--gap` was a legal
     # ABBREVIATION of `--gaps`: `radar scan . --gap ./` returned a full-register
@@ -866,6 +870,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return _fail("--baseline requires --exit-code: a baseline only changes "
                          "the verdict, and without --exit-code there is no verdict "
                          "to change")
+        if args.layer is not None and args.layer not in LAYERS:
+            return _fail(_unknown_layer(args.layer))
         try:
             # `_resolve` is INSIDE the guard because it, too, can refuse in this
             # vocabulary: an unreadable argument makes the nested-`gaps/` probe
@@ -876,7 +882,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
             # is a `RegistryError` for exactly that reason. Narrowing here, before
             # `scan()`, is what keeps the domain -- not the answers -- the thing that
             # `--gap` changes.
-            gaps = _select_gap(load_all(directory), args.gap_id)
+            gaps = _select_layer(
+                _select_gap(load_all(directory), args.gap_id), args.layer)
         except RegistryError as exc:
             return _fail(str(exc))
         try:
@@ -974,7 +981,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
             new_ids = new_since_baseline(result, floor, baseline.present)
             verdict = bool(new_ids)
             baseline_line = render_baseline_line(baseline, new_ids)
-        sys.stdout.write(scan_json(result, floor) if args.json
+        sys.stdout.write(scan_json(result, floor, args.layer) if args.json
                          else render_scan(result, baseline_line))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 

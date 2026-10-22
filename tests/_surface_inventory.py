@@ -49,7 +49,7 @@ EXPECTED_SURFACE = {
     # Iteration 299 added `--baseline`, the prior-scan document `--exit-code` gates
     # against; it takes a value and defaults to None, like `--gap`.
     "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
-              "--prd"], 1, ["target"], ["target"]),
+              "--layer", "--prd"], 1, ["target"], ["target"]),
     "show": ([], 2, ["gap_id"], ["gap_id", "path"]),
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
@@ -99,6 +99,8 @@ EXPECTED_ARGUMENTS = {
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("target", [], True, None, None),
         ("gaps", ["--gaps"], False, ".", None),
+        # Iteration 341: layer filter, same dest and spelling as `list`/`report`.
+        ("layer", ["--layer"], False, None, None),
         # Iteration 120: the per-record domain. Same dest and same flag spelling as
         # `prd`'s row above, which is the point -- one name for one concept.
         ("gap_id", ["--gap"], False, None, None),

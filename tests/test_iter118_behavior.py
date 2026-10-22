@@ -186,10 +186,11 @@ def test_b2_documented_equals_emitted_over_the_committed_document(text, emitted)
 def test_b2_the_emitted_census_is_twenty_keys(emitted, payload):
     top = set(payload.keys())
     per_finding = set(payload["findings"][0].keys())
-    assert top.isdisjoint(per_finding), (
-        "premise: the two key sets are disjoint, so the union is a complete census")
+    shared = top & per_finding
+    assert len(shared) == 1, (
+        f"premise: exactly one key is shared between top-level and per-finding; got {shared}")
     assert len(emitted) == EXPECTED_KEY_COUNT
-    assert len(top) + len(per_finding) == EXPECTED_KEY_COUNT
+    assert len(top | per_finding) == EXPECTED_KEY_COUNT
 
 
 def test_b2_documented_keys_is_exactly_the_sentence_scoped_token_set(text):
@@ -581,17 +582,27 @@ def test_b2_the_documented_list_also_equals_a_below_floor_payloads_keys(
     assert len(emitted_now) == EXPECTED_KEY_COUNT
 
 
-def test_b2_the_sentence_lists_each_key_exactly_once(text, emitted):
+def test_b2_the_sentence_lists_each_key_exactly_once(text, emitted, payload):
     """`documented` is a SET, so a key the document names twice is invisible to
     behaviors 2, 3, 4 and 5 alike -- equality still holds over a list that has grown a
-    duplicate. Counted here as runs, not as a set."""
+    duplicate. Counted here as runs, not as a set.
+
+    iter-341: `layer` is both a top-level key and a per-finding key, so it appears twice
+    in the enumeration sentence -- once per group. The sentence's distinct run count
+    must equal the emitted key set size; any duplicate beyond the keys shared between
+    top-level and per-finding is rejected.
+    """
     sentence = enumeration_sentence(text)
     runs = re.findall(r"`([^`\n]+)`", sentence)
+    top = set(payload.keys())
+    per_finding = set(payload["findings"][0].keys())
+    shared = top & per_finding
     duplicated = sorted({run for run in runs if runs.count(run) > 1})
-    assert duplicated == [], (
-        f"the enumeration sentence names key(s) more than once: {duplicated}")
-    assert len(runs) == len(emitted) == EXPECTED_KEY_COUNT, (
-        f"the sentence holds {len(runs)} backticked runs for {len(emitted)} keys")
+    unexpected = sorted(set(duplicated) - shared)
+    assert unexpected == [], (
+        f"the enumeration sentence names key(s) more than once: {unexpected}")
+    assert len(set(runs)) == len(emitted) == EXPECTED_KEY_COUNT, (
+        f"the sentence holds {len(set(runs))} distinct runs for {len(emitted)} keys")
 
 
 # --- Behaviors 3 and 4: every armed mutation produces exactly ONE defect, so

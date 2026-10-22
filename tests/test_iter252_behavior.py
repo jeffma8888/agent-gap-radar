@@ -95,8 +95,8 @@ FINDING_KEYS = frozenset({
 #: (`git archive HEAD src`, same argv, subprocess proved to load the archived
 #: `__init__.py`).  Behavior 2 forbids a new key; a renderer that published its render
 #: as a sibling document key rather than inside `reason` would show up here.
-DOC_KEYS = ["confidence_floor", "counts", "findings", "records_applied", "target",
-            "target_name", "uncheckable"]
+DOC_KEYS = ["confidence_floor", "counts", "findings", "layer", "records_applied",
+            "target", "target_name", "uncheckable"]
 
 #: Every `reason` sentence HEAD attaches to the verdicts this iteration must NOT touch.
 #: MEASURED, not enumerated from memory: `git archive HEAD src` materialised HEAD's

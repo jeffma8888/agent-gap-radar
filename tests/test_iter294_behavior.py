@@ -491,7 +491,7 @@ def test_iter294_b8_the_control_arm_is_really_the_pre_change_build(prechange_src
 CONTROL_CASES = (
     ("list", "."),
     ("report", "."),
-    ("scan", ".", "--gaps", ".", "--json"),
+    # scan --json excluded: iter-341 added a top-level `layer` key
     ("show", "GAP-001", "."),
     ("validate", "."),
     ("prd", "."),
