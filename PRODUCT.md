@@ -305,3 +305,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 342 hardening: row 114 count-and-disclose — `skipped_files` surfaces `_decode`-skipped file count in scan --json
 - iter 343 DX: argparse in 4 hand-parsed tool scripts so `--help` exits 0 with usage instead of exit 2
 - iter 344 new-capability: `show --json` emits the full gap brief as a stable JSON object; last verb without `--json`
+- iter 345 perf: cache `re.compile` per `(pattern, flags)` in a module-level dict; 835 calls to 297 unique; 0 rendered bytes change

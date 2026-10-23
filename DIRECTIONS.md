@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-345
+    lenses: unknown
+    - Candidate B1 — Collapse `_scope_note`'s inline glob formatting into a call to `_render_scope`
+    - Candidate B2 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii`
+    - Candidate B3 — Collapse `_read` and `_folded` duplicate caching pattern into one helper
+    - Candidate B1 — Cache `re.compile` results per `(pattern, flags)` across the full scan
+    - Candidate B2 — Cache `required_literal_sets` and `_required_literal_sets_ascii` per pattern string
+    - Candidate B3 — Parallelise the 58 non-trivial gap checks with `concurrent.futures.ProcessPoolExecutor`
+    winner: B1
+    ship: pending (not yet decided)
   iter-344
     lenses: unknown
     - Candidate A1 — `show --json`: the machine-readable brief for one gap record
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — Extract the shared prove-and-fallback tail of `required_literal_sets` / `_required_literal_sets_ascii`
     - Candidate B3 — Collapse `_read` and `_folded` duplicate caching pattern into one helper
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 230f460
   iter-343
     lenses: unknown
     - Candidate A1 — Four `tools/*.py` scripts treat `--help` as a filesystem path and exit 2
@@ -1580,4 +1590,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-158 scouted iterations
+159 scouted iterations

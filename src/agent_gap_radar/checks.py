@@ -763,6 +763,20 @@ def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
     return shown + [LocationNote(note + ")")]
 
 
+_COMPILE_CACHE: dict[tuple[str, int], re.Pattern[str]] = {}
+
+
+def _cached_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
+    """Compile-once cache keyed on `(pattern, flags)`, eliminating recompilation."""
+    key = (pattern, flags)
+    cached = _COMPILE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    compiled = re.compile(pattern, flags)
+    _COMPILE_CACHE[key] = compiled
+    return compiled
+
+
 def evaluate(rule: dict, target: pathlib.Path,
              exclude_tests: bool = False, *,
              boolean_only: bool = False) -> RuleHit:
@@ -872,7 +886,7 @@ def evaluate(rule: dict, target: pathlib.Path,
 
     if kind in ("content_matches", "content_absent"):
         try:
-            regex = re.compile(rule["pattern"], re.MULTILINE)
+            regex = _cached_compile(rule["pattern"], re.MULTILINE)
         except re.error as exc:
             raise ValueError(f"invalid pattern {rule.get('pattern')!r}: {exc}") from exc
         code_hits: list[str] = []
@@ -937,7 +951,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         # remove changes how a single character of that body PARSES.
         fast_pattern = _folded_fast_path(rule["pattern"])
         fast_regex = (None if fast_pattern is None
-                      else re.compile(fast_pattern, re.MULTILINE))
+                      else _cached_compile(fast_pattern, re.MULTILINE))
         # Decided ONCE, above the loop: neither operand can change inside it, and
         # this loop is the exact cost term the flag exists to reduce, so paying for
         # the test per file would spend part of the saving on computing it.
