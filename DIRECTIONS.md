@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-347
+    lenses: unknown
+    - Candidate A1 -- README stale hard-coded count ("ten records spanning six")
+    - Candidate A2 -- 5 of 9 tool scripts missing from hand-maintained docs
+    - Candidate A3 -- Scan feature flags absent from narrative prose section
+    - Candidate B1 -- `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B2 -- `validate --json`: machine-readable validation output for CI consumers
+    - Candidate B3 -- `diff --layer L`: scope register-state comparisons to one layer
+    winner: A1
+    ship: pending (not yet decided)
   iter-345
     lenses: unknown
     - Candidate B1 — Collapse `_scope_note`'s inline glob formatting into a call to `_render_scope`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 — Cache `required_literal_sets` and `_required_literal_sets_ascii` per pattern string
     - Candidate B3 — Parallelise the 58 non-trivial gap checks with `concurrent.futures.ProcessPoolExecutor`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED e7b827a
   iter-344
     lenses: unknown
     - Candidate A1 — `show --json`: the machine-readable brief for one gap record
@@ -1590,4 +1600,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-159 scouted iterations
+160 scouted iterations

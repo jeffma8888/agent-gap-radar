@@ -122,7 +122,7 @@ The register grows: unattended research passes propose records and the gate abov
 
 To review what a pass actually changed, `radar diff OLD NEW` compares two register states you materialise yourself: records added, records removed, and for records on both sides the changes in a closed set of nine fields -- `status`, `layer`, `gap_type`, the three `priority` inputs, the two derived scores, and the citation count. Free prose is never compared, so a rewording is not a change, and the two derived scores are printed as separate lines, never blended. There is deliberately no git integration: it takes two directories, so the tool has no opinion about how you produced them.
 
-It seeded with ten records spanning observability, evaluation, orchestration, context and memory, multi-agent coordination, and lifecycle. `GAP-010` is retained *below* the confidence floor as a worked example of the ladder doing its job.
+For the current record count and the layers they span, run `uv run radar list .`. `GAP-010` is retained *below* the confidence floor as a worked example of the ladder doing its job.
 
 The first-party records cite specific incidents in [agent-failure-modes](https://github.com/jeffma8888/agent-failure-modes), a corpus of post-mortems from running autonomous multi-agent build loops, so a reader can check the claim rather than take it on trust.
 
