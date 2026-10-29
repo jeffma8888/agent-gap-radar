@@ -1,6 +1,46 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-362
+    lenses: integration-and-adoption, simplification-and-deletion
+    - Candidate A1 -- `validate --json`: a machine-readable verdict for CI
+    - Candidate A2 -- `scan --answers FILE`: a way back in for MANUAL findings
+    - Candidate A3 -- `diff --layer L`: match the other register-reading verbs
+    - B1 -- Retire the 29 frozen-commit two-arm byte-identity tests (and their 13 harness copies)
+    - B2 -- Collapse the two `--layer` validation sites in `_dispatch` into one pre-dispatch check
+    - B3 -- Consolidate the 13 copies of the two-arm harness into one `tests/_two_arm.py`
+    winner: B1
+    ship: pending (not yet decided)
+  iter-360
+    lenses: unknown
+    - Candidate A1 — `diff --layer L`: narrow a register diff to one taxonomy layer
+    - Candidate A2 — `validate --json`: machine-readable validation output for CI consumers
+    - Candidate A3 — `list --gap-type T`: filter the gap listing by gap type
+    - Candidate B1 — Add `help=` text to the 5 bare `add_argument` calls and a brake test
+    - Candidate B2 — `_scope_note` silently drops globs beyond the 4th; call `_render_scope` instead
+    - Candidate B3 — `verify_mutations.py` exit-code strictness: `!= 0` → `== 1` (unshipped iter-354)
+    winner: B2
+    ship: REVERTED
+  iter-354
+    lenses: new-capability, hardening/DX
+    - Candidate A1 -- `diff --layer L` filter for layer-scoped gap diffing
+    - Candidate A2 -- `validate --json` structured error output
+    - Candidate A3 -- `list --gap-type T` filter by gap type
+    - Candidate B1 -- Add `help=` text to the 7 bare `add_argument` calls plus a no-bare-argument brake
+    - Candidate B2 -- `validate --json`: machine-readable validation error output
+    - Candidate B3 -- `verify_mutations.py`: distinguish test failure from framework error
+    winner: B3
+    ship: unknown
+  iter-353
+    lenses: unknown
+    - Candidate B1 -- 3 of 9 tool scripts absent from every hand-maintained .md file
+    - Candidate B2 -- Scan feature flags (`--prd`, `--exit-code`, `--baseline`) absent from "Scanning a real target" prose
+    - Candidate B3 -- 6 of 27 CLI `add_argument` calls carry no `help=` text
+    - Candidate B1 -- `scan --answers <file>`: resolve MANUAL findings with a target-side answer file
+    - Candidate B2 -- `validate --json`: machine-readable validation output for CI consumers
+    - Candidate B3 -- `diff --layer L`: scope register-state comparisons to one layer
+    winner: B3
+    ship: unknown
   iter-347
     lenses: unknown
     - Candidate A1 -- README stale hard-coded count ("ten records spanning six")
@@ -10,7 +50,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `validate --json`: machine-readable validation output for CI consumers
     - Candidate B3 -- `diff --layer L`: scope register-state comparisons to one layer
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 4aabe40
   iter-345
     lenses: unknown
     - Candidate B1 — Collapse `_scope_note`'s inline glob formatting into a call to `_render_scope`
@@ -1600,4 +1640,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-160 scouted iterations
+164 scouted iterations

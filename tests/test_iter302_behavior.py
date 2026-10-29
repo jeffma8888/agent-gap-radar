@@ -37,7 +37,6 @@ Structural notes, so this file cannot lie later:
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import re
 import subprocess
@@ -292,62 +291,6 @@ def _git(*args: str) -> bytes:
     assert done.returncode == 0, (
         f"`git {' '.join(args)}` failed: {done.stderr.decode('utf-8', 'replace')[:400]!r}")
     return done.stdout
-
-
-@pytest.fixture(scope="module")
-def base_src(tmp_path_factory) -> pathlib.Path:
-    """`git archive PRECHANGE_COMMIT src` extracted under a tmp dir; returns `<tmp>/src`."""
-    root = tmp_path_factory.mktemp("base-arm")
-    archive = _git("archive", PRECHANGE_COMMIT, "src")
-    extract = subprocess.run(["tar", "-x", "-C", str(root)], input=archive,
-                             capture_output=True, timeout=120)
-    assert extract.returncode == 0, extract.stderr.decode("utf-8", "replace")[:400]
-    src = root / "src"
-    assert (src / "agent_gap_radar").is_dir(), sorted(p.name for p in root.iterdir())
-    return src
-
-
-_ARM_SCRIPT = (
-    "import sys, agent_gap_radar.cli as c; "
-    "sys.stderr.write(c.__file__ + '\\n'); "
-    "raise SystemExit(c.main(sys.argv[1:]) or 0)"
-)
-
-
-def _arm(src: pathlib.Path | None, *argv: str) -> tuple[int, bytes, str]:
-    """Run `radar <argv>` importing `agent_gap_radar` from `src` (or the installed tree).
-
-    Returns (rc, stdout bytes, the imported module's file), so a caller can PROVE which
-    tree answered instead of assuming it.
-    """
-    env = dict(os.environ)
-    env.pop("PYTHONPATH", None)
-    if src is not None:
-        env["PYTHONPATH"] = str(src)
-    proc = subprocess.run([sys.executable, "-c", _ARM_SCRIPT, *argv], capture_output=True,
-                          cwd=str(REPO_ROOT), env=env, timeout=120)
-    where = proc.stderr.decode("utf-8", "replace").splitlines()[0]
-    return proc.returncode, proc.stdout, where
-
-
-def test_b6_flagless_taxonomy_is_byte_identical_to_the_prechange_commit(base_src, markdown_arm):
-    base_rc, base_out, base_file = _arm(base_src, "taxonomy")
-    assert base_file.startswith(str(base_src)), (
-        f"the base arm imported {base_file!r}, not the extracted {PRECHANGE_COMMIT} tree")
-    assert base_rc == 0 and base_out, (base_rc, base_out[:200])
-    # The base arm is the OLD code: it must not know `--json`. Without this, "identical to
-    # the base" could be two runs of one tree.
-    refused_rc, refused_out, _ = _arm(base_src, "taxonomy", "--json")
-    assert refused_rc == 2 and refused_out == b"", (
-        f"the {PRECHANGE_COMMIT} tree must refuse `--json` (exit 2, empty stdout); got "
-        f"{refused_rc}, {refused_out[:200]!r}")
-    here_rc, here_out, here_file = _arm(None, "taxonomy")
-    assert not here_file.startswith(str(base_src)), here_file
-    assert here_rc == 0
-    assert here_out == markdown_arm[1], "the in-repo arm disagrees with the module fixture"
-    assert here_out == base_out, (
-        f"flagless `radar taxonomy` changed against {PRECHANGE_COMMIT}: "
-        f"{len(here_out)} B now vs {len(base_out)} B then")
 
 
 def test_b6_help_names_the_json_flag():

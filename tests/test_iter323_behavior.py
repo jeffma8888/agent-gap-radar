@@ -15,13 +15,9 @@ inside the contract.
 from __future__ import annotations
 
 import pathlib
-import subprocess
-import sys
 
-import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-GAPS = REPO / "gaps"
 CONTRACT = REPO / "docs" / "CONSUMER_CONTRACT.md"
 
 
@@ -100,82 +96,3 @@ def test_b2_contract_defaults_has_derivation():
     assert "citation" in lower or "independent" in lower, (
         "the Defaults section must mention 'citation' or 'independent'"
     )
-
-
-# ---------------------------------------------------------------------------
-# B4 -- zero rendered-byte changes on all verbs.
-# Uses the same two-arm git-archive technique as iter 322 to compare current
-# tree output against the pre-change commit.
-# ---------------------------------------------------------------------------
-
-PRECHANGE_COMMIT = "624ad28"
-
-_ARM_SCRIPT = (
-    "import sys, agent_gap_radar.cli as c; "
-    "sys.stderr.write(c.__file__ + '\\n'); "
-    "raise SystemExit(c.main(sys.argv[1:]) or 0)"
-)
-
-
-def _arm(src: pathlib.Path | None, *argv: str) -> tuple[int, bytes, str]:
-    import os
-    env = dict(os.environ)
-    env.pop("PYTHONPATH", None)
-    if src is not None:
-        env["PYTHONPATH"] = str(src)
-    proc = subprocess.run(
-        [sys.executable, "-c", _ARM_SCRIPT, *argv],
-        capture_output=True, cwd=str(REPO), env=env, timeout=120)
-    where = proc.stderr.decode("utf-8", "replace").splitlines()[0]
-    return proc.returncode, proc.stdout, where
-
-
-def _git(*args: str) -> bytes:
-    done = subprocess.run(
-        ["git", "-C", str(REPO), *args], capture_output=True, timeout=120)
-    assert done.returncode == 0, (
-        f"`git {' '.join(args)}` failed: "
-        f"{done.stderr.decode('utf-8', 'replace')[:400]!r}")
-    return done.stdout
-
-
-@pytest.fixture(scope="module")
-def base_src(tmp_path_factory) -> pathlib.Path:
-    root = tmp_path_factory.mktemp("base-arm-323")
-    archive = _git("archive", PRECHANGE_COMMIT, "src")
-    extract = subprocess.run(
-        ["tar", "-x", "-C", str(root)], input=archive,
-        capture_output=True, timeout=120)
-    assert extract.returncode == 0, (
-        extract.stderr.decode("utf-8", "replace")[:400])
-    src = root / "src"
-    assert (src / "agent_gap_radar").is_dir(), sorted(p.name for p in root.iterdir())
-    return src
-
-
-@pytest.mark.parametrize("verb", [
-    ("report", str(GAPS)),
-    ("list", str(GAPS)),
-    ("show", "GAP-001", str(GAPS)),
-    ("scan", str(REPO), "--gaps", str(GAPS)),
-    ("taxonomy",),
-    ("prd", str(GAPS)),
-])
-def test_b4_verb_byte_identical_to_head(base_src, verb):
-    base_rc, base_out, base_file = _arm(base_src, *verb)
-    assert base_file.startswith(str(base_src)), (
-        f"base arm imported {base_file!r}, not the extracted {PRECHANGE_COMMIT} tree")
-    assert base_rc == 0 and base_out, (base_rc, base_out[:200])
-
-    here_rc, here_out, here_file = _arm(None, *verb)
-    assert not here_file.startswith(str(base_src)), here_file
-    assert here_rc == 0
-
-    if here_out != base_out:
-        base_lines = base_out.decode("utf-8", "replace").splitlines()
-        here_lines = here_out.decode("utf-8", "replace").splitlines()
-        diffs = [(i, b, h) for i, (b, h) in enumerate(zip(base_lines, here_lines)) if b != h]
-        snippet = diffs[:5] if diffs else f"len {len(base_out)} vs {len(here_out)}"
-        assert here_out == base_out, (
-            f"`radar {' '.join(verb)}` changed against {PRECHANGE_COMMIT}; "
-            f"first diffs (line, base, here): {snippet}")

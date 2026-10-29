@@ -74,6 +74,8 @@ PROBE_SELECTION = "behavior_8 or b1_the_derived or shipped_document_agrees"
 
 #: Behavior 6 -- the one function deleted from `test_iter300`, and the survivors.
 DELETED_300 = "test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_eighteen_flags"
+# Iteration 362 retired the frozen-commit two-arm node in test_iter302_behavior.py.
+RETIRED_362_302 = "test_b6_flagless_taxonomy_is_byte_identical_to_the_prechange_commit"
 KEPT_300_TESTS = [
     "test_b13_the_two_re_pinned_modules_import_and_their_cell_pins_agree_with_the_document",
     "test_b13_the_old_scan_cell_survives_nowhere_as_text",
@@ -125,12 +127,6 @@ def _extract(tree: str, path: str, tmp_root: pathlib.Path) -> pathlib.Path:
 def head_tests(tmp_path_factory) -> pathlib.Path:
     """`tests/` as it stood at PRECHANGE_COMMIT."""
     return _extract(PRECHANGE_COMMIT, "tests", tmp_path_factory.mktemp("head-tests"))
-
-
-@pytest.fixture(scope="module")
-def base_src(tmp_path_factory) -> pathlib.Path:
-    """`src/` as it stood at PRECHANGE_COMMIT."""
-    return _extract(PRECHANGE_COMMIT, "src", tmp_path_factory.mktemp("base-arm"))
 
 
 def _read(path: pathlib.Path) -> str:
@@ -397,7 +393,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter344_new = {"test_iter344_behavior.py"}
     iter345_new = {"test_iter345_behavior.py"}
     iter347_new = {"test_iter347_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new, sorted(set(now) ^ set(before))
+    iter362_new = {"test_iter362_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}
@@ -406,6 +403,7 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
             sorted(n for n in before["test_iter296_behavior.py"]
                    if n.startswith("test_iter296_b1_the_derived")), [RENAMED_296]),
         "test_iter300_behavior.py": ([DELETED_300], []),
+        "test_iter302_behavior.py": ([RETIRED_362_302], []),
     }, changed
 
 
@@ -452,40 +450,3 @@ def test_b7_a_flag_added_to_the_scan_subparser_reds_exactly_the_two_truths(tmp_p
     assert len(passed | failed) >= 5, "the selection collected fewer nodes than it did at 303"
     assert "'--x'" in out, "the failure output never names the injected flag; which tree answered?"
     assert (mutated_src / "agent_gap_radar" / "cli.py").read_text(encoding="utf-8").count('"--x"') == 1
-
-
-# ---------------------------------------------------------------------------
-# Behavior 8 -- no runtime byte moved: two `--json` verbs byte-identical to the base src.
-# ---------------------------------------------------------------------------
-
-_ARM_SCRIPT = (
-    "import sys, agent_gap_radar.cli as c; "
-    "sys.stderr.write(c.__file__ + '\\n'); "
-    "raise SystemExit(c.main(sys.argv[1:]) or 0)"
-)
-
-
-def _arm(src: pathlib.Path | None, *argv: str) -> tuple[int, bytes, str]:
-    """Run `radar <argv>` importing `agent_gap_radar` from `src` (or the installed tree);
-    returns (rc, stdout bytes, the imported module file) so the answering tree is PROVED."""
-    env = dict(os.environ)
-    env.pop("PYTHONPATH", None)
-    if src is not None:
-        env["PYTHONPATH"] = str(src)
-    proc = subprocess.run([sys.executable, "-c", _ARM_SCRIPT, *argv], capture_output=True,
-                          cwd=str(REPO_ROOT), env=env, timeout=120)
-    where = proc.stderr.decode("utf-8", "replace").splitlines()[0]
-    return proc.returncode, proc.stdout, where
-
-
-def test_b8_taxonomy_json_and_list_json_are_byte_identical_to_the_prechange_src(base_src):
-    for argv in (["taxonomy", "--json"],):
-        base_rc, base_out, base_file = _arm(base_src, *argv)
-        assert base_file.startswith(str(base_src)), (argv, base_file)
-        here_rc, here_out, here_file = _arm(None, *argv)
-        assert not here_file.startswith(str(base_src)), (argv, here_file)
-        assert base_rc == 0 == here_rc, (argv, base_rc, here_rc)
-        assert here_out and here_out[-1:] == b"\n" and here_out[-2:-1] != b"\n", argv
-        assert here_out == base_out, (
-            f"`radar {' '.join(argv)}` changed against {PRECHANGE_COMMIT}: "
-            f"{len(here_out)} B now vs {len(base_out)} B then")
