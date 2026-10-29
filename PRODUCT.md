@@ -308,3 +308,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 345 perf: cache `re.compile` per `(pattern, flags)` in a module-level dict; 835 calls to 297 unique; 0 rendered bytes change
 - iter 347 docs: README stale count replaced with derivation sentence; drift guard test against reintroduction
 - iter 362 simplification: retire 29 frozen-sha two-arm `base_src` tests in 13 behavior files; brake bars `def base_src`
+- iter 364 soundness: fold fast path lexes body; closes 4 inverted-verdict holes, lowercases upper literals

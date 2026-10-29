@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-364
+    lenses: performance-and-throughput, narrative-and-docs
+    - Candidate A1 -- `_folded_fast_path` accepts uppercase LITERAL letters by lowercasing them: `radar scan .` 8.5 s -> 7.3 s, byte-identical
+    - Candidate A2 -- Teach `required_literal_sets` to distribute over a grouped alternation: 26 unprovable patterns cost 2.52 s, 30 % of the scan
+    - Candidate A3 -- Collapse the seven duplicated live-scan determinism nodes into one parametrized node: about 188 worker-seconds of suite time
+    - Candidate B1 -- Two ledgered ships still read `open` (rows 81 and 144): flip them and ship row 91's missing brake, "a ledgered row id must be `shipped`"
+    - Candidate B2 -- Row 114's decision shipped in iter 342 but was never written where readers look: the contract's search-cap paragraph and the `Next up` pointer both still describe the pre-decision world
+    - Candidate B3 -- Row 35 ("memoise the decision") stays `open` and eligible after three refutations; iter 363's measurement (0 of 282 hits) exists nowhere in the product repo
+    winner: A1
+    ship: pending (not yet decided)
+  iter-363
+    lenses: simplification-and-deletion, performance-and-throughput
+    - Candidate A1 -- Retire the git-archived frozen-tree (`PRECHANGE_COMMIT`) tests in iters 219-296 + an AST brake
+    - Candidate A2 -- Collapse `_scope_note`'s inline `", ".join(globs[:4])` into `_render_scope` (re-land the reverted iter-360 one-liner)
+    - Candidate A3 -- Archive-paydown of PRODUCT.md: move shipped-row Notes prose to `PRODUCT_ARCHIVE.md`
+    - Candidate B1 -- Move target-independent self-scan tests onto a small fixture tree (77 -> <=25 self-scans)
+    - Candidate B2 -- Memoise content-rule results per scan by `(kind, pattern, globs, exclude_tests, boolean_only)`
+    - Candidate B3 -- Run each determinism test's second scan on the same parsed register, in-process, instead of a second subprocess
+    winner: B2
+    ship: REVERTED
   iter-362
     lenses: integration-and-adoption, simplification-and-deletion
     - Candidate A1 -- `validate --json`: a machine-readable verdict for CI
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - B2 -- Collapse the two `--layer` validation sites in `_dispatch` into one pre-dispatch check
     - B3 -- Consolidate the 13 copies of the two-arm harness into one `tests/_two_arm.py`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 0771e11
   iter-360
     lenses: unknown
     - Candidate A1 — `diff --layer L`: narrow a register diff to one taxonomy layer
@@ -1640,4 +1660,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-164 scouted iterations
+166 scouted iterations

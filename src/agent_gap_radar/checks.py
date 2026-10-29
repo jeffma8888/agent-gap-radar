@@ -1789,19 +1789,16 @@ def _required_literal_sets_ascii(pattern: str) -> tuple[frozenset[str], ...] | N
 #: what a character IS, so a body read under it may not be reasoned about here.
 _LEADING_FLAG_GROUP_RE = re.compile(r"\A\(\?([ims]+)\)")
 
-#: An ASCII uppercase character anywhere in a pattern BODY. Its presence is the
-#: rejection: `\S`, `\B`, `\W`, `\A`, `\D` and `\Z` are all spelled with one, and
-#: each INVERTS a class the fold moves characters across.
-_ASCII_UPPER_RE = re.compile(r"[A-Z]")
+#: Escape letters whose next characters NAME a code point rather than spell it:
+#: `\x4a`, `\u004a`, `\U0000004a` and `\N{...}` all denote `J` without an `A-Z` in
+#: sight, so the raw pass matches `J` and a folded pass can never see it. Digits
+#: join them in `_fold_body` (`\112` is octal `J`; `\1` is a backreference).
+_CODE_POINT_ESCAPES = frozenset("xuUN")
 
-#: A scoped flag-OFF group in ANY of its spellings: `(?-i:`, `(?s-i:`, `(?m-i:`.
-#: A `"(?-"` substring test sees only the first of those, and the ones it misses
-#: are not hypothetical: `(?i)a(?s-i:b)` over the ASCII text `"aB"` matches FOLDED
-#: and NOT raw, which is an inverted verdict in the one direction this module may
-#: never take. Deliberately over-broad rather than exact -- it also fires on a
-#: `-` that merely FOLLOWS flag letters inside a class, and every false alarm is
-#: a `None` that runs the pattern as authored.
-_SCOPED_FLAG_OFF_RE = re.compile(r"\(\?[aimsux]*-")
+#: The only things a `(?` inside a body may open. Every other extension --
+#: `(?P<Name>`, `(?P=name)`, `(?#Comment)`, a scoped `(?s:` or flag-OFF `(?-i:` --
+#: carries text whose case is either significant or unknowable once folded.
+_SAFE_GROUP_OPENERS = (":", "=", "!", "<=", "<!")
 
 
 def _folded_fast_path(pattern: str) -> str | None:
@@ -1828,31 +1825,31 @@ def _folded_fast_path(pattern: str) -> str | None:
       scoped, so the flags in effect at the top are not knowable from it.
     * That group contains `i`. Without IGNORECASE the raw pass is already the fast
       one, and folding the text would CHANGE which strings match.
-    * The body is ASCII and carries no `A-Z`. Both halves are the same rejection:
-      a character whose meaning the fold moves. An uppercase literal cannot be
-      found in folded text at all; an uppercase escape (`\S`, `\B`, `\W`) is the
-      COMPLEMENT of a class the fold moves characters across, so it inverts; and a
-      non-ASCII body character may be a case-variant of an ASCII letter -- U+017F
-      matches `s` and U+0130/U+0131 match `i` under IGNORECASE, the pair
-      `_FOLD_UNSAFE` already names -- which the RAW pass finds in ASCII text while
-      the folded pass cannot. That last one is not in the live register (0 of 361
-      distinct patterns carry a non-ASCII character, measured) and is refused
-      anyway, because the register is data consumers write and the direction of
-      that miss is an inverted verdict.
-    * The body opens no scoped flag-OFF group, in ANY of its spellings -- `(?-i:`,
-      `(?s-i:` and `(?m-i:` all count, which is why this is an anchored search and
-      not a `"(?-"` substring test that sees only the first of them. A scoped
-      flag-OFF re-enables case sensitivity inside a region whose distinction the
-      fold has ALREADY destroyed, so the folded pass would answer a question the
-      raw pass never asked: `(?i)a(?s-i:b)` over the ASCII text `"aB"` matches
-      FOLDED and not raw, the inverted verdict this module may never produce.
+    * The body is ASCII. A non-ASCII body character may be a case-variant of an
+      ASCII letter -- U+017F matches `s` and U+0130/U+0131 match `i` under
+      IGNORECASE, the pair `_FOLD_UNSAFE` already names -- which the RAW pass
+      finds in ASCII text while the folded pass cannot. 0 of 361 live patterns
+      carry one (measured); refused anyway, because the register is data
+      consumers write and the direction of that miss is an inverted verdict.
+    * Every body token is one `_fold_body` classifies as fold-safe; anything else
+      is refused, never guessed at. Refused: an uppercase escape (`\S`, `\B`,
+      `\W` are COMPLEMENTS of classes the fold moves characters across); a
+      numeric or named code point (`\x4a`, `\u004a`, `\U0000004a`, `\112`,
+      `\N{...}` all spell `J` with no `A-Z` in sight); an uppercase letter inside
+      a class; a class range that is not wholly `a-z` or `0-9` (`[@-_]` holds
+      `A-Z`, so it matches `a` raw and nothing folded); and any `(?` other than
+      `(?:`, `(?=`, `(?!`, `(?<=`, `(?<!` -- which is how every scoped flag-OFF
+      spelling (`(?-i:`, `(?s-i:`, `(?m-i:`) is refused: it re-enables case
+      sensitivity inside a region whose distinction the fold has ALREADY
+      destroyed, so `(?i)a(?s-i:b)` over `"aB"` would match FOLDED and not raw.
 
     The flag group is REWRITTEN rather than dropped: `(?is)x` -> `(?s)x`,
     `(?im)x` -> `(?m)x`, `(?i)x` -> `x`, with the surviving letters in their
     original order. Dropping the whole group would silently take DOTALL or
-    MULTILINE with it and change the match. No character of the body is touched --
-    lower-casing a body is exactly the unsound shortcut condition three refuses,
-    since it would rewrite `\S` into `\s`.
+    MULTILINE with it and change the match. The ONLY body change is lower-casing
+    an `A-Z` plain literal outside a class and outside an escape
+    (`(?i)MaxTurnsExceeded` -> `maxturnsexceeded`); escapes and classes are copied
+    byte-for-byte, since lower-casing `\S` would rewrite it into `\s`.
     """
     match = _LEADING_FLAG_GROUP_RE.match(pattern)
     if match is None:
@@ -1861,8 +1858,83 @@ def _folded_fast_path(pattern: str) -> str | None:
     if "i" not in flags:
         return None
     body = pattern[match.end():]
-    if (not body.isascii() or _ASCII_UPPER_RE.search(body)
-            or _SCOPED_FLAG_OFF_RE.search(body)):
+    folded = _fold_body(body) if body.isascii() else None
+    if folded is None:
         return None
     kept = flags.replace("i", "")
-    return (f"(?{kept})" if kept else "") + body
+    return (f"(?{kept})" if kept else "") + folded
+
+
+def _bad_escape(nxt: str) -> bool:
+    """True when `\\` + `nxt` is an escape the fold cannot carry: an uppercase one
+    INVERTS a class (`\\S`), and a digit or `xuUN` names a code point by number."""
+    return nxt.isdigit() or nxt in _CODE_POINT_ESCAPES or "A" <= nxt <= "Z"
+
+
+def _range_ok(lo: str, hi: str) -> bool:
+    """A class range survives the fold only when it cannot straddle a letter case:
+    `[@-_]` holds `A-Z`, so under IGNORECASE it matches `a` raw and never folded."""
+    return ("a" <= lo <= "z" and "a" <= hi <= "z") or ("0" <= lo <= "9" and "0" <= hi <= "9")
+
+
+def _class_end(body: str, i: int) -> int | None:
+    """Index just past the `]` closing the class that opens at `body[i]`, or None
+    when the class holds anything this module will not reason about."""
+    j = i + 1
+    if body[j:j + 1] == "^":
+        j += 1
+    first = j
+    while j < len(body):
+        ch = body[j]
+        if ch == "]" and j > first:
+            return j + 1
+        if ch == "[" or "A" <= ch <= "Z":
+            return None
+        if ch == "\\":
+            if j + 1 >= len(body) or _bad_escape(body[j + 1]):
+                return None
+            j += 2
+            if body[j:j + 1] == "-" and body[j + 1:j + 2] not in ("]", ""):
+                return None  # an escaped endpoint: `[\--/]` spans letters unseen
+            continue
+        j += 1
+        if body[j:j + 1] == "-" and body[j + 1:j + 2] not in ("]", ""):
+            if body[j + 1] == "\\" or not _range_ok(ch, body[j + 1]):
+                return None
+            j += 2
+    return None
+
+
+def _fold_body(body: str) -> str | None:
+    """The body to run over folded text, or None when any token is not fold-safe.
+
+    Refuse-by-default: every token is either classified safe or the whole pattern
+    runs as authored. The ONLY rewrite is lower-casing an `A-Z` plain literal
+    outside a class and escape -- `(?i)MaxTurnsExceeded` matches exactly what
+    `maxturnsexceeded` matches in folded text. Escapes and classes are copied
+    verbatim, because lower-casing `\\S` would turn it into its own complement.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "\\":
+            if i + 1 >= len(body) or _bad_escape(body[i + 1]):
+                return None
+            out.append(body[i:i + 2])
+            i += 2
+        elif ch == "[":
+            end = _class_end(body, i)
+            if end is None:
+                return None
+            out.append(body[i:end])
+            i = end
+        elif ch == "(" and body[i + 1:i + 2] == "?":
+            if not body.startswith(_SAFE_GROUP_OPENERS, i + 2):
+                return None
+            out.append("(?")
+            i += 2
+        else:
+            out.append(ch.lower() if "A" <= ch <= "Z" else ch)
+            i += 1
+    return "".join(out)

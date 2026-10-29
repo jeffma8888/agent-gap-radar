@@ -340,7 +340,7 @@ def test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin():
 @pytest.mark.parametrize(("pattern", "why"), [
     (r"os\.walk\(", "no leading global inline flag group -- condition 1(a)"),
     (r"(?m)foo", "flag group carries no `i` -- condition 1(b)"),
-    (r"(?i)VectorStore", "body carries A-Z, so the fold is not span-safe -- 1(c)"),
+    (r"(?i)[A-Z]x", "uppercase inside a class, so the fold is not span-safe -- 1(c)"),
     (r"(?i)a(?-i:b)", "a scoped flag-OFF re-enables case sensitivity the fold has "
                       "already destroyed -- condition 1(d)"),
 ])
