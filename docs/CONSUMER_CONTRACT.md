@@ -360,7 +360,16 @@ An UNKNOWN reached this way says the search was incomplete over this target;
 it never says "no gap here". A gate must treat it as un-answered -- the same
 as an UNKNOWN whose check never executed -- and never as a pass; the finding's
 `reason` is where the cut is named, since no payload key separates the two
-causes yet.
+causes yet. A second cut exists and it is COUNTED, not WEIGHED: files the
+evaluator skips (oversized, not decodable as text, or unreadable) are left out
+of the content rule and tallied in the finding's `skipped_files` key, and the
+verdict never consults that tally. An `ABSENT` whose `skipped_files` is non-zero
+was therefore decided over fewer files than the domain held -- the gap signature
+may sit in a file that was never read -- so a gate that requires a full read
+must check that key itself. Decode skips are deliberately not downgraded to
+UNKNOWN: a target that vendors large or binary blobs would otherwise turn every
+gate over it noisy, so the verdict stays and the count discloses the narrower
+read.
 
 **The target's git configuration is not trusted.** Deciding what a target
 SHIPS means asking `git ls-files` what it tracks, and git honours the

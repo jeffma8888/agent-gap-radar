@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-365
+    lenses: narrative-and-docs (HEAD `6e69748`)
+    - Candidate A1 -- Board Status drift brake: rows 81 and 144 read `open` after shipping; flip them and add a brake that would have caught them
+    - Candidate A2 -- Write row 114's iter-342 decision where readers look: the contract's search-cap paragraph, the `Next up` head and row 114's Status
+    - Candidate A3 -- checks.py:944-951 comment says the fast-path BODY is "byte-identical"; since `6e69748` it is lower-cased, so restate the real invariant and pin it
+    - Candidate B1 -- Source concentration gains a retraction blast-radius column: "if this source is retracted, N records lose confidence, M leave the ranking"
+    - Candidate B2 -- `radar prd --layer L`: emit the build-loop PRD for the top-ranked gap IN a layer
+    - Candidate B3 -- `## One retraction from the floor`: the above-floor records whose place in the ranking rests on a single document
+    winner: A2
+    ship: pending (not yet decided)
   iter-364
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- `_folded_fast_path` accepts uppercase LITERAL letters by lowercasing them: `radar scan .` 8.5 s -> 7.3 s, byte-identical
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Row 114's decision shipped in iter 342 but was never written where readers look: the contract's search-cap paragraph and the `Next up` pointer both still describe the pre-decision world
     - Candidate B3 -- Row 35 ("memoise the decision") stays `open` and eligible after three refutations; iter 363's measurement (0 of 282 hits) exists nowhere in the product repo
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 6e69748
   iter-363
     lenses: simplification-and-deletion, performance-and-throughput
     - Candidate A1 -- Retire the git-archived frozen-tree (`PRECHANGE_COMMIT`) tests in iters 219-296 + an AST brake
@@ -1660,4 +1670,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-166 scouted iterations
+167 scouted iterations
