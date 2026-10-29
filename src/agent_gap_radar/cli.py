@@ -225,7 +225,8 @@ def _needs(gap: Gap, is_below: bool, confidence_floor: int) -> list[str] | None:
     return list(promotion_options(gap, confidence_floor)) if is_below else None
 
 
-def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None) -> str:
+def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None,
+               match: str | None = None) -> str:
     """A stable record list for a machine consumer.
 
     A flat array with a `below_floor` boolean, not two arrays: the text marker
@@ -251,6 +252,11 @@ def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None) ->
     because "what is this record's confidence derived FROM" is exactly as
     answerable above the floor as below it, and it is the register's core
     invariant made readable rather than a below-floor annotation.
+
+    `match` is echoed ONLY when `--match` was given, inserted after `layer`: an
+    unconditional `"match": null` would move the bytes of every existing
+    `list --json` document, and a consumer that never asked for a text filter has
+    no domain narrowing to be told about.
     """
     from .render import json_document
     from .scoring import strongest_source
@@ -258,6 +264,7 @@ def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None) ->
     payload = {
         "confidence_floor": confidence_floor,
         "layer": layer,
+        **({"match": match} if match is not None else {}),
         "counts": {
             "total": len(rows),
             "ranked": sum(1 for row in rows if not row[3]),
@@ -362,6 +369,36 @@ def _select_layer(gaps: list[Gap], layer: str | None) -> list[Gap]:
     concatenating one document per layer reproduces the unfiltered line multiset.
     """
     return gaps if layer is None else [gap for gap in gaps if gap.layer == layer]
+
+
+def _match_fields(gap: Gap) -> list[str]:
+    """The prose a builder's own words are searched in, in one named place.
+
+    Titles alone miss most relevant records (on the live register `memory` hits 8
+    titles but 24 records), so the search covers the fields a reader would scan:
+    title, problem, symptom, why_now, existing, build_hypothesis and tags.
+    Evidence quotes are deliberately excluded -- they are third-party text, and a
+    record should not surface because a source it cites happens to use a word.
+    """
+    return [gap.title, gap.problem, gap.symptom, gap.why_now, *gap.existing,
+            gap.build_hypothesis, *gap.tags]
+
+
+def _select_match(gaps: list[Gap], match: str | None) -> list[Gap]:
+    """Narrow the record DOMAIN to records whose prose contains `match`.
+
+    A case-folded LITERAL substring, not a regex: user text never compiles, so
+    there is no ReDoS surface and no escaping rule to document, and the answer is
+    deterministic. No word-boundary semantics are promised (`eval` also hits
+    `retrieval`). Applied upstream of `_list_rows` for the `_select_layer` reason:
+    the below-floor partition stays the single rule, so a matching below-floor
+    record is DISPLAYED with its marker, never dropped by the filter.
+    """
+    if match is None:
+        return gaps
+    needle = match.casefold()
+    return [gap for gap in gaps
+            if any(needle in field.casefold() for field in _match_fields(gap))]
 
 
 def _select_gap(gaps: list[Gap], gap_id: str | None) -> list[Gap]:
@@ -538,6 +575,12 @@ def build_parser() -> argparse.ArgumentParser:
                            help="layer to narrow the listing to; one value "
                                 "from the closed taxonomy that `radar "
                                 "taxonomy` publishes")
+        if name == "list":
+            p.add_argument("--match", default=None, metavar="TEXT",
+                           help="keep only records whose title, problem, "
+                                "symptom, why_now, existing, build_hypothesis "
+                                "or tags contain TEXT (case-folded literal "
+                                "substring, not a regex)")
 
     p_show = sub.add_parser("show", help="Full brief for one gap (markdown).")
     p_show.add_argument("gap_id")
@@ -1077,6 +1120,12 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command in ("list", "report") and args.layer is not None:
         if args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
+    # An empty needle is a substring of every field, so `--match ""` would be a
+    # filter that silently filters nothing; refuse it rather than publish a
+    # narrowed-looking document over the whole register.
+    if args.command == "list" and args.match is not None and not args.match.strip():
+        return _fail("--match needs non-blank TEXT; omit the flag to list "
+                     "every record")
 
     try:
         # Inside the guard for the same reason as `scan`'s: `_resolve` refuses an
@@ -1108,9 +1157,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return EXIT_OK
 
         if args.command == "list":
-            rows = _list_rows(_select_layer(gaps, args.layer), args.floor)
-            sys.stdout.write(_list_json(rows, args.floor, args.layer) if args.json
-                             else _list_text(rows))
+            rows = _list_rows(
+                _select_match(_select_layer(gaps, args.layer), args.match),
+                args.floor)
+            sys.stdout.write(_list_json(rows, args.floor, args.layer, args.match)
+                             if args.json else _list_text(rows))
             return EXIT_OK
 
         if args.command == "report":

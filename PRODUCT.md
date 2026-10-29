@@ -310,3 +310,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 362 simplification: retire 29 frozen-sha two-arm `base_src` tests in 13 behavior files; brake bars `def base_src`
 - iter 364 soundness: fold fast path lexes body; closes 4 inverted-verdict holes, lowercases upper literals
 - iter 365 decision-record: row 114 closed as count-and-disclose; contract cap paragraph names `skipped_files`
+- iter 366 new-capability: `list --match TEXT` narrows the domain to records whose prose fields contain TEXT (case-folded literal substring); below-floor matches displayed and flagged; `match` JSON key only when given

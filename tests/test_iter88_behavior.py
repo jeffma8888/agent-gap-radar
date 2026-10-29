@@ -79,7 +79,7 @@ REQUIRED_BY_VERB = {
 #: cells this iteration corrects; the other five are the untouched rows.
 EXPECTED_CELLS = [
     "`radar validate [<repo>]`",
-    "`radar list [<repo>] [--json] [--floor N] [--layer L]`",
+    "`radar list [<repo>] [--json] [--floor N] [--layer L] [--match TEXT]`",
     "`radar show <ID> [<repo>] [--json]`",
     "`radar report [<repo>] [--floor N] [--layer L]`",
     "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures]`",

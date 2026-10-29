@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-366
+    lenses: new-capability (HEAD `5cbf659`), hardening/DX (HEAD `5cbf659`)
+    - Candidate A1 -- `radar list --match TEXT`: find the gaps that match a builder's project idea, searching prose and not just titles
+    - Candidate A2 -- `radar source LOCATOR`: what the register stands on if one document is retracted
+    - Candidate A3 -- `radar scan --gap` repeatable: scan exactly the subset of gaps a team owns
+    - Candidate B1 -- `_scope_note` stops silently dropping globs past the 4th: re-land the one-liner whose blocker (frozen-sha tests) iter 362 deleted
+    - Candidate B2 -- CLI error-contract sweep: every verb on hostile input exits 2 with `Error: ` on stderr, never a traceback
+    - Candidate B3 -- `verify_mutations.py` counts a mutant as caught only on pytest exit 1, not on any non-zero
+    winner: unparsed (pm.md present)
+    ship: pending (not yet decided)
   iter-365
     lenses: narrative-and-docs (HEAD `6e69748`)
     - Candidate A1 -- Board Status drift brake: rows 81 and 144 read `open` after shipping; flip them and add a brake that would have caught them
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar prd --layer L`: emit the build-loop PRD for the top-ranked gap IN a layer
     - Candidate B3 -- `## One retraction from the floor`: the above-floor records whose place in the ranking rests on a single document
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 5cbf659
   iter-364
     lenses: performance-and-throughput, narrative-and-docs
     - Candidate A1 -- `_folded_fast_path` accepts uppercase LITERAL letters by lowercasing them: `radar scan .` 8.5 s -> 7.3 s, byte-identical
@@ -1670,4 +1680,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-167 scouted iterations
+168 scouted iterations

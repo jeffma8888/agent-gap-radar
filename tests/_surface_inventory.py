@@ -37,7 +37,8 @@ from __future__ import annotations
 #: Compared through the oracle in `tests/_surface_contract.py` rather than re-derived here.
 EXPECTED_SURFACE = {
     "diff": (["--exit-code", "--json"], 2, ["new", "old"], ["old", "new"]),
-    "list": (["--floor", "--json", "--layer"], 1, [], ["path"]),
+    # Iteration 366 added `--match`; the list is SORTED, so it lands last.
+    "list": (["--floor", "--json", "--layer", "--match"], 1, [], ["path"]),
     # Iteration 257 added `--with-fixtures`; the list is SORTED, so it lands last
     # here and its registration index is asserted separately below.
     # Iteration 294 added `--floor`, the same flag and default `list`/`report`/`scan`
@@ -74,6 +75,8 @@ EXPECTED_ARGUMENTS = {
         ("floor", ["--floor"], False, 2, None),
         ("json", ["--json"], False, False, 0),
         ("layer", ["--layer"], False, None, None),
+        # Iteration 366: case-folded literal text filter, registered after `--layer`.
+        ("match", ["--match"], False, None, None),
     ],
     "prd": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
