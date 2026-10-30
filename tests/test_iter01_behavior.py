@@ -490,7 +490,10 @@ def test_b12a_contract_signature_names_layer_and_keeps_the_never_omitted_promise
 def test_b12b_quickstart_does_not_claim_one_line_per_ranked_gap():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "one line per ranked gap" not in readme
-    quickstart = [ln for ln in _lines("README.md") if ln.startswith("uv run radar list")]
+    # iter 371: flag example lines (`--match`, `--floor`, ...) join the block, so the
+    # pin reads the one BARE `list` line -- no `--` before its comment.
+    quickstart = [ln for ln in _lines("README.md") if ln.startswith("uv run radar list")
+                  and "--" not in ln.split("#", 1)[0]]
     assert len(quickstart) == 1, quickstart
     assert "one line per record" in quickstart[0]
 

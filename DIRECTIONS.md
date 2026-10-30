@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-371
+    lenses: narrative-and-docs (HEAD `00cf58b`), new-capability (HEAD `00cf58b`)
+    - Candidate A1 -- README names every flag the parser accepts: `list --match` (iter 366's headline) and `--floor` appear in README zero times
+    - Candidate A2 -- Publish the `prd.json` shape: 11 emitted keys exist nowhere in the consumer contract (row 124 open since iter 221)
+    - Candidate A3 -- src/ docstrings stop restating live-register figures they do not derive: "0 of 361 live patterns" and an unprovenanced "2.96x" (measures 3.34x today)
+    - Candidate B1 -- `radar diff` reports what the ranking did, not only what the fields did: the top gap changed and diff said "Changed (0)"
+    - Candidate B2 -- `radar report --match TEXT`: the full ranked radar narrowed to the builder's project idea, below-floor section kept
+    - Candidate B3 -- `radar show GAP` states the record's rank: "2 of 119 ranked", or "below floor", in the brief and in `show --json`
+    winner: A1
+    ship: pending (not yet decided)
   iter-370
     lenses: performance-and-throughput (HEAD `0aa36aa`), narrative-and-docs (HEAD `0aa36aa`)
     - Candidate A1 -- The folded fast path accepts the case-insensitive patterns it declines today: `radar scan .` 8.0 s -> 7.2 s, byte-identical
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The machine-consumer contract publishes every JSON key the verbs emit: 15 keys are unpublished today, and a brake keeps it that way
     - Candidate B3 -- State the roadmap's REAL size cap where a PM looks: 240,000 chars (13,967 headroom) is written nowhere, while rows 64 and 70 still steer by the foundry's 54,000 and claim no archive exists
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 00cf58b
   iter-369
     lenses: simplification-and-deletion (HEAD `f1c9136`), performance-and-throughput (HEAD `f1c9136`)
     - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still pin a PRECHANGE_COMMIT sha
@@ -1720,4 +1730,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-172 scouted iterations
+173 scouted iterations

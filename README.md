@@ -20,18 +20,27 @@ That distinction is the whole reason `GAP-010` is in the register: it is a widel
 uv sync
 uv run radar validate .          # schema-check every record; exit 2 on any problem or on zero records
 uv run radar list .              # one line per record, below-floor rows flagged
+uv run radar list . --match memory  # only records whose title, problem, symptom, why_now, existing, build_hypothesis or tags contain the text (case-folded literal substring, not a regex); below-floor matches are still shown, flagged
+uv run radar list . --floor 3       # the same listing against a stricter confidence floor (default 2); below-floor rows are flagged, never dropped
+uv run radar list . --layer context-memory --json  # one taxonomy layer's listing as a stable JSON object, for a consumer
 uv run radar report .            # the full ranked radar (markdown)
+uv run radar report . --floor 3 --layer context-memory  # the radar of one layer at a stricter confidence floor (default 2); below-floor records keep their own section
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar show GAP-003 . --json  # the same gap as a stable JSON object, for a consumer
 uv run radar prd .               # emit a build-loop prd.json for the top gap
+uv run radar prd . --floor 3       # the top-ranked gap that clears a stricter confidence floor (default 2)
+uv run radar prd . --gap GAP-003 --project my-agent --with-fixtures  # a chosen gap under your project name, inlining the reproduction sample's file contents instead of a pointer
 uv run radar taxonomy            # the fixed vocabularies
 uv run radar taxonomy --json     # the same vocabularies as one object, for a consumer
 uv run radar diff OLD NEW        # what changed between two register states (two directories you materialise)
+uv run radar diff OLD NEW --json  # the same comparison as a stable object, for a machine consumer
+uv run radar diff OLD NEW --exit-code  # same document, but exit 1 when NEW lost a record or reopened a gap, 2 when OLD is an empty baseline
 
 uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo have?
 uv run radar scan ../my-service --gaps gaps --json   # the same, for a CI gate
 uv run radar scan ../my-service --gaps gaps --prd    # build against its worst finding that clears the floor; the prd carries that finding's verdict and path:line locators under "finding"
 uv run radar scan ../my-service --gaps gaps --layer context-memory  # only gaps in one taxonomy layer
+uv run radar scan ../my-service --gaps gaps --gap GAP-003 --exit-code --floor 3  # apply only that record's checks (an unknown id is refused); exit 1 only if it is PRESENT and clears a stricter confidence floor (default 2)
 uv run radar scan ../my-service --gaps gaps --exit-code  # same report, but exit 1 if it has an above-floor gap (for CI)
 uv run radar scan ../my-service --gaps gaps --json > baseline.json && uv run radar scan ../my-service --gaps gaps --exit-code --baseline baseline.json  # exit 1 only for an above-floor gap the baseline did not carry
 ```
