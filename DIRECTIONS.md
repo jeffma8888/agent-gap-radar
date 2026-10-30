@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-368
+    lenses: integration-and-adoption (HEAD `2619ae3`), simplification-and-deletion (HEAD `2619ae3`)
+    - Candidate A1 -- `radar scan TARGET --closure PRD`: the build loop checks its own work against the prd.json it was handed
+    - Candidate A2 -- `scan --prd --with-fixtures`: the target-driven bridge cannot inline the reproduction bytes the register-driven one can
+    - Candidate A3 -- `python -m agent_gap_radar` runs the CLI
+    - Candidate B1 -- Retire the last frozen-commit arms: 33 test nodes in 10 modules still `git archive`/`git show` a pinned sha
+    - Candidate B2 -- Move shipped board rows' Notes prose out of PRODUCT.md: 376,325 -> 222,987 chars with 1 real pin to re-word
+    - Candidate B3 -- One `--layer` refusal site instead of two in `_dispatch` (cli.py:962 and :1121-1122)
+    winner: B2
+    ship: pending (not yet decided)
   iter-367
     lenses: hardening/DX (HEAD `51c0587`), integration-and-adoption (HEAD `51c0587`)
     - Candidate A1 -- A gap id typed into a register-path slot gets told what it is, not just "not a directory"
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The register travels with the tool: the installed wheel carries 0 of 120 gap records
     - Candidate B3 -- `python -m agent_gap_radar` runs the CLI (today: "is a package and cannot be directly executed")
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 2619ae3
   iter-366
     lenses: new-capability (HEAD `5cbf659`), hardening/DX (HEAD `5cbf659`)
     - Candidate A1 -- `radar list --match TEXT`: find the gaps that match a builder's project idea, searching prose and not just titles
@@ -1690,4 +1700,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-169 scouted iterations
+170 scouted iterations
