@@ -218,7 +218,10 @@ def test_b2_spec_literal_show_argument_order_refuses_on_the_argument_shape(
     """
     code, out, err = _run(["show", blocked, "GAP-001"], capsys)
     assert (code, out) == (2, "")
-    assert err.strip().splitlines()[-1] == "Error: not a directory: GAP-001"
+    # Re-pinned by iteration 367: an id-shaped path argument now names the fix.
+    assert err.strip().splitlines()[-1] == (
+        "Error: not a directory: GAP-001 (that looks like gap id GAP-001; "
+        "try 'radar show GAP-001' or 'radar prd --gap GAP-001')")
 
 
 # --------------------------------------------------------------------------- b5

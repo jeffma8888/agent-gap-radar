@@ -219,7 +219,7 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     """
     d = pathlib.Path(directory)
     if not d.is_dir():
-        raise RegistryError(f"not a directory: {d}")
+        raise RegistryError(f"not a directory: {d}{_gap_id_hint(str(directory))}")
 
     gaps: list[Gap] = []
     problems: list[str] = []
@@ -266,13 +266,42 @@ def canonicalize_gap_id(raw: str) -> str:
     unchanged when it cannot be interpreted -- ``select_one`` will then refuse
     it with the standard ``no such gap:`` sentence.
     """
+    return _canonical_or_none(raw) or raw
+
+
+def _canonical_or_none(raw: str) -> str | None:
+    """The canonical ``GAP-NNN`` for `raw`, or None when `raw` is not id-shaped.
+
+    The one place "id-shaped" is decided. `canonicalize_gap_id` falls back to the
+    input, which cannot tell `GAP-000` (already canonical-LOOKING, but out of range)
+    from a real id; the refusal hint needs that distinction, so both read this.
+    """
     m = _LOOSE_GAP_ID_RE.match(raw)
     if m is None:
-        return raw
+        return None
     num = int(m.group(1))
     if num < 1 or num > 999:
-        return raw
+        return None
     return f"GAP-{num:03d}"
+
+
+def _gap_id_hint(typed: str) -> str:
+    """The trailing clause for a missing register path that is really a gap id.
+
+    `radar show` takes the id positionally, so a builder's natural next command is
+    `radar prd GAP-001` -- which lands the id in the register-path slot and used to
+    read as a filesystem fault. The refusal keeps its exact prefix (consumers match
+    `not a directory:`) and only appends a pointer to the two id-taking commands.
+    Shares `canonicalize_gap_id`'s parser so "id-shaped" has one definition: the
+    input counts only when it canonicalizes to a valid `GAP-NNN`, so `GAP-000`,
+    `GAP-1000`, `nope` and any path with a separator get no hint. Empty when there
+    is nothing to say.
+    """
+    canonical = _canonical_or_none(typed)
+    if canonical is None:
+        return ""
+    return (f" (that looks like gap id {canonical}; "
+            f"try 'radar show {canonical}' or 'radar prd --gap {canonical}')")
 
 
 def select_one(gaps: Iterable[Gap], gap_id: str) -> Gap:

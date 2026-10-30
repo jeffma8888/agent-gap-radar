@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-367
+    lenses: hardening/DX (HEAD `51c0587`), integration-and-adoption (HEAD `51c0587`)
+    - Candidate A1 -- A gap id typed into a register-path slot gets told what it is, not just "not a directory"
+    - Candidate A2 -- Suite-wide socket tripwire: the "no network in tests" clause is witnessed in 6 of 165 modules
+    - Candidate A3 -- Stop the one-way ratchet pins: a new flag should cost one inventory edit, not four hand-kept literals
+    - Candidate B1 -- `radar prd --match TEXT`: hand the build loop the top-ranked gap that matches the builder's project idea
+    - Candidate B2 -- The register travels with the tool: the installed wheel carries 0 of 120 gap records
+    - Candidate B3 -- `python -m agent_gap_radar` runs the CLI (today: "is a package and cannot be directly executed")
+    winner: A1
+    ship: pending (not yet decided)
   iter-366
     lenses: new-capability (HEAD `5cbf659`), hardening/DX (HEAD `5cbf659`)
     - Candidate A1 -- `radar list --match TEXT`: find the gaps that match a builder's project idea, searching prose and not just titles
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- CLI error-contract sweep: every verb on hostile input exits 2 with `Error: ` on stderr, never a traceback
     - Candidate B3 -- `verify_mutations.py` counts a mutant as caught only on pytest exit 1, not on any non-zero
     winner: unparsed (pm.md present)
-    ship: pending (not yet decided)
+    ship: PUSHED 51c0587
   iter-365
     lenses: narrative-and-docs (HEAD `6e69748`)
     - Candidate A1 -- Board Status drift brake: rows 81 and 144 read `open` after shipping; flip them and add a brake that would have caught them
@@ -1680,4 +1690,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-168 scouted iterations
+169 scouted iterations

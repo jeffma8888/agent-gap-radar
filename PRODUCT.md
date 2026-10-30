@@ -311,3 +311,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 364 soundness: fold fast path lexes body; closes 4 inverted-verdict holes, lowercases upper literals
 - iter 365 decision-record: row 114 closed as count-and-disclose; contract cap paragraph names `skipped_files`
 - iter 366 new-capability: `list --match TEXT` narrows the domain to records whose prose fields contain TEXT (case-folded literal substring); below-floor matches displayed and flagged; `match` JSON key only when given
+- iter 367 dx-refusal: path slot holding a gap id says so and names `show ID` / `prd --gap ID`; `show` swap named
