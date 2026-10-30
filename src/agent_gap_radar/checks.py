@@ -945,10 +945,11 @@ def evaluate(rule: dict, target: pathlib.Path,
         # what proves the routing below IS this decision rather than an accident.
         #
         # Compiling the rewritten text needs no `re.error` guard of its own. Its
-        # BODY is byte-identical to the body the compile above already accepted, and
-        # the only edit is a leading global flag group losing `i` (or vanishing);
-        # `x` is excluded from the accepted flags, so no flag this classifier can
-        # remove changes how a single character of that body PARSES.
+        # BODY is the body the compile above already accepted with only `A-Z`
+        # literals lowered (a range lowers only when both ends are `A-Z`, so it
+        # stays ordered), and the flags are that same body's leading group(s) or
+        # whole-span scoped group, minus `i`; `x` is excluded from the accepted
+        # flags, so no edit this classifier makes changes how a character PARSES.
         fast_pattern = _folded_fast_path(rule["pattern"])
         fast_regex = (None if fast_pattern is None
                       else _cached_compile(fast_pattern, re.MULTILINE))
@@ -1789,6 +1790,12 @@ def _required_literal_sets_ascii(pattern: str) -> tuple[frozenset[str], ...] | N
 #: what a character IS, so a body read under it may not be reasoned about here.
 _LEADING_FLAG_GROUP_RE = re.compile(r"\A\(\?([ims]+)\)")
 
+#: A SCOPED flag group opening the pattern, letters captured. It says something
+#: about the whole pattern only when its `)` is the pattern's last character, which
+#: `_group_close` decides; flag-OFF spellings (`(?i-s:`) never match, so they stay
+#: refused exactly as `_SAFE_GROUP_OPENERS` refuses them inside a body.
+_LEADING_SCOPED_GROUP_RE = re.compile(r"\A\(\?([ims]+):")
+
 #: Escape letters whose next characters NAME a code point rather than spell it:
 #: `\x4a`, `\u004a`, `\U0000004a` and `\N{...}` all denote `J` without an `A-Z` in
 #: sight, so the raw pass matches `J` and a folded pass can never see it. Digits
@@ -1821,8 +1828,9 @@ def _folded_fast_path(pattern: str) -> str | None:
     Accepted only when all four hold, and each one is a soundness condition rather
     than a convenience:
 
-    * The pattern OPENS with a single global flag group. A group anywhere else is
-      scoped, so the flags in effect at the top are not knowable from it.
+    * The pattern OPENS with a global flag group (after the normalising below). A
+      group anywhere else is scoped, so the flags in effect at the top are not
+      knowable from it.
     * That group contains `i`. Without IGNORECASE the raw pass is already the fast
       one, and folding the text would CHANGE which strings match.
     * The body is ASCII. A non-ASCII body character may be a case-variant of an
@@ -1835,34 +1843,114 @@ def _folded_fast_path(pattern: str) -> str | None:
       is refused, never guessed at. Refused: an uppercase escape (`\S`, `\B`,
       `\W` are COMPLEMENTS of classes the fold moves characters across); a
       numeric or named code point (`\x4a`, `\u004a`, `\U0000004a`, `\112`,
-      `\N{...}` all spell `J` with no `A-Z` in sight); an uppercase letter inside
-      a class; a class range that is not wholly `a-z` or `0-9` (`[@-_]` holds
-      `A-Z`, so it matches `a` raw and nothing folded); and any `(?` other than
+      `\N{...}` all spell `J` with no `A-Z` in sight); an uppercase ESCAPE inside
+      a class (`[\S]`, `[\s\S]`); a class range that is not wholly `a-z`, `A-Z`
+      or `0-9` (`[@-_]` holds `A-Z`, so it matches `a` raw and nothing folded,
+      and `[A-z]` straddles both cases); and any `(?` other than
       `(?:`, `(?=`, `(?!`, `(?<=`, `(?<!` -- which is how every scoped flag-OFF
       spelling (`(?-i:`, `(?s-i:`, `(?m-i:`) is refused: it re-enables case
       sensitivity inside a region whose distinction the fold has ALREADY
       destroyed, so `(?i)a(?s-i:b)` over `"aB"` would match FOLDED and not raw.
 
+    Three spellings are NORMALISED to that single leading group first
+    (`_global_flags`), each because it denotes exactly the same flags over exactly
+    the same body: consecutive leading groups merge (`(?is)(?i)x` reads as
+    `(?is)x`, later groups adding only letters not yet seen), and a scoped group
+    whose `)` is the pattern's LAST character is the whole pattern
+    (`(?i:a|b)` reads as `(?i)a|b`). A scoped group that ends anywhere earlier
+    (`(?i:a)b`, `(?i:a)+`) leaves text outside it case-SENSITIVE, so it is refused.
+
     The flag group is REWRITTEN rather than dropped: `(?is)x` -> `(?s)x`,
     `(?im)x` -> `(?m)x`, `(?i)x` -> `x`, with the surviving letters in their
     original order. Dropping the whole group would silently take DOTALL or
     MULTILINE with it and change the match. The ONLY body change is lower-casing
-    an `A-Z` plain literal outside a class and outside an escape
-    (`(?i)MaxTurnsExceeded` -> `maxturnsexceeded`); escapes and classes are copied
-    byte-for-byte, since lower-casing `\S` would rewrite it into `\s`.
+    an `A-Z` plain literal outside an escape, inside a class or not
+    (`(?i)MaxTurnsExceeded` -> `maxturnsexceeded`, `(?i)[A-Z_]` -> `[a-z_]`):
+    under IGNORECASE a class matches a letter iff it holds either case of it, and
+    the lowered class holds the lowered letter in exactly those cases. Escapes are
+    copied byte-for-byte, since lower-casing `\S` would rewrite it into `\s`.
     """
-    match = _LEADING_FLAG_GROUP_RE.match(pattern)
-    if match is None:
+    parsed = _global_flags(pattern)
+    if parsed is None:
         return None
-    flags = match.group(1)
+    flags, body = parsed
     if "i" not in flags:
         return None
-    body = pattern[match.end():]
     folded = _fold_body(body) if body.isascii() else None
     if folded is None:
         return None
     kept = flags.replace("i", "")
     return (f"(?{kept})" if kept else "") + folded
+
+
+def _global_flags(pattern: str) -> tuple[str, str] | None:
+    """The flag letters in effect over the WHOLE pattern and the body they govern,
+    or None when no leading group decides them.
+
+    Leading global groups merge in first-seen order; a later group contributes
+    only letters not already present, so a single group keeps its letters exactly
+    as authored and every rewrite accepted before merging existed is unchanged.
+    Failing that, a leading scoped `(?flags:` counts only when it closes on the
+    final character -- otherwise some text sits outside its flags.
+    """
+    letters = ""
+    rest = pattern
+    while (match := _LEADING_FLAG_GROUP_RE.match(rest)) is not None:
+        letters += "".join(ch for ch in match.group(1) if ch not in letters)
+        rest = rest[match.end():]
+    if letters:
+        return letters, rest
+    scoped = _LEADING_SCOPED_GROUP_RE.match(pattern)
+    if scoped is None or _group_close(pattern, scoped.end()) != len(pattern) - 1:
+        return None
+    return scoped.group(1), pattern[scoped.end():-1]
+
+
+def _group_close(pattern: str, start: int) -> int | None:
+    """Index of the `)` closing the group whose contents begin at `start`, or None
+    when it never closes. An escaped `\\(`/`\\)` and a paren inside a class are
+    literals, so counting them would misplace the close and unwrap a group that
+    does not in fact span the pattern."""
+    depth = 1
+    i = start
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "[":
+            end = _class_span_end(pattern, i)
+            if end is None:
+                return None
+            i = end
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _class_span_end(pattern: str, i: int) -> int | None:
+    """Index just past the `]` closing the class opening at `pattern[i]`, by `re`'s
+    own reading (a `]` first in the class is a literal), with no judgement on what
+    the class holds -- `_class_end` makes that judgement once the body is known."""
+    j = i + 1
+    if pattern[j:j + 1] == "^":
+        j += 1
+    if pattern[j:j + 1] == "]":
+        j += 1
+    while j < len(pattern):
+        if pattern[j] == "\\":
+            j += 2
+        elif pattern[j] == "]":
+            return j + 1
+        else:
+            j += 1
+    return None
 
 
 def _bad_escape(nxt: str) -> bool:
@@ -1873,8 +1961,11 @@ def _bad_escape(nxt: str) -> bool:
 
 def _range_ok(lo: str, hi: str) -> bool:
     """A class range survives the fold only when it cannot straddle a letter case:
-    `[@-_]` holds `A-Z`, so under IGNORECASE it matches `a` raw and never folded."""
-    return ("a" <= lo <= "z" and "a" <= hi <= "z") or ("0" <= lo <= "9" and "0" <= hi <= "9")
+    `[@-_]` holds `A-Z`, so under IGNORECASE it matches `a` raw and never folded,
+    and `[A-z]` holds `[\\]^_` besides. A wholly `A-Z` range lowers to the same
+    range in `a-z`, so it is as safe as one authored that way."""
+    return any(first <= lo <= last and first <= hi <= last
+               for first, last in (("a", "z"), ("A", "Z"), ("0", "9")))
 
 
 def _class_end(body: str, i: int) -> int | None:
@@ -1888,7 +1979,7 @@ def _class_end(body: str, i: int) -> int | None:
         ch = body[j]
         if ch == "]" and j > first:
             return j + 1
-        if ch == "[" or "A" <= ch <= "Z":
+        if ch == "[":
             return None
         if ch == "\\":
             if j + 1 >= len(body) or _bad_escape(body[j + 1]):
@@ -1910,9 +2001,12 @@ def _fold_body(body: str) -> str | None:
 
     Refuse-by-default: every token is either classified safe or the whole pattern
     runs as authored. The ONLY rewrite is lower-casing an `A-Z` plain literal
-    outside a class and escape -- `(?i)MaxTurnsExceeded` matches exactly what
-    `maxturnsexceeded` matches in folded text. Escapes and classes are copied
-    verbatim, because lower-casing `\\S` would turn it into its own complement.
+    outside an escape -- `(?i)MaxTurnsExceeded` matches exactly what
+    `maxturnsexceeded` matches in folded text. A class is lowered whole: the
+    ASCII body and `_class_end`'s refusal of every uppercase escape (`[\\S]`) mean
+    the only characters `.lower()` can change there are plain `A-Z` letters.
+    Escapes outside a class are copied verbatim, because lower-casing `\\S` would
+    turn it into its own complement.
     """
     out: list[str] = []
     i = 0
@@ -1927,7 +2021,7 @@ def _fold_body(body: str) -> str | None:
             end = _class_end(body, i)
             if end is None:
                 return None
-            out.append(body[i:end])
+            out.append(body[i:end].lower())
             i = end
         elif ch == "(" and body[i + 1:i + 2] == "?":
             if not body.startswith(_SAFE_GROUP_OPENERS, i + 2):

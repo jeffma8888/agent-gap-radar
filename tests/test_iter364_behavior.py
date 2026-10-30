@@ -142,11 +142,22 @@ def test_b2_class_accepted_verbatim(pattern: str, expected: str):
 
 
 @pytest.mark.parametrize("pattern", [
-    r"(?i)[!-~]", r"(?i)[0-z]", r"(?i)[\--/]", r"(?i)[A-Z]", r"(?i)[aB]",
-    r"(?i)[a-fA]", r"(?i)[a-z", r"(?i)x[ab", r"(?i)[@-_]",
+    r"(?i)[!-~]", r"(?i)[0-z]", r"(?i)[\--/]", r"(?i)[a-z", r"(?i)x[ab",
+    r"(?i)[@-_]",
 ])
 def test_b2_class_refused(pattern: str):
     assert f(pattern) is None, f"{pattern!r} accepted as {f(pattern)!r}"
+
+
+@pytest.mark.parametrize(("pattern", "expected"), [
+    (r"(?i)[A-Z]", "[a-z]"),
+    (r"(?i)[aB]", "[ab]"),
+    (r"(?i)[a-fA]", "[a-fa]"),
+])
+def test_b2_uppercase_class_lowered(pattern: str, expected: str):
+    """Flipped in iter 370 from `test_b2_class_refused`: uppercase letters and
+    wholly `A-Z` ranges inside a class are lowered, not refused."""
+    assert f(pattern) == expected
 
 
 # --- behavior 3: uppercase plain literals are lowercased ---------------------
@@ -226,6 +237,21 @@ def test_b7_old_rule_restatement_matches_the_measured_head_count():
         f"the inline old rule accepts {len(old)}, the spec measured {OLD_ACCEPTED}")
 
 
+def _flags_and_body(p: str) -> tuple[str, str]:
+    """The flag letters and body of an ACCEPTED pattern, read independently of the
+    classifier: consecutive leading `(?flags)` groups merge first-seen (iter 370),
+    and failing those an accepted pattern is one whole-span `(?flags:...)`."""
+    letters, rest = "", p
+    while (head := re.match(r"\(\?([ims]+)\)", rest)) is not None:
+        letters += "".join(ch for ch in head.group(1) if ch not in letters)
+        rest = rest[head.end():]
+    if letters:
+        return letters, rest
+    scoped = re.match(r"\(\?([ims]+):", p)
+    assert scoped is not None and p.endswith(")"), p
+    return scoped.group(1), p[scoped.end():-1]
+
+
 def test_b7_every_old_accepted_pattern_keeps_its_exact_rewrite():
     changed = [(p, _old_rule(p), f(p)) for p in _register_patterns()
                if _old_rule(p) is not None and f(p) != _old_rule(p)]
@@ -238,12 +264,11 @@ def test_b7_accepted_bodies_without_uppercase_are_untouched():
         got = f(p)
         if got is None:
             continue
-        head = re.match(r"\(\?([ims]+)\)", p)
-        assert head is not None and "i" in head.group(1), p
-        body = p[head.end():]
+        letters, body = _flags_and_body(p)
+        assert "i" in letters, p
         if re.search(r"[A-Z]", body):
             continue
-        flags = head.group(1).replace("i", "")
+        flags = letters.replace("i", "")
         if got != (f"(?{flags})" if flags else "") + body:
             moved.append((p, got))
     assert moved == [], moved[:3]
@@ -260,17 +285,16 @@ def test_b8_at_least_225_live_patterns_accepted():
 
 def test_b8_every_accepted_rewrite_is_flag_strip_plus_lowercased_body():
     """Behavior 3's "nothing else in the body changes", over the live register:
-    an accepted body can only hold uppercase as plain literals (escapes and
-    classes with `A-Z` are refused), so the rewrite is exactly the stripped flag
-    group plus `body.lower()`."""
+    an accepted body can only hold uppercase as plain literals, in or out of a
+    class (uppercase escapes are refused), so the rewrite is exactly the
+    stripped flag group(s) plus `body.lower()`."""
     bad = []
     for p in _register_patterns():
         got = f(p)
         if got is None:
             continue
-        head = re.match(r"\(\?([ims]+)\)", p)
-        body = p[head.end():]
-        flags = head.group(1).replace("i", "")
+        letters, body = _flags_and_body(p)
+        flags = letters.replace("i", "")
         if got != (f"(?{flags})" if flags else "") + body.lower():
             bad.append((p, got))
     assert bad == [], bad[:3]

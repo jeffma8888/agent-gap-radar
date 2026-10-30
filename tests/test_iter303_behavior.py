@@ -401,7 +401,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter367_new = {"test_iter367_behavior.py"}
     iter368_new = {"test_iter368_behavior.py", "test_iter368_tester_behavior.py"}
     iter369_new = {"test_iter369_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new, sorted(set(now) ^ set(before))
+    iter370_new = {"test_iter370_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}
@@ -411,6 +412,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
                    if n.startswith("test_iter296_b1_the_derived")), [RENAMED_296]),
         "test_iter300_behavior.py": ([DELETED_300], []),
         "test_iter302_behavior.py": ([RETIRED_362_302], []),
+        # iter 370: the `(?i)[A-Z]x` refusal pin flipped to an acceptance pin.
+        "test_iter245_behavior.py": ([], ["test_b1_uppercase_class_now_lowered"]),
     }, changed
 
 

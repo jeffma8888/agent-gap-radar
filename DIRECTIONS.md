@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-370
+    lenses: performance-and-throughput (HEAD `0aa36aa`), narrative-and-docs (HEAD `0aa36aa`)
+    - Candidate A1 -- The folded fast path accepts the case-insensitive patterns it declines today: `radar scan .` 8.0 s -> 7.2 s, byte-identical
+    - Candidate A2 -- Session-shared self-scan: compute each distinct `radar scan .` output once per test session
+    - Candidate A3 -- Literal sets prove through a grouped alternation, so the prefilter skips files for the 45 patterns it now runs blind
+    - Candidate B1 -- Board Status drift brake: rows 81 and 144 still read `open` 60+ iterations after shipping; flip them and make `roadmap_integrity` see the class (row 91)
+    - Candidate B2 -- The machine-consumer contract publishes every JSON key the verbs emit: 15 keys are unpublished today, and a brake keeps it that way
+    - Candidate B3 -- State the roadmap's REAL size cap where a PM looks: 240,000 chars (13,967 headroom) is written nowhere, while rows 64 and 70 still steer by the foundry's 54,000 and claim no archive exists
+    winner: A1
+    ship: pending (not yet decided)
   iter-369
     lenses: simplification-and-deletion (HEAD `f1c9136`), performance-and-throughput (HEAD `f1c9136`)
     - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still pin a PRECHANGE_COMMIT sha
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Collapse the duplicated self-scan determinism nodes into one parametrized node
     - Candidate B3 -- `required_literal_sets` distributes over a grouped alternation so the prefilter can skip files
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 0aa36aa
   iter-368
     lenses: integration-and-adoption (HEAD `2619ae3`), simplification-and-deletion (HEAD `2619ae3`)
     - Candidate A1 -- `radar scan TARGET --closure PRD`: the build loop checks its own work against the prd.json it was handed
@@ -1710,4 +1720,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-171 scouted iterations
+172 scouted iterations

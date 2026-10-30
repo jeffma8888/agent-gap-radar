@@ -340,13 +340,18 @@ def test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin():
 @pytest.mark.parametrize(("pattern", "why"), [
     (r"os\.walk\(", "no leading global inline flag group -- condition 1(a)"),
     (r"(?m)foo", "flag group carries no `i` -- condition 1(b)"),
-    (r"(?i)[A-Z]x", "uppercase inside a class, so the fold is not span-safe -- 1(c)"),
     (r"(?i)a(?-i:b)", "a scoped flag-OFF re-enables case sensitivity the fold has "
                       "already destroyed -- condition 1(d)"),
 ])
 def test_b1_rejections_each_have_their_own_case(pattern: str, why: str):
     assert checks._folded_fast_path(pattern) is None, (
         f"{pattern!r} was ACCEPTED but must be rejected: {why}")
+
+
+def test_b1_uppercase_class_now_lowered():
+    """Flipped in iter 370 from a refusal: an `A-Z` class under IGNORECASE matches
+    exactly what its lowered class matches over folded text, so it is accepted."""
+    assert checks._folded_fast_path(r"(?i)[A-Z]x") == r"[a-z]x"
 
 
 def test_b1_accepts_a_lowercase_body_behind_a_global_i():

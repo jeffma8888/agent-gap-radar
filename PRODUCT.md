@@ -314,3 +314,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 367 dx-refusal: path slot holding a gap id says so and names `show ID` / `prd --gap ID`; `show` swap named
 - iter 368 roadmap-paydown: shipped board rows' long Notes moved verbatim to docs/ROADMAP_NOTES_ARCHIVE.md
 - iter 369 hotfix: README document index names docs/ROADMAP_NOTES_ARCHIVE.md; fresh-clone test_iter95 green again
+- iter 370 performance: fold fast path accepts upper-in-class, whole-span `(?i:...)`, doubled flags; scan byte-identical
