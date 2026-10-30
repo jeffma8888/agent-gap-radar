@@ -371,6 +371,18 @@ UNKNOWN: a target that vendors large or binary blobs would otherwise turn every
 gate over it noisy, so the verdict stays and the count discloses the narrower
 read.
 
+**An unreadable file is weighed under applies_when.** A NOT_APPLICABLE says the
+gap cannot arise in this target, and that claim is only as wide as the bytes
+behind it. So where `applies_when` found no match over a domain in which a file
+could not be read at all (an operating-system read error such as permission
+denied), the finding is reported as UNKNOWN instead, its `reason` opens with
+`applies_when unreadable:` and names how many files went unread, and
+`skipped_files` carries that unreadable count. A gate must treat it as
+un-answered, exactly like any other UNKNOWN, and never as a pass. A positive
+`applies_when` match is still decided as before whatever went unread. Oversized
+and non-UTF-8 skips under `applies_when` still leave NOT_APPLICABLE, for the
+noise reason given above.
+
 **The target's git configuration is not trusted.** Deciding what a target
 SHIPS means asking `git ls-files` what it tracks, and git honours the
 configuration of the tree it is pointed at -- which here is the artifact under

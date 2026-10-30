@@ -108,6 +108,12 @@ class RuleHit:
     #: skipped bytes it never examined, and the consumer can use it to assess
     #: whether an ABSENT verdict rests on a complete search.
     skipped_files: int = 0
+    #: The subset of `skipped_files` whose read raised `OSError` (permission
+    #: denied, say): bytes that EXIST in the domain but were never seen. Kept apart
+    #: from the oversized and non-UTF-8 causes because only this one is weighed --
+    #: by `run_check`'s `applies_when` leg, where a non-match over a file that
+    #: could not be opened would otherwise claim the gap cannot apply at all.
+    unreadable_files: int = 0
 
     def __bool__(self) -> bool:
         return self.matched
@@ -625,6 +631,16 @@ _READ_CACHE_STACK: list[dict[pathlib.Path, str | None]] = []
 #: owns both stacks, which is what keeps a fold from outliving the scan that made it.
 _FOLD_CACHE_STACK: list[dict[pathlib.Path, str]] = []
 
+#: Paths whose read raised `OSError`, innermost frame last. A SIDE channel rather
+#: than a new value in the read frame, for two reasons: the read frame is yielded
+#: to callers and stores a bare `None` for every skip cause, and `_read` is a
+#: published `str | None` seam. Without it the cause died in the cache -- the first
+#: rule to read an unreadable file knew why it got `None`, and every later rule
+#: answered from a cached `None` it could not tell from an oversized file.
+#: `read_cache_scope` pushes and pops one frame per scan beside the read frame;
+#: `_unreadable_frame` supplies a short-lived one to a caller outside any scan.
+_UNREADABLE_STACK: list[set[pathlib.Path]] = []
+
 
 @contextlib.contextmanager
 def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
@@ -647,6 +663,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
     frame: dict[pathlib.Path, str | None] = {}
     _READ_CACHE_STACK.append(frame)
     _FOLD_CACHE_STACK.append({})
+    _UNREADABLE_STACK.append(set())
     try:
         yield frame
     finally:
@@ -660,6 +677,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
         # scope rather than a rule a future caller has to remember.
         _READ_CACHE_STACK.pop()
         _FOLD_CACHE_STACK.pop()
+        _UNREADABLE_STACK.pop()
 
 
 def _decode(path: pathlib.Path) -> str | None:
@@ -673,8 +691,36 @@ def _decode(path: pathlib.Path) -> str | None:
         if path.stat().st_size > MAX_FILE_BYTES:
             return None
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    except UnicodeDecodeError:
         return None
+    except OSError:
+        # Still a `None` VALUE, but the one cause that is remembered: these bytes
+        # exist and were never seen. Recorded HERE, at the only real read, so the
+        # memo in `_read` can return its cached `None` and the cause still holds.
+        if _UNREADABLE_STACK:
+            _UNREADABLE_STACK[-1].add(path)
+        return None
+
+
+@contextlib.contextmanager
+def _unreadable_frame() -> Iterator[set[pathlib.Path]]:
+    """The open scan's unreadable-path frame, or a fresh one for this call only.
+
+    A content rule can be evaluated outside any scan (`run_check` is public), and
+    there `_read` is uncached, so every read reaches `_decode` again and a frame
+    that lives for one rule evaluation sees every cause it needs. Inside a scan the
+    SCAN'S frame is reused, never shadowed: shadowing it would lose the cause for
+    exactly the cached reads the frame exists to serve.
+    """
+    if _UNREADABLE_STACK:
+        yield _UNREADABLE_STACK[-1]
+        return
+    frame: set[pathlib.Path] = set()
+    _UNREADABLE_STACK.append(frame)
+    try:
+        yield frame
+    finally:
+        _UNREADABLE_STACK.pop()
 
 
 def _read(path: pathlib.Path) -> str | None:
@@ -806,7 +852,7 @@ def evaluate(rule: dict, target: pathlib.Path,
       `RuleHit(not matched, [], ...)`, so those locations are thrown away one
       line later whatever the inner rule computed.
     * `run_check`'s `applies_when` -> True. It is read only through
-      `RuleHit.__bool__`, so nothing but the boolean escapes.
+      `RuleHit.__bool__` and the `unreadable_files` count, so no location escapes.
     * `any_of` / `all_of` -> the CALLER'S value, unchanged. They only forward
       locations upward, so they discard exactly when their caller discards.
     * `present_when` / `mitigated_when` -> nothing. Both publish their locations
@@ -831,6 +877,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         # clean-looking composite answer, which is the same fail-open one level up.
         truncated = 0
         skipped = 0
+        unreadable = 0
         for sub in rule.get("rules", []):
             # `boolean_only` forwarded, never invented: this combinator hands its
             # sub-rules' locations straight up, so it discards them exactly when
@@ -838,10 +885,11 @@ def evaluate(rule: dict, target: pathlib.Path,
             hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             truncated = max(truncated, hit.truncated_files)
             skipped = max(skipped, hit.skipped_files)
+            unreadable = max(unreadable, hit.unreadable_files)
             if hit.matched:
                 matched = True
                 locations.extend(hit.locations)
-        return RuleHit(matched, locations, truncated, skipped)
+        return RuleHit(matched, locations, truncated, skipped, unreadable)
 
     if kind == "all_of":
         subs = rule.get("rules", [])
@@ -850,6 +898,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         locations = []
         truncated = 0
         skipped = 0
+        unreadable = 0
         for sub in subs:
             hit = evaluate(sub, target, exclude_tests, boolean_only=boolean_only)
             # Accumulated BEFORE the short circuit: the sub-rule that failed was
@@ -857,10 +906,11 @@ def evaluate(rule: dict, target: pathlib.Path,
             # on an incomplete search and must say so.
             truncated = max(truncated, hit.truncated_files)
             skipped = max(skipped, hit.skipped_files)
+            unreadable = max(unreadable, hit.unreadable_files)
             if not hit.matched:
-                return RuleHit(False, [], truncated, skipped)
+                return RuleHit(False, [], truncated, skipped, unreadable)
             locations.extend(hit.locations)
-        return RuleHit(True, locations, truncated, skipped)
+        return RuleHit(True, locations, truncated, skipped, unreadable)
 
     if kind == "not":
         inner = rule.get("rule")
@@ -873,7 +923,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         # Negation flips the BOOLEAN, never the completeness: a search that read
         # part of its domain is equally partial whichever way its answer is read.
         return RuleHit(not hit.matched, [], hit.truncated_files,
-                       hit.skipped_files)
+                       hit.skipped_files, hit.unreadable_files)
 
     if kind in ("file_exists", "file_absent"):
         files = iter_files(target, rule["globs"], exclude_tests)
@@ -958,123 +1008,126 @@ def evaluate(rule: dict, target: pathlib.Path,
         # the test per file would spend part of the saving on computing it.
         stop_at_first_hit = kind == "content_absent" or boolean_only
         skipped = 0
-        for path in files[:MAX_SCAN_FILES]:
-            text = _read(path)
-            if text is None:
-                skipped += 1
-                continue
-            # Read once per file and reused by the fast-path gate below: it is the
-            # ONE fact that makes the unfolded DNF sound for this text.
-            is_ascii = text.isascii()
-            if literal_sets is not None:
-                # Folded once into a local: the membership test below runs once per
-                # literal, and re-deriving the fold inside that loop would pay for
-                # it per literal instead of per file.
-                folded = _folded(path, text)
-                if not any(all(literal in folded for literal in conjunction)
-                           for conjunction in literal_sets):
-                    # `any` over the alternatives and `all` within one of them, and
-                    # neither may be swapped. Top-level alternation is a disjunction,
-                    # so ONE satisfied conjunction is enough to keep the file; the
-                    # members of a single conjunction are each mandatory for that
-                    # alternative, so one missing member rules that alternative out.
-                    #
-                    # A text completing NO conjunction cannot match, so
-                    # the regex pass over it is provably wasted. The one-directional
-                    # guarantee is the entire safety argument: a match IMPLIES some
-                    # alternative's whole conjunction is present, so an INCOMPLETE
-                    # conjunction is decisive while a complete one proves nothing.
-                    # This skip can therefore only ever
-                    # drop a pass that would have found nothing; it cannot turn a
-                    # match into a non-match, which is the inverted verdict -- the
-                    # false claim of safety -- that this module exists to prevent.
-                    #
-                    # Placed after the read on purpose: the literal test needs the
-                    # text, so no file that is read today becomes unread and
-                    # `truncated` keeps meaning exactly what it meant.
+        unreadable = 0
+        with _unreadable_frame() as unreadable_paths:
+            for path in files[:MAX_SCAN_FILES]:
+                text = _read(path)
+                if text is None:
+                    skipped += 1
+                    unreadable += path in unreadable_paths
                     continue
-                if is_ascii and ascii_sets is not None and not any(
-                        all(literal in folded for literal in conjunction)
-                        for conjunction in ascii_sets):
-                    # The whole-run test, reached only by an ASCII file the folded
-                    # DNF already admitted. Same `any`/`all` shape, same fold,
-                    # same one-directional argument: an incomplete conjunction is
-                    # decisive, and every ASCII conjunction is at least as strong
-                    # as the folded one it refines, so this can only drop a pass
-                    # that would have found nothing. A non-ASCII file never
-                    # reaches it and keeps today's verdict byte for byte.
-                    continue
-            if fast_regex is not None and is_ascii:
-                # The substitution, and it is an EQUALITY rather than an
-                # approximation: for an ASCII text, `(?i)` over the raw text and the
-                # same body with `i` dropped over `text.lower()` accept the same
-                # strings, so both arms yield the same spans in the same order. The
-                # per-file gate is what makes that true and it is one-directional --
-                # a non-ASCII text takes the `else` and keeps today's verdict
-                # exactly, because `(?i)s` matches U+017F in RAW text while
-                # `str.lower()` leaves U+017F alone, so folding there could only turn
-                # a match into a NON-match. Declining is free; inverting a verdict is
-                # the one thing this module may never do.
-                #
-                # `m.start()` is read against `text` below rather than against the
-                # fold, and it does not have to be translated: ASCII `str.lower()` is
-                # length-preserving and leaves every newline where it was, so an
-                # offset means the same thing in both strings and a reported
-                # `path:line` cannot move.
-                #
-                # The fold comes from `_folded`, the same accessor and the same
-                # per-scan cache the literal prefilter above uses -- no second cache
-                # and no new lifetime. Inside a scan this is the prefilter's own
-                # entry, already computed; outside one there is no cache at all and
-                # the fold is recomputed, which is the cost `_folded` documents for
-                # every caller and is why it is asked for rather than passed down.
-                matches: Iterator[re.Match[str]] = fast_regex.finditer(
-                    _folded(path, text))
-            else:
-                matches = regex.finditer(text)
-            for m in matches:
-                # Counted over a BOUNDED RANGE, never over a copied prefix.
-                # Slicing the text up to the hit allocates a fresh string as long
-                # as that prefix, once per hit reported, to answer a question
-                # `str.count` answers in place. Same number, no allocation.
-                #
-                # The slice form is deliberately not spelled anywhere in this file,
-                # comments included: an acceptance check for its absence is a
-                # substring test, and this tool scans ITSELF, so naming the banned
-                # shape here would red that check from inside a comment.
-                line_no = text.count("\n", 0, m.start()) + 1
-                loc = f"{path.relative_to(target)}:{line_no}"
-                (test_hits if is_test_path(target, path) else code_hits).append(loc)
-                break
-            if stop_at_first_hit and (code_hits or test_hits):
-                # The answer is settled here and cannot change, so every further
-                # read and regex pass computes a result that is provably discarded.
-                # Two independent reasons the caller can no longer use more than
-                # the boolean, and either one alone is sufficient:
-                #
-                # * `content_absent`, whose branch below reads this loop only
-                #   through `bool(code_hits or test_hits)` -- monotone once
-                #   anything has been appended -- and throws `locations` away.
-                # * `boolean_only`, which the two sites in this module's own
-                #   propagation table set only where the RESULT's locations are
-                #   discarded in code a reader can follow.
-                #
-                # The exit still has to be EARNED rather than taken always,
-                # because a `content_matches` node evaluated for its locations
-                # publishes them: stopping there unasked would truncate the list
-                # and silently break the code-before-test ranking. `truncated` is
-                # derived from `domain_size` BEFORE this loop, so an exit here
-                # still reports the same `MAX_SCAN_FILES` incompleteness an
-                # unbroken loop reported -- a cut domain is never laundered into a
-                # clean-looking answer.
-                break
+                # Read once per file and reused by the fast-path gate below: it is the
+                # ONE fact that makes the unfolded DNF sound for this text.
+                is_ascii = text.isascii()
+                if literal_sets is not None:
+                    # Folded once into a local: the membership test below runs once per
+                    # literal, and re-deriving the fold inside that loop would pay for
+                    # it per literal instead of per file.
+                    folded = _folded(path, text)
+                    if not any(all(literal in folded for literal in conjunction)
+                               for conjunction in literal_sets):
+                        # `any` over the alternatives and `all` within one of them, and
+                        # neither may be swapped. Top-level alternation is a disjunction,
+                        # so ONE satisfied conjunction is enough to keep the file; the
+                        # members of a single conjunction are each mandatory for that
+                        # alternative, so one missing member rules that alternative out.
+                        #
+                        # A text completing NO conjunction cannot match, so
+                        # the regex pass over it is provably wasted. The one-directional
+                        # guarantee is the entire safety argument: a match IMPLIES some
+                        # alternative's whole conjunction is present, so an INCOMPLETE
+                        # conjunction is decisive while a complete one proves nothing.
+                        # This skip can therefore only ever
+                        # drop a pass that would have found nothing; it cannot turn a
+                        # match into a non-match, which is the inverted verdict -- the
+                        # false claim of safety -- that this module exists to prevent.
+                        #
+                        # Placed after the read on purpose: the literal test needs the
+                        # text, so no file that is read today becomes unread and
+                        # `truncated` keeps meaning exactly what it meant.
+                        continue
+                    if is_ascii and ascii_sets is not None and not any(
+                            all(literal in folded for literal in conjunction)
+                            for conjunction in ascii_sets):
+                        # The whole-run test, reached only by an ASCII file the folded
+                        # DNF already admitted. Same `any`/`all` shape, same fold,
+                        # same one-directional argument: an incomplete conjunction is
+                        # decisive, and every ASCII conjunction is at least as strong
+                        # as the folded one it refines, so this can only drop a pass
+                        # that would have found nothing. A non-ASCII file never
+                        # reaches it and keeps today's verdict byte for byte.
+                        continue
+                if fast_regex is not None and is_ascii:
+                    # The substitution, and it is an EQUALITY rather than an
+                    # approximation: for an ASCII text, `(?i)` over the raw text and the
+                    # same body with `i` dropped over `text.lower()` accept the same
+                    # strings, so both arms yield the same spans in the same order. The
+                    # per-file gate is what makes that true and it is one-directional --
+                    # a non-ASCII text takes the `else` and keeps today's verdict
+                    # exactly, because `(?i)s` matches U+017F in RAW text while
+                    # `str.lower()` leaves U+017F alone, so folding there could only turn
+                    # a match into a NON-match. Declining is free; inverting a verdict is
+                    # the one thing this module may never do.
+                    #
+                    # `m.start()` is read against `text` below rather than against the
+                    # fold, and it does not have to be translated: ASCII `str.lower()` is
+                    # length-preserving and leaves every newline where it was, so an
+                    # offset means the same thing in both strings and a reported
+                    # `path:line` cannot move.
+                    #
+                    # The fold comes from `_folded`, the same accessor and the same
+                    # per-scan cache the literal prefilter above uses -- no second cache
+                    # and no new lifetime. Inside a scan this is the prefilter's own
+                    # entry, already computed; outside one there is no cache at all and
+                    # the fold is recomputed, which is the cost `_folded` documents for
+                    # every caller and is why it is asked for rather than passed down.
+                    matches: Iterator[re.Match[str]] = fast_regex.finditer(
+                        _folded(path, text))
+                else:
+                    matches = regex.finditer(text)
+                for m in matches:
+                    # Counted over a BOUNDED RANGE, never over a copied prefix.
+                    # Slicing the text up to the hit allocates a fresh string as long
+                    # as that prefix, once per hit reported, to answer a question
+                    # `str.count` answers in place. Same number, no allocation.
+                    #
+                    # The slice form is deliberately not spelled anywhere in this file,
+                    # comments included: an acceptance check for its absence is a
+                    # substring test, and this tool scans ITSELF, so naming the banned
+                    # shape here would red that check from inside a comment.
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    loc = f"{path.relative_to(target)}:{line_no}"
+                    (test_hits if is_test_path(target, path) else code_hits).append(loc)
+                    break
+                if stop_at_first_hit and (code_hits or test_hits):
+                    # The answer is settled here and cannot change, so every further
+                    # read and regex pass computes a result that is provably discarded.
+                    # Two independent reasons the caller can no longer use more than
+                    # the boolean, and either one alone is sufficient:
+                    #
+                    # * `content_absent`, whose branch below reads this loop only
+                    #   through `bool(code_hits or test_hits)` -- monotone once
+                    #   anything has been appended -- and throws `locations` away.
+                    # * `boolean_only`, which the two sites in this module's own
+                    #   propagation table set only where the RESULT's locations are
+                    #   discarded in code a reader can follow.
+                    #
+                    # The exit still has to be EARNED rather than taken always,
+                    # because a `content_matches` node evaluated for its locations
+                    # publishes them: stopping there unasked would truncate the list
+                    # and silently break the code-before-test ranking. `truncated` is
+                    # derived from `domain_size` BEFORE this loop, so an exit here
+                    # still reports the same `MAX_SCAN_FILES` incompleteness an
+                    # unbroken loop reported -- a cut domain is never laundered into a
+                    # clean-looking answer.
+                    break
         found = bool(code_hits or test_hits)
         if kind == "content_matches":
             return RuleHit(found, _rank_locations(code_hits, test_hits), truncated,
-                           skipped)
+                           skipped, unreadable)
         return RuleHit(not found,
                        [_scope_note(rule["globs"], rule["pattern"])] if not found else [],
-                       truncated, skipped)
+                       truncated, skipped, unreadable)
 
     raise ValueError(f"unknown rule kind: {kind!r}")
 
@@ -1134,6 +1187,30 @@ def _render_scope(globs: list[str]) -> str:
     return f"{head}, +{suppressed} more" if suppressed > 0 else head
 
 
+def _unreadable_gate(unreadable: int) -> CheckOutcome:
+    """UNKNOWN for an `applies_when` non-match over a file that could not be read.
+
+    NOT_APPLICABLE is a claim about the target -- "this gap cannot arise here" --
+    and a claim is only as wide as the bytes behind it. A file whose read raised
+    `OSError` may hold exactly the signature that would have made the gap apply,
+    so a non-match over it decides nothing. Left as NOT_APPLICABLE, a tree that is
+    unreadable to the CI user would score cleaner than a readable one.
+
+    Only this cause is weighed. Oversized and non-UTF-8 skips keep today's
+    NOT_APPLICABLE: measured, weighing them flipped most of the NOT_APPLICABLE
+    verdicts on a real repo full of large logs, while this cause left every real
+    target scanned byte-identical. The reason deliberately does not reuse the
+    NOT_APPLICABLE reason's wording, which has exactly one site in this tree.
+    """
+    noun = "file" if unreadable == 1 else "files"
+    return CheckOutcome(
+        Verdict.UNKNOWN,
+        reason=(f"applies_when unreadable: {unreadable} {noun} in its domain "
+                "could not be read, so its non-match cannot support "
+                "NOT_APPLICABLE"),
+        skipped_files=unreadable)
+
+
 def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     """Decide one check against a target. Fail-CLOSED by construction.
 
@@ -1154,10 +1231,13 @@ def run_check(check: dict, target: pathlib.Path) -> CheckOutcome:
     applies = check.get("applies_when")
     if applies is not None:
         try:
-            # `boolean_only=True`: this call is consumed by `not ...`, so only
-            # `RuleHit.__bool__` is ever read and the location list cannot escape
-            # into the `CheckOutcome` returned below.
-            if not evaluate(applies, target, boolean_only=True):
+            # `boolean_only=True`: this call is read only for its boolean and its
+            # unreadable count, so the location list cannot escape into the
+            # `CheckOutcome` returned below.
+            gate = evaluate(applies, target, boolean_only=True)
+            if not gate and gate.unreadable_files:
+                return _unreadable_gate(gate.unreadable_files)
+            if not gate:
                 return CheckOutcome(
                     Verdict.NOT_APPLICABLE,
                     reason=f"applies_when did not match: {_render_rule(applies)}")

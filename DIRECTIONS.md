@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-372
+    lenses: new-capability (HEAD `df9097f`), hardening/DX (HEAD `df9097f`)
+    - Candidate A1 -- `scan --gap` is repeatable: a team scans exactly the gaps it owns, and a second `--gap` stops being silently dropped
+    - Candidate A2 -- Honest ranks: tied records share a rank ("2=") and the report says how much of the order is a tiebreak
+    - Candidate A3 -- `radar report` gains `## By gap type`: the taxonomy's second axis gets its first census, zeros kept
+    - Candidate B1 -- A tracked file the scanner cannot read turns PRESENT into NOT_APPLICABLE, silently, with `skipped_files: 0`
+    - Candidate B2 -- One self-referencing symlink aborts a whole non-git scan with a reasonless `Error: cannot scan target: <path>`
+    - Candidate B3 -- A repeated single-valued flag is `Error:` exit 2 on every verb, not a silent last-wins
+    winner: B1
+    ship: pending (not yet decided)
   iter-371
     lenses: narrative-and-docs (HEAD `00cf58b`), new-capability (HEAD `00cf58b`)
     - Candidate A1 -- README names every flag the parser accepts: `list --match` (iter 366's headline) and `--floor` appear in README zero times
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar report --match TEXT`: the full ranked radar narrowed to the builder's project idea, below-floor section kept
     - Candidate B3 -- `radar show GAP` states the record's rank: "2 of 119 ranked", or "below floor", in the brief and in `show --json`
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED df9097f
   iter-370
     lenses: performance-and-throughput (HEAD `0aa36aa`), narrative-and-docs (HEAD `0aa36aa`)
     - Candidate A1 -- The folded fast path accepts the case-insensitive patterns it declines today: `radar scan .` 8.0 s -> 7.2 s, byte-identical
@@ -1730,4 +1740,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-173 scouted iterations
+174 scouted iterations
