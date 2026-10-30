@@ -56,7 +56,7 @@ def test_iter265_b1_every_locations_element_is_a_pure_locator(self_scan_json) ->
 PRECHANGE_COMMIT = "a4193db"
 
 NOTE_DIALECTS = (
-    re.compile(r"^\(\+\d+ more matches(, \d+ in test files)?\)$"),
+    re.compile(r"^\(\+\d+ more match(?:es)?(, \d+ in test files)?\)$"),
     re.compile(r"^\(no match\) searched .+ for /.+/$", re.DOTALL),
     re.compile(r"^\(no files\) searched .+$", re.DOTALL),
 )
@@ -162,9 +162,14 @@ def test_iter265_b3_two_sided_the_prechange_tree_mixed_prose_into_locations(
     assert all("location_notes" not in f for f in findings)
     prose = [x for f in findings for x in f["locations"] if not LOCATOR.match(x)]
     assert prose, "the pre-change payload had no prose in locations; the arm is not old"
+    # Every prose element the old tree mixed in is one of the published note dialects,
+    # and at least one PRESENT finding ended in one. Not "every PRESENT tail": the
+    # self-scan's match counts move whenever the repo grows a file, so a PRESENT
+    # finding at or under the cap legitimately ends in a locator (iter 373 hotfix).
+    assert all(_is_note(x) for x in prose), [x[:80] for x in prose if not _is_note(x)]
     present_tails = [f["locations"][-1] for f in findings
                      if f["verdict"] == "PRESENT" and f["locations"]]
-    assert present_tails and all(_is_note(t) for t in present_tails), present_tails
+    assert present_tails and any(_is_note(t) for t in present_tails), present_tails
 
 
 def test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged(

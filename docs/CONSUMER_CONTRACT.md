@@ -458,7 +458,7 @@ record is still DISPLAYED, never dropped. Every element of `locations` is a
 `path:line` locator -- it is the one array a gate turns into file annotations,
 so nothing in it needs parsing before it is used that way. The prose the checks
 write beside those locators -- the `(+N more matches)` remainder the per-rule
-cap suppressed, and the `(no match) searched ... for /PATTERN/` or
+cap suppressed (spelled `(+1 more match)` when exactly one line was cut), and the `(no match) searched ... for /PATTERN/` or
 `(no files) searched ...` witness an absence rule leaves where it has no matched
 line -- is published in `location_notes`, in the order the check wrote it, and
 is MOVED there, never dropped: a cut remainder and the scope of an absence

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-373
+    lenses: hardening/DX (HEAD `460fad2`), integration-and-adoption (HEAD `460fad2`)
+    - Candidate A1 -- One self-referencing symlink aborts a whole non-git scan with a reasonless `Error: cannot scan target: <path>`
+    - Candidate A2 -- A repeated single-valued flag is `Error:` exit 2 on every verb, not a silent last-wins
+    - Candidate A3 -- A NOT_APPLICABLE decided over oversized or non-UTF-8 files reports `skipped_files: 0`: the contract's "counted, not weighed" disclosure never reaches applies_when
+    - Candidate B1 -- `radar scan` names the bridge it already has: a PRESENT finding tells the reader how to hand it to a build loop
+    - Candidate B2 -- REGISTER.md, the builder's reference, links each ranked row to its evidence record
+    - Candidate B3 -- `radar scan TARGET --closure PRD`: the loop checks its own work against the prd.json it was handed (re-proposal of iter-368 A1)
+    winner: A3
+    ship: pending (not yet decided)
   iter-372
     lenses: new-capability (HEAD `df9097f`), hardening/DX (HEAD `df9097f`)
     - Candidate A1 -- `scan --gap` is repeatable: a team scans exactly the gaps it owns, and a second `--gap` stops being silently dropped
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One self-referencing symlink aborts a whole non-git scan with a reasonless `Error: cannot scan target: <path>`
     - Candidate B3 -- A repeated single-valued flag is `Error:` exit 2 on every verb, not a silent last-wins
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 460fad2
   iter-371
     lenses: narrative-and-docs (HEAD `00cf58b`), new-capability (HEAD `00cf58b`)
     - Candidate A1 -- README names every flag the parser accepts: `list --match` (iter 366's headline) and `--floor` appear in README zero times
@@ -1740,4 +1750,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-174 scouted iterations
+175 scouted iterations
