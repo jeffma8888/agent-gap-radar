@@ -400,7 +400,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter366_new = {"test_iter366_behavior.py"}
     iter367_new = {"test_iter367_behavior.py"}
     iter368_new = {"test_iter368_behavior.py", "test_iter368_tester_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new, sorted(set(now) ^ set(before))
+    iter369_new = {"test_iter369_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

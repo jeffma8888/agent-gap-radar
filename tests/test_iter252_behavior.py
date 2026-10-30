@@ -796,6 +796,7 @@ def test_b9_the_old_sentence_is_spelled_at_exactly_one_site() -> None:
         f"cannot be documenting this reason. All hits: {hits!r}")
     assert set(hits) <= {"src/agent_gap_radar/checks.py",
                          "docs/CONSUMER_CONTRACT.md",
+                         "docs/ROADMAP_NOTES_ARCHIVE.md",
                          "tests/test_iter252_behavior.py"}, (
         f"the sentence leaked into a golden, another test module or a record: "
         f"{sorted(hits)!r}")

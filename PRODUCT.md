@@ -313,3 +313,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 366 new-capability: `list --match TEXT` narrows the domain to records whose prose fields contain TEXT (case-folded literal substring); below-floor matches displayed and flagged; `match` JSON key only when given
 - iter 367 dx-refusal: path slot holding a gap id says so and names `show ID` / `prd --gap ID`; `show` swap named
 - iter 368 roadmap-paydown: shipped board rows' long Notes moved verbatim to docs/ROADMAP_NOTES_ARCHIVE.md
+- iter 369 hotfix: README document index names docs/ROADMAP_NOTES_ARCHIVE.md; fresh-clone test_iter95 green again

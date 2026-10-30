@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-369
+    lenses: simplification-and-deletion (HEAD `f1c9136`), performance-and-throughput (HEAD `f1c9136`)
+    - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still pin a PRECHANGE_COMMIT sha
+    - Candidate A2 -- Stub long Done-ledger bullets in PRODUCT.md, bodies verbatim to an archive
+    - Candidate A3 -- One `--layer` refusal site in `_dispatch` instead of two
+    - Candidate B1 -- Session-shared self-scan: compute each distinct `radar scan .` output once per test session
+    - Candidate B2 -- Collapse the duplicated self-scan determinism nodes into one parametrized node
+    - Candidate B3 -- `required_literal_sets` distributes over a grouped alternation so the prefilter can skip files
+    winner: B1
+    ship: pending (not yet decided)
   iter-368
     lenses: integration-and-adoption (HEAD `2619ae3`), simplification-and-deletion (HEAD `2619ae3`)
     - Candidate A1 -- `radar scan TARGET --closure PRD`: the build loop checks its own work against the prd.json it was handed
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Move shipped board rows' Notes prose out of PRODUCT.md: 376,325 -> 222,987 chars with 1 real pin to re-word
     - Candidate B3 -- One `--layer` refusal site instead of two in `_dispatch` (cli.py:962 and :1121-1122)
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED f1c9136
   iter-367
     lenses: hardening/DX (HEAD `51c0587`), integration-and-adoption (HEAD `51c0587`)
     - Candidate A1 -- A gap id typed into a register-path slot gets told what it is, not just "not a directory"
@@ -1700,4 +1710,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-170 scouted iterations
+171 scouted iterations
