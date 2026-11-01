@@ -895,7 +895,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .registry import RegistryError, load_all, load_one
     from .render import document, gap_brief, json_document, radar_report
     from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
-                       new_since_baseline, render_baseline_line, render_scan,
+                       new_since_baseline, partition_by_baseline,
+                       render_baseline_line, render_scan,
                        scan, scan_json, select_for_prd, unanswered)
     from .scoring import rank
 
@@ -1055,6 +1056,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # accessor -- because a gate that silently compared two different targets
         # would report every one of this target's gaps as new, or none of them.
         baseline_line = None
+        baseline_json = None
         if args.baseline is not None:
             try:
                 baseline = load_baseline(args.baseline)
@@ -1063,14 +1065,18 @@ def _dispatch(argv: list[str] | None = None) -> int:
             if baseline.target_name != result.target.name:
                 return _fail(f"baseline target mismatch: {baseline.target_name} "
                              f"(baseline) vs {result.target.name} (target)")
-            # ONE walk feeds both the exit code and the document's line, so the two
-            # cannot disagree about which gaps are new. `--json`'s payload is untouched:
-            # its key set is pinned by three iterations of tests, and the answer a
-            # machine consumer asked for is the exit code.
+            # ONE walk feeds the exit code, the document's line AND `--json`'s
+            # `baseline` key, so the three cannot disagree about which gaps are new:
+            # a gate needs WHICH ids are new, not only the exit code's WHETHER.
             new_ids = new_since_baseline(result, floor, baseline.present)
             verdict = bool(new_ids)
             baseline_line = render_baseline_line(baseline, new_ids)
-        sys.stdout.write(scan_json(result, floor, args.layer) if args.json
+            scanned_new, unscanned_new = partition_by_baseline(new_ids, baseline.scanned)
+            baseline_json = {"path": baseline.spelling,
+                             "carried": sorted(baseline.present),
+                             "new": list(new_ids), "scanned": list(scanned_new),
+                             "unscanned": list(unscanned_new)}
+        sys.stdout.write(scan_json(result, floor, args.layer, baseline_json) if args.json
                          else render_scan(result, baseline_line))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 

@@ -287,7 +287,7 @@ def test_iter296_b4_scan_gap_and_gaps_keep_both_exact_meanings(prechange_src) ->
     new = _radar(*argv)
     old = _radar(*argv, env=_env(prechange_src))
     assert new.returncode == old.returncode, new.stderr
-    skip_top = {"layer"}
+    skip_top = {"layer", "baseline"}  # `baseline` added iter 374
     skip_finding = {"skipped_files"}
     def _strip(doc):
         d = {k: v for k, v in doc.items() if k not in skip_top}

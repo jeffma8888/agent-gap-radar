@@ -72,7 +72,8 @@ VERBS = ["validate", "list", "report", "show", "prd", "scan", "diff", "taxonomy"
 LIST_TOP_KEYS = ["confidence_floor", "layer", "counts", "records"]
 PRD_TOP_KEYS = ["project", "branchName", "description", "sourceGap", "stories"]
 SCAN_TOP_KEYS = ["target", "target_name", "confidence_floor", "layer",
-                 "records_applied", "counts", "uncheckable", "findings"]
+                 "records_applied", "counts", "uncheckable", "findings",
+                 "baseline"]  # `baseline` appended iter 374
 DIFF_TOP_KEYS = ["counts", "added", "removed", "changed"]
 
 #: Two checked records that both fire on the `_target` tree, so every scan below has

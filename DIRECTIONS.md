@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-374
+    lenses: simplification-and-deletion (HEAD `1898b12`)
+    - A1 -- `scan --json --baseline` publishes WHICH gaps are new, not only the exit code
+    - A2 -- a renamed checkout can still use its baseline: `scan --target-name NAME` (the refusal stays the default)
+    - A3 -- `radar scan` markdown ends with the next commands it already supports (`show`, `--prd`, `--baseline`)
+    - Candidate A1 -- Collapse 36 copy-pasted in-process CLI runners in tests/ into one shared `tests/_cli_runner.py`
+    - Candidate A2 -- Move the pre-iter-300 Done-ledger bullets whole into `PRODUCT_ARCHIVE.md`, the archive `roadmap_integrity` already reads and nobody has created
+    - Candidate A3 -- Collapse row 117's 20 hand-spelled `Error: ` emit sites in `tools/` onto one emitter per portability class
+    winner: A1
+    ship: pending (not yet decided)
   iter-373
     lenses: hardening/DX (HEAD `460fad2`), integration-and-adoption (HEAD `460fad2`)
     - Candidate A1 -- One self-referencing symlink aborts a whole non-git scan with a reasonless `Error: cannot scan target: <path>`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- REGISTER.md, the builder's reference, links each ranked row to its evidence record
     - Candidate B3 -- `radar scan TARGET --closure PRD`: the loop checks its own work against the prd.json it was handed (re-proposal of iter-368 A1)
     winner: A3
-    ship: pending (not yet decided)
+    ship: PUSHED 1898b12
   iter-372
     lenses: new-capability (HEAD `df9097f`), hardening/DX (HEAD `df9097f`)
     - Candidate A1 -- `scan --gap` is repeatable: a team scans exactly the gaps it owns, and a second `--gap` stops being silently dropped
@@ -1750,4 +1760,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-175 scouted iterations
+176 scouted iterations

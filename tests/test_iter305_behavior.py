@@ -326,8 +326,12 @@ def test_b10_json_byte_identical_with_and_without_baseline(bed):
     plain_rc, plain_out, plain_err = _scan(bed, "ab", "--json")
     assert (plain_rc, plain_err) == (0, "")
     rc, out = _gate(bed, "ab", "b_a_only", "--json")
-    assert out == plain_out
-    assert "baseline" not in json.loads(out)
+    # Re-pinned iter 374: the payload gains ONLY the `baseline` object; every other
+    # key is unchanged, and the plain scan publishes `baseline: null`.
+    gated, plain = json.loads(out), json.loads(plain_out)
+    assert plain.pop("baseline") is None
+    assert isinstance(gated.pop("baseline"), dict)
+    assert gated == plain
 
 
 def test_b10_json_exit_code_still_follows(bed):

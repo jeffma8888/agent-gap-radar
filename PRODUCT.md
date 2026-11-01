@@ -318,3 +318,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 371 docs-discoverability: README Quickstart shows every parser flag per verb; an introspected brake keeps it
 - iter 372 fail-open hardening: an unreadable file in applies_when's domain makes UNKNOWN, never NOT_APPLICABLE
 - iter 373 hotfix: iter265 note pins accept singular `(+1 more match)`; self-scan drift no longer reds fresh clone
+- iter 374 machine-output: `scan --json` gains a `baseline` key: null, or the carried/new/scanned/unscanned ids

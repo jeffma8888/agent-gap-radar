@@ -479,7 +479,8 @@ def _split_locations(entries: list[str]) -> tuple[list[str], list[str]]:
 
 def scan_json(result: ScanResult,
               confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT,
-              layer: str | None = None) -> str:
+              layer: str | None = None,
+              baseline: dict | None = None) -> str:
     """A stable object for machine consumers (a CI gate, a build loop).
 
     Separate from the markdown brief on purpose: a gate that regex-scrapes prose
@@ -519,6 +520,10 @@ def scan_json(result: ScanResult,
             for f in sorted(result.findings,
                             key=lambda f: (f.verdict.value, -f.priority, f.gap.id))
         ],
+        # The `--baseline` gate's partition, or `null` when no baseline was read.
+        # Always present so the key set is one shape; built by the caller from the
+        # SAME walk that decided the exit code, never re-derived here.
+        "baseline": baseline,
     }
     return json_document(payload)
 

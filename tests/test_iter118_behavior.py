@@ -46,7 +46,8 @@ ANCHOR = "A gate gets a stable object:"
 #: key, so it is now the enumeration's terminating token (17 characters).
 SENTENCE_TAIL = "`skipped_files`."
 #: Spec behavior 2.  Re-baselined 20 -> 21 in iteration 265 (`location_notes`).
-EXPECTED_KEY_COUNT = 22
+#: Re-baselined 22 -> 23 in iteration 374 (`baseline`, top-level, appended).
+EXPECTED_KEY_COUNT = 23
 #: Spec behavior 3: three tokens the tool does NOT emit. Each test asserts that premise.
 NOT_EMITTED_TOKENS = ("score", "open", "rank")
 #: Spec behavior 6: iteration 13's committed pin, byte-identical.

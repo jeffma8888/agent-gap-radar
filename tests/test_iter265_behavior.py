@@ -178,7 +178,7 @@ def test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged(
     for before, now in zip(prechange_scan_json["findings"], self_scan_json["findings"]):
         assert {k: v for k, v in before.items() if k not in strip} == \
                {k: v for k, v in now.items() if k not in strip}, before["gap_id"]
-    skip_top = {"findings", "layer"}
+    skip_top = {"findings", "layer", "baseline"}  # `baseline` added iter 374
     assert {k: v for k, v in prechange_scan_json.items() if k not in skip_top} == \
            {k: v for k, v in self_scan_json.items() if k not in skip_top}
 

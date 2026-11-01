@@ -364,9 +364,12 @@ def test_b7_json_payload_is_byte_identical_and_the_code_still_moves(bed, tree, e
     plain_rc, plain_out, plain_err = _scan(bed, tree, "--json")
     assert (plain_rc, plain_err) == (0, "")
     rc, out = _gate(bed, tree, "b_only_a", "--json")
-    assert out == plain_out
     assert rc == expected_rc
-    assert "baseline" not in json.loads(out), "no new key"
+    # Re-pinned iter 374: only the `baseline` key differs (null vs the gate's object).
+    gated, plain = json.loads(out), json.loads(plain_out)
+    assert plain.pop("baseline") is None
+    assert isinstance(gated.pop("baseline"), dict)
+    assert gated == plain
 
 
 # ---------------------------------------------------------------------------
@@ -703,11 +706,16 @@ def test_t7_json_payload_identity_holds_with_floor_and_the_code_follows_behavior
     plain_rc, plain_out, plain_err = _scan(bed, "a_and_w", "--json", "--floor", "0")
     assert (plain_rc, plain_err) == (0, "")
     rc, out = _gate(bed, "a_and_w", "b_only_a", "--json", "--floor", "0")
-    assert out == plain_out
+    # Re-pinned iter 374: identity holds for every key except `baseline`.
+    gated, plain = json.loads(out), json.loads(plain_out)
+    assert plain.pop("baseline") is None and isinstance(gated.pop("baseline"), dict)
+    assert gated == plain
     assert rc == NEW, "W (confidence 0) is new at --floor 0 even in the --json form"
     rc_default, out_default = _gate(bed, "a_and_w", "b_only_a", "--json")
     assert rc_default == CLEAN
-    assert out_default == _scan(bed, "a_and_w", "--json")[1]
+    gated, plain = json.loads(out_default), json.loads(_scan(bed, "a_and_w", "--json")[1])
+    assert plain.pop("baseline") is None and gated.pop("baseline")["new"] == []
+    assert gated == plain
 
 
 def test_t6_carried_count_is_the_baseline_present_count_not_the_current_one(bed):

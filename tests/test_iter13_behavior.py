@@ -46,7 +46,9 @@ MARKER_SENTENCE = "**`scan --json` SHIPPED.**"
 
 #: Spec behavior 1 / 2: the ORDER is part of the contract, not just the key set.
 TOP_KEYS = ["target", "target_name", "confidence_floor", "layer", "records_applied",
-            "counts", "uncheckable", "findings"]
+            "counts", "uncheckable", "findings", "baseline"]
+#: Re-baselined in iteration 374: `baseline` was APPENDED as the new last top-level key
+#: (`null` without `--baseline`); every pre-existing key keeps its absolute index.
 #: Re-baselined 12 -> 13 in iteration 92: `status` was APPENDED as the new last key.
 #: The pin's intent is "no key renamed, removed or reordered" -- every pre-existing key
 #: keeps its absolute index here, so this literal still refuses the changes it exists to
