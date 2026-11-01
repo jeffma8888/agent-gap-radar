@@ -391,6 +391,7 @@ def test_b7_every_success_path_exits_0_and_ends_in_exactly_one_newline(argv):
     determinism across two runs. The HEAD-vs-working-tree byte diff is a stage-level A/B
     and is reported in the tester report.
     """
+    # direct: a determinism comparison must compute both sides
     first = _run(*argv)
     assert first.returncode == 0, first.stderr
     assert first.stdout, "a success path produced no document"

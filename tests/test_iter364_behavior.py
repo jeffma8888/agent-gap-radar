@@ -371,6 +371,7 @@ def scan_pair(request):
             accepts += 1
         return r
 
+    # direct: both scans run under a counting proxy / stub monkeypatch
     mp = pytest.MonkeyPatch()
     try:
         mp.setattr(checks, "_folded_fast_path", counting, raising=True)

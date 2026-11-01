@@ -22,6 +22,8 @@ import sys
 
 import pytest
 
+from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO_ROOT / "gaps"
 
@@ -36,9 +38,9 @@ def _radar(*argv: str, cwd: pathlib.Path = REPO_ROOT) -> subprocess.CompletedPro
 
 @pytest.fixture(scope="module")
 def self_scan_json() -> dict:
-    proc = _radar("scan", ".", "--gaps", "gaps", "--json")
-    assert proc.returncode == 0, proc.stderr
-    return json.loads(proc.stdout)
+    returncode, stdout, stderr = selfscan(("--gaps", "gaps", "--json"))
+    assert returncode == 0, stderr
+    return json.loads(stdout)
 
 
 def test_iter265_b1_every_locations_element_is_a_pure_locator(self_scan_json) -> None:
@@ -189,6 +191,7 @@ def test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged(
 
 def test_iter265_b4_markdown_brief_is_byte_identical_to_the_prechange_tree(
         prechange_src) -> None:
+    # direct: one side of a byte-identity comparison against the pre-change tree
     now = _radar_bytes("scan", ".", "--gaps", "gaps")
     before = _radar_bytes("scan", ".", "--gaps", "gaps", env=_env(prechange_src))
     assert now.returncode == before.returncode == 0, (now.stderr, before.stderr)
@@ -198,7 +201,7 @@ def test_iter265_b4_markdown_brief_is_byte_identical_to_the_prechange_tree(
 
 def test_iter265_b4_markdown_still_renders_the_notes_inline(self_scan_json) -> None:
     """Only the machine payload separates them; the brief keeps the prose beside locators."""
-    md = _radar_bytes("scan", ".", "--gaps", "gaps").stdout.decode("utf-8")
+    md = selfscan(("--gaps", "gaps"))[1]
     # The brief renders evidence for PRESENT findings only (measured on the pre-change tree too).
     notes = [n for f in self_scan_json["findings"] if f["verdict"] == "PRESENT"
              for n in f["location_notes"]]
@@ -212,6 +215,7 @@ def test_iter265_b4_markdown_still_renders_the_notes_inline(self_scan_json) -> N
 # --------------------------------------------------------------------------------------
 
 def test_iter265_b5_scan_json_is_byte_stable_and_ends_in_exactly_one_newline() -> None:
+    # direct: a byte-stability comparison must compute both sides
     first = _radar_bytes("scan", ".", "--gaps", "gaps", "--json")
     second = _radar_bytes("scan", ".", "--gaps", "gaps", "--json")
     assert first.returncode == second.returncode == 0

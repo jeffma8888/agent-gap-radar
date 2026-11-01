@@ -404,6 +404,7 @@ VERBS = (
 @pytest.mark.parametrize("name,argv", VERBS, ids=[v[0] for v in VERBS])
 def test_verb_is_deterministic_and_ends_in_one_newline(name, argv, capsys):
     """Behavior 8, the durable half: same bytes twice, exit 0, exactly one trailing newline."""
+    # direct: a determinism comparison must compute both sides
     first_code = main(list(argv))
     first = capsys.readouterr()
     second_code = main(list(argv))

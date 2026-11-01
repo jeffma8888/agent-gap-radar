@@ -22,6 +22,7 @@ from agent_gap_radar.checks import Verdict, run_check
 from agent_gap_radar.cli import main
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scan import scan, scan_json
+from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
@@ -171,8 +172,7 @@ def test_b2_binary_file_increments_skipped_files(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_b3_scan_json_skipped_files_key_present_and_zero(capsys):
-    rc, out, err = _cli(
-        ["scan", str(REPO), "--gaps", str(GAPS), "--json"], capsys)
+    rc, out, err = selfscan(("--gaps", "gaps", "--json"))
     assert rc == 0, f"expected exit 0; got {rc}; stderr: {err!r}"
     doc = _json.loads(out)
     findings = doc["findings"]
@@ -244,8 +244,7 @@ def test_b6_scan_json_binary_file_via_scan_api(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_b7_markdown_no_skipped_annotation(capsys):
-    rc, out, err = _cli(
-        ["scan", str(REPO), "--gaps", str(GAPS)], capsys)
+    rc, out, err = selfscan(("--gaps", "gaps"))
     assert rc == 0, f"expected exit 0; got {rc}; stderr: {err!r}"
     assert "skipped_files" not in out, (
         "markdown scan must not contain skipped_files annotation; "
@@ -281,6 +280,7 @@ def test_b9_clean_target_skipped_files_zero(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_b10_scan_json_deterministic(capsys):
+    # direct: a determinism comparison must compute both sides
     argv = ["scan", str(REPO), "--gaps", str(GAPS), "--json"]
     rc1, out1, _ = _cli(argv, capsys)
     rc2, out2, _ = _cli(argv, capsys)

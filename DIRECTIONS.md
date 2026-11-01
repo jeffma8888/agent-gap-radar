@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-375
+    lenses: simplification-and-deletion (HEAD `0971a65`), performance-and-throughput (HEAD `0971a65`)
+    - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still `git archive` a pinned PRECHANGE_COMMIT sha
+    - Candidate A2 -- Move the 120 pre-iter-300 Done-ledger rows verbatim into `PRODUCT_ARCHIVE.md`, the archive `roadmap_integrity` already unions and nobody has created
+    - Candidate A3 -- Collapse the duplicated in-process `_cli` runners in tests/ onto one `tests/_cli_runner.py`
+    - Candidate B1 -- Self-scan once per suite run, not once per xdist worker per module: one shared cache of the live self-scan payload
+    - Candidate B2 -- `required_literal_sets` distributes over a grouped top-level alternation: 27 unprovable patterns cost 1.56 s (19 % of the scan)
+    - Candidate B3 -- Strengthen weak proved literals: 50 zero-hit patterns still pay 0.94 s because their DNF is `{d}` / `{id}` / `{len}`
+    winner: B1
+    ship: pending (not yet decided)
   iter-374
     lenses: simplification-and-deletion (HEAD `1898b12`)
     - A1 -- `scan --json --baseline` publishes WHICH gaps are new, not only the exit code
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate A2 -- Move the pre-iter-300 Done-ledger bullets whole into `PRODUCT_ARCHIVE.md`, the archive `roadmap_integrity` already reads and nobody has created
     - Candidate A3 -- Collapse row 117's 20 hand-spelled `Error: ` emit sites in `tools/` onto one emitter per portability class
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 0971a65
   iter-373
     lenses: hardening/DX (HEAD `460fad2`), integration-and-adoption (HEAD `460fad2`)
     - Candidate A1 -- One self-referencing symlink aborts a whole non-git scan with a reasonless `Error: cannot scan target: <path>`
@@ -1760,4 +1770,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-176 scouted iterations
+177 scouted iterations
