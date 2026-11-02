@@ -511,7 +511,10 @@ def test_b6_prose_only_difference_is_not_a_change(capsys, tmp_path):
     # a prose-diffing implementation cannot report a rewording without naming the record.
     for section in sections.values():
         assert PROSE_ID not in "\n".join(section.body)
-    assert PROSE_ID not in document
+    # Iteration 377: the top-gap line may name the record as an UNCHANGED target;
+    # the report body after it may not.
+    assert f"{PROSE_ID} (unchanged)." in document or PROSE_ID not in document
+    assert PROSE_ID not in document.split("## Added", 1)[1]
 
 
 def test_b6_the_same_pair_with_one_closed_field_change_is_reported(capsys, tmp_path):

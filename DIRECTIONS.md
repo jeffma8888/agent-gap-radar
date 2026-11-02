@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-377
+    lenses: narrative-and-docs (HEAD `4f265e6`), new-capability (HEAD `4f265e6`)
+    - Candidate A1 -- README names 4 of the 9 `tools/` scripts; the 5 gates that enforce its own "Design constraints" appear in it zero times
+    - Candidate A2 -- The iter-376 prefilter figure in `checks.py` decayed within ONE commit; make `tools/scan_cost.py` re-derive it as README promises
+    - Candidate A3 -- `read_cache_scope`'s docstring describes a scope that memoises `_read`; it now owns FOUR stacks and its own comment says "Both frames"
+    - Candidate B1 -- `radar diff` names what the ranking did: "Top gap: GAP-041 -> GAP-003", in the report and as a `ranking` key in `--json`
+    - Candidate B2 -- Honest ranks: tied records share a rank ("2=") and the report says how much of the order is a tiebreak
+    - Candidate B3 -- `radar show GAP` states where the record stands: "rank 2= of 119 (tied with 21 others)" or "below floor (2)"
+    winner: B1
+    ship: pending (not yet decided)
   iter-376
     lenses: narrative-and-docs (HEAD `1e5369f`)
     - Candidate A1 -- Memoise the literal prefilter per (path, literal) inside the read-cache scope: `radar scan .` 8.7 s -> 7.7 s, byte-identical
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Publish the whole `prd.json` shape: 13 emitted key paths under `sourceGap.check`, `evidence[]` and `stories[]` exist nowhere in the consumer contract (row 124, open since iter 221)
     - Candidate B3 -- Rows 64/70 and the Next-up ship order still say "the index/archive split this product has never done", but iter 368 did it, and this suite now enforces a 240,000-char wall the rows say does not exist
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 4f265e6
   iter-375
     lenses: simplification-and-deletion (HEAD `0971a65`), performance-and-throughput (HEAD `0971a65`)
     - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still `git archive` a pinned PRECHANGE_COMMIT sha
@@ -1780,4 +1790,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-178 scouted iterations
+179 scouted iterations

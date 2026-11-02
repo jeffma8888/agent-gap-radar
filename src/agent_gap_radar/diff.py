@@ -39,8 +39,8 @@ from dataclasses import dataclass
 
 from .models import Gap
 from .render import document, json_document
-from .scoring import confidence, priority
-from .taxonomy import terminal_statuses
+from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank
+from .taxonomy import citable_statuses, terminal_statuses
 
 #: The compared fields, in the ONE order the report emits them. A single tuple
 #: rather than a per-section decision, so the nested lines of every changed record
@@ -97,6 +97,23 @@ class RegisterDiff:
     added: tuple[RecordRef, ...]
     removed: tuple[RecordRef, ...]
     changed: tuple[RecordChange, ...]
+    # Defaulted, so instances built by hand without a ranking still construct; the
+    # `diff_registers` path always fills both from `prd_target`.
+    old_top: str | None = None
+    new_top: str | None = None
+
+
+def prd_target(gaps: list[Gap]) -> str | None:
+    """The id bare `radar prd` builds from: rank-1 citable record at the default floor.
+
+    DERIVED through the same two steps the `prd` verb applies (citable statuses, then
+    `scoring.rank` at `CONFIDENCE_FLOOR_DEFAULT`) rather than asserted, so `diff` and
+    `prd` cannot name different records. `None` means bare `prd` would refuse: an
+    empty side, every record terminal, or every record below the floor.
+    """
+    citable = citable_statuses()
+    ranked = rank([gap for gap in gaps if gap.status in citable], CONFIDENCE_FLOOR_DEFAULT)
+    return ranked[0][0].id if ranked else None
 
 
 def record_facts(gap: Gap) -> dict[str, str]:
@@ -166,6 +183,8 @@ def diff_registers(old: list[Gap], new: list[Gap]) -> RegisterDiff:
         added=added,
         removed=removed,
         changed=tuple(changed),
+        old_top=prd_target(old),
+        new_top=prd_target(new),
     )
 
 
@@ -240,6 +259,20 @@ def _section(heading: str, record_count: int, body: list[str]) -> list[str]:
     return [f"## {heading} ({record_count})", ""] + (body or ["None."]) + [""]
 
 
+def _top_line(diff: RegisterDiff) -> str:
+    """One line naming each side's PRD target, so a re-score that silently moves the
+    record a build loop picks up is visible to the reviewer approving the change.
+
+    The floor is rendered from the constant rather than spelled, so the sentence names
+    the floor it APPLIED; a missing target renders as `none`, never as an omitted line.
+    """
+    old, new = diff.old_top or "none", diff.new_top or "none"
+    head = f"Top gap at the default floor ({CONFIDENCE_FLOOR_DEFAULT}): "
+    if diff.old_top == diff.new_top:
+        return head + f"{new} (unchanged)."
+    return head + f"{old} -> {new} (changed)."
+
+
 def render_diff(diff: RegisterDiff) -> str:
     """The markdown change report. Deterministic, ending in exactly one newline.
 
@@ -251,6 +284,7 @@ def render_diff(diff: RegisterDiff) -> str:
         "# Register diff",
         "",
         f"Old: {diff.old_count} record(s). New: {diff.new_count} record(s).",
+        _top_line(diff),
         "",
     ]
     lines += _section(
@@ -332,6 +366,10 @@ def diff_json(diff: RegisterDiff) -> str:
             }
             for record in diff.changed
         ],
+        # LAST, so every pre-existing key keeps its position; `changed` is derived
+        # from the two ids, never stored, so it cannot contradict them.
+        "ranking": {"old_top": diff.old_top, "new_top": diff.new_top,
+                    "changed": diff.old_top != diff.new_top},
     }
     # One published tail for every `--json` surface: `render.json_document` owns the
     # indent, the INSERTION key order and the single trailing newline, so the key

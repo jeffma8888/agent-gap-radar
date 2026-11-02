@@ -266,6 +266,15 @@ def test_iter296_b3_exact_spelling_is_byte_identical_to_the_pre_change_commit(
         argv: tuple[str, ...], prechange_src) -> None:
     new = _radar(*argv)
     old = _radar(*argv, env=_env(prechange_src))
+    if argv[0] == "diff":
+        # Iteration 377 appended a LAST `ranking` key to `diff --json`; every key the
+        # pre-change commit published must still be byte-identical, in its order.
+        payload = json.loads(new.stdout)
+        assert list(payload)[-1] == "ranking", list(payload)
+        del payload["ranking"]
+        assert json.dumps(payload) == json.dumps(json.loads(old.stdout))
+        assert (new.returncode, new.stderr) == (old.returncode, old.stderr)
+        return
     assert (new.returncode, new.stdout, new.stderr) == (old.returncode, old.stdout, old.stderr)
     assert new.stdout.endswith(b"\n") and not new.stdout.endswith(b"\n\n"), new.stdout[-3:]
 

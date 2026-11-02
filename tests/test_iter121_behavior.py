@@ -763,7 +763,10 @@ def test_behavior4y_control_diff_accepts_two_resolvable_registers(tmp_path, caps
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out.endswith("\n") and not captured.out.endswith("\n\n")
-    assert "GAP-701" not in captured.out, (
+    # Iteration 377: the top-gap line may name the record; no SECTION may.
+    assert "(unchanged)." in captured.out, captured.out
+    sections = captured.out.split("## Added", 1)[1]
+    assert "GAP-701" not in sections, (
         f"a register compared with itself must report no change: {captured.out!r}"
     )
 

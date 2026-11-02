@@ -54,7 +54,8 @@ import pytest
 from agent_gap_radar.cli import main
 from agent_gap_radar.diff import COMPARED_FIELDS as PUBLISHED_COMPARED_FIELDS
 from agent_gap_radar.registry import load_all
-from agent_gap_radar.scoring import confidence, priority
+from agent_gap_radar.scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank
+from agent_gap_radar.taxonomy import citable_statuses
 from _surface_inventory import verbs_without
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -65,7 +66,8 @@ BOOT = "import sys; from agent_gap_radar.cli import main; sys.exit(main())"
 
 # --- the key sequences behavior 2/3/4 pin -----------------------------------
 
-TOP_LEVEL_KEYS = ["counts", "added", "removed", "changed"]
+TOP_LEVEL_KEYS = ["counts", "added", "removed", "changed", "ranking"]
+RANKING_KEYS = ["old_top", "new_top", "changed"]
 COUNTS_KEYS = ["old", "new"]
 MEMBER_KEYS = ["gap_id", "title"]
 CHANGED_KEYS = ["gap_id", "changes"]
@@ -573,7 +575,7 @@ def test_b6_no_key_anywhere_is_outside_the_published_vocabulary(capsys, tmp_path
     old, new = _rich_pair(tmp_path)
     payload = _payload(capsys, old, new)
     allowed = set(TOP_LEVEL_KEYS) | set(COUNTS_KEYS) | set(MEMBER_KEYS) \
-        | set(CHANGED_KEYS) | set(CHANGE_KEYS)
+        | set(CHANGED_KEYS) | set(CHANGE_KEYS) | set(RANKING_KEYS)
     assert set(_walk_keys(payload)) <= allowed, sorted(set(_walk_keys(payload)) - allowed)
 
 
@@ -635,6 +637,21 @@ def test_b8_the_live_register_diffed_against_itself_reports_nothing(tmp_path):
 # behavior 9 -- regression guards, both directions
 # ---------------------------------------------------------------------------
 
+def _expected_top(gaps: dict) -> str:
+    """Iteration 377: the id bare `prd` builds from -- citable records, default floor."""
+    ranked = rank([gap for gap in gaps.values() if gap.status in citable_statuses()],
+                  CONFIDENCE_FLOOR_DEFAULT)
+    return ranked[0][0].id if ranked else "none"
+
+
+def _expected_top_line(old_gaps: dict, new_gaps: dict) -> str:
+    before, after = _expected_top(old_gaps), _expected_top(new_gaps)
+    head = f"Top gap at the default floor ({CONFIDENCE_FLOOR_DEFAULT}): "
+    if before == after:
+        return f"{head}{after} (unchanged)."
+    return f"{head}{before} -> {after} (changed)."
+
+
 def _expected_markdown(old, new) -> str:
     """The markdown document RECONSTRUCTED from the published grammar, not a golden blob."""
     old_gaps = {gap.id: gap for gap in load_all(old / "gaps")}
@@ -651,7 +668,8 @@ def _expected_markdown(old, new) -> str:
         if rows:
             changed.append((gid, rows))
     lines = [TITLE, "",
-             f"Old: {len(old_gaps)} record(s). New: {len(new_gaps)} record(s).", ""]
+             f"Old: {len(old_gaps)} record(s). New: {len(new_gaps)} record(s).",
+             _expected_top_line(old_gaps, new_gaps), ""]
     for name, ids in (("Added", added), ("Removed", removed)):
         source = new_gaps if name == "Added" else old_gaps
         lines += [f"## {name} ({len(ids)})", ""]

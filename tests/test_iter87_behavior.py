@@ -74,7 +74,7 @@ PRD_TOP_KEYS = ["project", "branchName", "description", "sourceGap", "stories"]
 SCAN_TOP_KEYS = ["target", "target_name", "confidence_floor", "layer",
                  "records_applied", "counts", "uncheckable", "findings",
                  "baseline"]  # `baseline` appended iter 374
-DIFF_TOP_KEYS = ["counts", "added", "removed", "changed"]
+DIFF_TOP_KEYS = ["counts", "added", "removed", "changed", "ranking"]
 
 #: Two checked records that both fire on the `_target` tree, so every scan below has
 #: findings and every listing has records.

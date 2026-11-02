@@ -454,7 +454,11 @@ def test_b4_the_live_register_diffed_against_itself_reports_no_change():
     for name, count, body in sections:
         assert count == 0, (name, count)
         assert body, f"section {name} rendered no body; an omitted empty section cannot be"
-    assert re.findall(r"GAP-\d+", document) == [], document
+    # Iteration 377: the top-gap line names the live PRD target and must say
+    # `(unchanged)`; every OTHER line still names no record.
+    top, *rest = [line for line in document.splitlines() if line.startswith("Top gap at")]
+    assert not rest and top.endswith(" (unchanged)."), top
+    assert re.findall(r"GAP-\d+", document.replace(top, "")) == [], document
 
 
 def test_b4_anti_vacuity_the_same_shape_reports_a_change_when_a_closed_field_moves(tmp_path):
