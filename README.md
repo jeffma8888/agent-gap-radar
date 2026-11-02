@@ -30,6 +30,7 @@ uv run radar show GAP-003 . --json  # the same gap as a stable JSON object, for 
 uv run radar prd .               # emit a build-loop prd.json for the top gap
 uv run radar prd . --floor 3       # the top-ranked gap that clears a stricter confidence floor (default 2)
 uv run radar prd . --gap GAP-003 --project my-agent --with-fixtures  # a chosen gap under your project name, inlining the reproduction sample's file contents instead of a pointer
+uv run radar prd . --layer cost-governance --match spend   # the top-ranked gap inside the domain `list` would show under the same flags
 uv run radar taxonomy            # the fixed vocabularies
 uv run radar taxonomy --json     # the same vocabularies as one object, for a consumer
 uv run radar diff OLD NEW        # what changed between two register states (two directories you materialise)

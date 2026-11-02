@@ -43,7 +43,7 @@ EXPECTED_SURFACE = {
     # here and its registration index is asserted separately below.
     # Iteration 294 added `--floor`, the same flag and default `list`/`report`/`scan`
     # carry; the list is SORTED, so it lands first.
-    "prd": (["--floor", "--gap", "--project", "--with-fixtures"], 1, [], ["path"]),
+    "prd": (["--floor", "--gap", "--layer", "--match", "--project", "--with-fixtures"], 1, [], ["path"]),
     "report": (["--floor", "--layer"], 1, [], ["path"]),
     # Iteration 255 added `--floor`, so `scan` now names the same flag `list` and
     # `report` do; the sorted list is the inventory, not a ranking.
@@ -91,6 +91,10 @@ EXPECTED_ARGUMENTS = {
         # default, which is why `docs/CONSUMER_CONTRACT.md`'s `## Defaults` table owes it
         # no row -- `tests/_surface_contract.py` excludes both by construction.
         ("with_fixtures", ["--with-fixtures"], False, False, 0),
+        # Iteration 378: `list`'s narrowing selectors, registered after `--with-fixtures`
+        # so this row is extended, not reshuffled. `None` defaults, as on `list`.
+        ("layer", ["--layer"], False, None, None),
+        ("match", ["--match"], False, None, None),
     ],
     "report": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

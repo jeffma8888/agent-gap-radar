@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-378
+    lenses: new-capability (HEAD `7c97301`), hardening/DX (HEAD `7c97301`)
+    - Candidate A1 -- `radar prd` takes `list`'s narrowing flags (`--match TEXT`, `--layer L`), so the build loop gets the top gap in the builder's area, not just the global top
+    - Candidate A2 -- `radar show GAP` states the record's derived standing, "rank 2= of 119 (tied with 21)" or "below floor (2)", in the brief and in `show --json`
+    - Candidate A3 -- `radar diff` names floor crossings: a record that ENTERED or LEFT the ranking is called that, not just "confidence: 4 -> 1"
+    - Candidate B1 -- `radar validate` enforces the contract's "the id is the file name's PREFIX": today a file named `GAP-077-wrong.json` holding GAP-001 validates OK
+    - Candidate B2 -- A directory that is not a register gets one sentence, not a 44 KB `Error:` line
+    - Candidate B3 -- `radar list` over a zero-record domain writes a bare `\n`, while the code's own justification says documents "show their own emptiness"
+    winner: A1
+    ship: pending (not yet decided)
   iter-377
     lenses: narrative-and-docs (HEAD `4f265e6`), new-capability (HEAD `4f265e6`)
     - Candidate A1 -- README names 4 of the 9 `tools/` scripts; the 5 gates that enforce its own "Design constraints" appear in it zero times
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Honest ranks: tied records share a rank ("2=") and the report says how much of the order is a tiebreak
     - Candidate B3 -- `radar show GAP` states where the record stands: "rank 2= of 119 (tied with 21 others)" or "below floor (2)"
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 7c97301
   iter-376
     lenses: narrative-and-docs (HEAD `1e5369f`)
     - Candidate A1 -- Memoise the literal prefilter per (path, literal) inside the read-cache scope: `radar scan .` 8.7 s -> 7.7 s, byte-identical
@@ -1790,4 +1800,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-179 scouted iterations
+180 scouted iterations

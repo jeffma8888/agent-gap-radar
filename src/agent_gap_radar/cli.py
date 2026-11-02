@@ -614,6 +614,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_prd.add_argument("--with-fixtures", action="store_true",
                        help="inline the reproduction sample's file CONTENTS, not just "
                             "a pointer to the record that holds them")
+    # Registered after `--with-fixtures` so `EXPECTED_ARGUMENTS["prd"]` is extended,
+    # not reshuffled. The SAME selectors `list` narrows with, applied to the loaded
+    # records upstream of the citable filter and `rank()`, so the floor rule stays
+    # the one partition and a narrowed top is the first ranked row `list` shows.
+    p_prd.add_argument("--layer", default=None, metavar="L",
+                       help="select the top-ranked gap within one layer of the "
+                            "closed taxonomy (not with --gap)")
+    p_prd.add_argument("--match", default=None, metavar="TEXT",
+                       help="select the top-ranked gap among records whose prose "
+                            "contains TEXT, as `list --match` (not with --gap)")
 
     p_scan = sub.add_parser(
         "scan", help="Apply the register's checks to a target repo or service.")
@@ -1123,7 +1133,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # the wrong thing. Read off `args` only under the verb that declares the option
     # rather than through a `getattr` default -- a default would silently pass a
     # renamed `dest` as "no layer given", turning this whole branch dead.
-    if args.command in ("list", "report") and args.layer is not None:
+    if args.command == "prd" and args.gap_id and (
+            args.layer is not None or args.match is not None):
+        return _fail("--gap names the record, so it cannot be combined with "
+                     "--layer or --match")
+    if args.command in ("list", "report", "prd") and args.layer is not None:
         if args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
     # An empty needle is a substring of every field, so `--match ""` would be a
@@ -1132,6 +1146,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command == "list" and args.match is not None and not args.match.strip():
         return _fail("--match needs non-blank TEXT; omit the flag to list "
                      "every record")
+    if args.command == "prd" and args.match is not None and not args.match.strip():
+        return _fail("--match needs non-blank TEXT; omit the flag to select "
+                     "from every record")
 
     try:
         # Inside the guard for the same reason as `scan`'s: `_resolve` refuses an
@@ -1187,6 +1204,14 @@ def _dispatch(argv: list[str] | None = None) -> int:
                         f"{gap.id} carries the terminal status {gap.status!r}; "
                         "the work is already done, so no prd is emitted for it")
             else:
+                narrowing = " ".join(
+                    [f"--layer {args.layer}"] * (args.layer is not None)
+                    + [f"--match {args.match}"] * (args.match is not None))
+                if narrowing:
+                    gaps = _select_match(_select_layer(gaps, args.layer),
+                                         args.match)
+                    if not gaps:
+                        return _fail(f"no gap record matches {narrowing}")
                 citable = _citable_domain(gaps)
                 # `gaps and` is load-bearing: a register holding ZERO records has
                 # not asserted that anything is finished, so it keeps the floor

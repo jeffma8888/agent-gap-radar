@@ -205,14 +205,15 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
     before = _literal_assignments(_read(head_tests / "test_iter111_behavior.py"),
                                   {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"})
     assert set(before) == {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"}, sorted(before)
-    # Iteration 366 added `list --match`, so `list` joins the verbs that moved.
-    changed_surface = {"list", "report", "scan", "show"}
+    # Iteration 366 added `list --match`, so `list` joins the verbs that moved;
+    # iteration 378 added `prd --layer/--match`, so `prd` joins them too.
+    changed_surface = {"list", "prd", "report", "scan", "show"}
     for verb in before["EXPECTED_SURFACE"]:
         if verb not in changed_surface:
             assert EXPECTED_SURFACE[verb] == before["EXPECTED_SURFACE"][verb], (
                 f"EXPECTED_SURFACE[{verb!r}] moved with a change; "
                 "it must be the pre-change literal verbatim")
-    changed_arguments = {"list", "report", "scan", "show"}
+    changed_arguments = {"list", "prd", "report", "scan", "show"}
     for verb in before["EXPECTED_ARGUMENTS"]:
         if verb not in changed_arguments:
             assert EXPECTED_ARGUMENTS[verb] == before["EXPECTED_ARGUMENTS"][verb], (
@@ -409,7 +410,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter375_new = {"test_iter375_behavior.py", "test_iter375_tester_behavior.py"}
     iter376_new = {"test_iter376_behavior.py", "test_iter376_tester_behavior.py"}
     iter377_new = {"test_iter377_behavior.py", "test_iter377_tester_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new, sorted(set(now) ^ set(before))
+    iter378_new = {"test_iter378_behavior.py", "test_iter378_tester_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

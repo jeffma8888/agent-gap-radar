@@ -489,14 +489,16 @@ def test_b10_list_help_lists_the_new_option(capsys):
 
 
 def test_b10_the_option_is_on_the_list_subparser_only(capsys):
-    """Out of Scope: `show` and `prd` do not gain `--layer`."""
+    """Out of Scope: `show` does not gain `--layer`. Iteration 378 widened the allowed
+    set to `{list, prd}`: `prd --layer` now PARSES (the narrowed top), while `show`
+    must still refuse the option at argparse time."""
+    from agent_gap_radar.cli import build_parser
     layer = LAYER_NAMES[0]
-    for argv in (["show", "GAP-003", "--layer", layer, str(REPO_ROOT)],
-                 ["prd", "--layer", layer, str(REPO_ROOT)]):
-        with pytest.raises(SystemExit) as exc:
-            main(argv)
-        assert exc.value.code == 2, argv
-        assert "--layer" in capsys.readouterr().err, argv
+    with pytest.raises(SystemExit) as exc:
+        main(["show", "GAP-003", "--layer", layer, str(REPO_ROOT)])
+    assert exc.value.code == 2
+    assert "--layer" in capsys.readouterr().err
+    assert build_parser().parse_args(["prd", "--layer", layer, str(REPO_ROOT)]).layer == layer
 
 
 # ---------------------------------------------------------------------------

@@ -322,3 +322,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 375 suite-throughput: live self-scan payloads computed once per suite run, shared across xdist workers
 - iter 376 performance: literal prefilter memoised per (path, literal) inside the read-cache scope; scan byte-identical
 - iter 377 change-report: `diff` names the rank-1 record on each side (`Top gap:` line, `ranking` JSON key)
+- iter 378 build-bridge: `prd --match TEXT` / `--layer L` pick the top ranked record inside the narrowed domain
