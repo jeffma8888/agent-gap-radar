@@ -641,6 +641,16 @@ _FOLD_CACHE_STACK: list[dict[pathlib.Path, str]] = []
 #: `_unreadable_frame` supplies a short-lived one to a caller outside any scan.
 _UNREADABLE_STACK: list[set[pathlib.Path]] = []
 
+#: Prefilter answers, innermost frame last: per path, each literal already tested
+#: against that path's fold maps to the bool `literal in folded` returned. A
+#: literal such as `def` is asked of one file once per rule that reaches it, so
+#: without this a scan repeats the same substring search many times over --
+#: measured at iter 376 on this repo, 341,444 tests answering 189,029 distinct
+#: (path, literal) questions. Keyed on the path for the reason `_folded` is: the
+#: SAME scope memoises the read, so inside one scan a path has exactly one text
+#: and therefore one fold. Pushed and popped beside the other frames.
+_LITERAL_HIT_STACK: list[dict[pathlib.Path, dict[str, bool]]] = []
+
 
 @contextlib.contextmanager
 def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
@@ -664,6 +674,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
     _READ_CACHE_STACK.append(frame)
     _FOLD_CACHE_STACK.append({})
     _UNREADABLE_STACK.append(set())
+    _LITERAL_HIT_STACK.append({})
     try:
         yield frame
     finally:
@@ -678,6 +689,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
         _READ_CACHE_STACK.pop()
         _FOLD_CACHE_STACK.pop()
         _UNREADABLE_STACK.pop()
+        _LITERAL_HIT_STACK.pop()
 
 
 def _decode(path: pathlib.Path) -> str | None:
@@ -772,6 +784,28 @@ def _folded(path: pathlib.Path, text: str) -> str:
     folded = text.lower()
     frame[path] = folded
     return folded
+
+
+def _literal_hits(path: pathlib.Path) -> dict[str, bool] | None:
+    """The open scan's prefilter answers for `path`, or None outside any scan.
+
+    None means "do not memoise": outside a scope there is no read memo, so a
+    path key could pair one answer with a later, different text. The caller then
+    tests every literal directly, which answers identically, only slower.
+    """
+    if not _LITERAL_HIT_STACK:
+        return None
+    return _LITERAL_HIT_STACK[-1].setdefault(path, {})
+
+
+def _contains(folded: str, literal: str, hits: dict[str, bool] | None) -> bool:
+    """`literal in folded`, answered from `hits` when this scan already asked."""
+    if hits is None:
+        return literal in folded
+    answer = hits.get(literal)
+    if answer is None:
+        answer = hits[literal] = literal in folded
+    return answer
 
 
 def _scope_note(globs: list[str], pattern: str | None = None) -> LocationNote:
@@ -1024,7 +1058,9 @@ def evaluate(rule: dict, target: pathlib.Path,
                     # literal, and re-deriving the fold inside that loop would pay for
                     # it per literal instead of per file.
                     folded = _folded(path, text)
-                    if not any(all(literal in folded for literal in conjunction)
+                    hits = _literal_hits(path)
+                    if not any(all(_contains(folded, literal, hits)
+                                   for literal in conjunction)
                                for conjunction in literal_sets):
                         # `any` over the alternatives and `all` within one of them, and
                         # neither may be swapped. Top-level alternation is a disjunction,
@@ -1047,7 +1083,8 @@ def evaluate(rule: dict, target: pathlib.Path,
                         # `truncated` keeps meaning exactly what it meant.
                         continue
                     if is_ascii and ascii_sets is not None and not any(
-                            all(literal in folded for literal in conjunction)
+                            all(_contains(folded, literal, hits)
+                                for literal in conjunction)
                             for conjunction in ascii_sets):
                         # The whole-run test, reached only by an ASCII file the folded
                         # DNF already admitted. Same `any`/`all` shape, same fold,

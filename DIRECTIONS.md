@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-376
+    lenses: narrative-and-docs (HEAD `1e5369f`)
+    - Candidate A1 -- Memoise the literal prefilter per (path, literal) inside the read-cache scope: `radar scan .` 8.7 s -> 7.7 s, byte-identical
+    - Candidate A2 -- Opt-in `scan --jobs N`: spread the 119 checks over a process pool, same bytes
+    - Candidate A3 -- A deterministic work-count brake: pin the scan's regex-pass and containment-test counts, not its seconds
+    - Candidate B1 -- Board Status drift brake, ledger-vs-board form: rows 81 and 144 read `open` although Done-ledger bullets ship them in full (iters 307, 308)
+    - Candidate B2 -- Publish the whole `prd.json` shape: 13 emitted key paths under `sourceGap.check`, `evidence[]` and `stories[]` exist nowhere in the consumer contract (row 124, open since iter 221)
+    - Candidate B3 -- Rows 64/70 and the Next-up ship order still say "the index/archive split this product has never done", but iter 368 did it, and this suite now enforces a 240,000-char wall the rows say does not exist
+    winner: A1
+    ship: pending (not yet decided)
   iter-375
     lenses: simplification-and-deletion (HEAD `0971a65`), performance-and-throughput (HEAD `0971a65`)
     - Candidate A1 -- Retire the last frozen-commit arms: 11 test modules still `git archive` a pinned PRECHANGE_COMMIT sha
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `required_literal_sets` distributes over a grouped top-level alternation: 27 unprovable patterns cost 1.56 s (19 % of the scan)
     - Candidate B3 -- Strengthen weak proved literals: 50 zero-hit patterns still pay 0.94 s because their DNF is `{d}` / `{id}` / `{len}`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 1e5369f
   iter-374
     lenses: simplification-and-deletion (HEAD `1898b12`)
     - A1 -- `scan --json --baseline` publishes WHICH gaps are new, not only the exit code
@@ -1770,4 +1780,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-177 scouted iterations
+178 scouted iterations
