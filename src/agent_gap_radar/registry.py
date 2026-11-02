@@ -201,8 +201,16 @@ def parse_record(text: str) -> Any:
             keepalive.append(obj)
         return obj
 
-    parsed = json.loads(text, object_pairs_hook=hook)
-    repeats = sorted({_dotted_loc(path) for path in adopt(parsed)})
+    try:
+        parsed = json.loads(text, object_pairs_hook=hook)
+        repeat_paths = adopt(parsed)
+    except RecursionError:
+        # Both the C scanner and `adopt` recurse per nesting level, so a file nested
+        # past the interpreter's stack is refused as unreadable -- a ValueError, which
+        # every caller already turns into its `Error:` line -- never a traceback.
+        # The message carries no depth: the limit is a fact about the stack.
+        raise ValueError("nested too deeply to read") from None
+    repeats = sorted({_dotted_loc(path) for path in repeat_paths})
     if repeats:
         raise RegistryError(_counted_items("duplicate JSON key(s)", repeats))
     return parsed

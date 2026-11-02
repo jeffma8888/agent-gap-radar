@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-379
+    lenses: hardening/DX (HEAD `eac2256`), integration-and-adoption (HEAD `eac2256`)
+    - Candidate A1 -- A deeply nested JSON file crashes `validate`/`list`/`diff`/`scan --baseline` with a RecursionError traceback, exit 1
+    - Candidate A2 -- `--floor` accepts any integer, so `scan --exit-code --floor 6` turns a red gate green over identical findings (re-proposal of iter-258 B2)
+    - Candidate A3 -- A repeated single-valued flag silently keeps the LAST value; iter 378's new `prd --match/--layer` and `scan --baseline` inherit it
+    - Candidate B1 -- `scan --exit-code` gives a green gate to a scan that is 105/119 UNKNOWN, the verdict the contract says a gate must "never" treat as a pass
+    - Candidate B2 -- The PRD's `closure` object names the command that reads it, so the build loop can run its own definition of done
+    - Candidate B3 -- `prd`'s `branchName` carries the gap id, so the vision's "done" (a gap closed by a loop that started from `radar prd`) can be traced in git history
+    winner: A1
+    ship: pending (not yet decided)
   iter-378
     lenses: new-capability (HEAD `7c97301`), hardening/DX (HEAD `7c97301`)
     - Candidate A1 -- `radar prd` takes `list`'s narrowing flags (`--match TEXT`, `--layer L`), so the build loop gets the top gap in the builder's area, not just the global top
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- A directory that is not a register gets one sentence, not a 44 KB `Error:` line
     - Candidate B3 -- `radar list` over a zero-record domain writes a bare `\n`, while the code's own justification says documents "show their own emptiness"
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED eac2256
   iter-377
     lenses: narrative-and-docs (HEAD `4f265e6`), new-capability (HEAD `4f265e6`)
     - Candidate A1 -- README names 4 of the 9 `tools/` scripts; the 5 gates that enforce its own "Design constraints" appear in it zero times
@@ -1800,4 +1810,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-180 scouted iterations
+181 scouted iterations

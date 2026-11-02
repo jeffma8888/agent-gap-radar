@@ -323,3 +323,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 376 performance: literal prefilter memoised per (path, literal) inside the read-cache scope; scan byte-identical
 - iter 377 change-report: `diff` names the rank-1 record on each side (`Top gap:` line, `ranking` JSON key)
 - iter 378 build-bridge: `prd --match TEXT` / `--layer L` pick the top ranked record inside the narrowed domain
+- iter 379 input-hardening: a record or baseline nested too deeply to read is an `Error:` exit 2, never a traceback
