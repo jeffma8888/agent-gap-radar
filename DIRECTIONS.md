@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-380
+    lenses: integration-and-adoption (HEAD `8e091a8`), simplification-and-deletion (HEAD `8e091a8`)
+    - Candidate A1 -- `scan --exit-code` over the whole register exits 2 when an above-floor finding is UNKNOWN (re-proposal of iter-379 B1, now with its red count)
+    - Candidate A2 -- `scan --json` says where its locators are rooted, so a monorepo gate's file annotations point at real files
+    - Candidate A3 -- an UNKNOWN finding names the file it could not read, in `--json` and in the brief
+    - Candidate B1 -- Retire the 11 modules' frozen-commit arms (`PRECHANGE_COMMIT` + `git archive`): one-time refactor proofs re-paid on every suite run
+    - Candidate B2 -- One refusal site per flag in `_dispatch`: the unknown-`--layer` check (2 sites) and the blank-`--match` check (2 sites) collapse to one each
+    - Candidate B3 -- "The record bare `prd` builds from" gets ONE construction site: `diff.prd_target` and cli's bare-prd path stop deriving it twice
+    winner: A1
+    ship: pending (not yet decided)
   iter-379
     lenses: hardening/DX (HEAD `eac2256`), integration-and-adoption (HEAD `eac2256`)
     - Candidate A1 -- A deeply nested JSON file crashes `validate`/`list`/`diff`/`scan --baseline` with a RecursionError traceback, exit 1
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The PRD's `closure` object names the command that reads it, so the build loop can run its own definition of done
     - Candidate B3 -- `prd`'s `branchName` carries the gap id, so the vision's "done" (a gap closed by a loop that started from `radar prd`) can be traced in git history
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 8e091a8
   iter-378
     lenses: new-capability (HEAD `7c97301`), hardening/DX (HEAD `7c97301`)
     - Candidate A1 -- `radar prd` takes `list`'s narrowing flags (`--match TEXT`, `--layer L`), so the build loop gets the top gap in the builder's area, not just the global top
@@ -1810,4 +1820,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-181 scouted iterations
+182 scouted iterations

@@ -389,6 +389,21 @@ AUTOMATED_VERDICTS = frozenset(
     {Verdict.PRESENT, Verdict.ABSENT, Verdict.NOT_APPLICABLE})
 
 
+def unknown_above_floor(result: ScanResult, confidence_floor: int) -> list[Gap]:
+    """Every UNKNOWN finding whose evidence clears the floor, in scan order.
+
+    WHY a whole-register gate needs it: `gate_verdict` reads only PRESENT, so a scan
+    that could not read (or was cut short of) the files its checks needed returns
+    `False` -- and `False` is published as `0`, "no above-floor PRESENT gap". An
+    unreadable tree would then gate healthier than a readable one. Filtering through
+    `clears_floor` keeps the floor rule's one spelling, so a below-floor UNKNOWN stays
+    displayed without gating. MANUAL is deliberately excluded: it is a question for a
+    human, not a search that failed.
+    """
+    return [f.gap for f in result.findings
+            if f.verdict == Verdict.UNKNOWN and clears_floor(f, confidence_floor)]
+
+
 def unanswered(result: ScanResult) -> list[Gap]:
     """Every applied record this scan reached no automated verdict for, in scan order.
 

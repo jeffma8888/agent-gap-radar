@@ -907,7 +907,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
                        new_since_baseline, partition_by_baseline,
                        render_baseline_line, render_scan,
-                       scan, scan_json, select_for_prd, unanswered)
+                       scan, scan_json, select_for_prd, unanswered,
+                       unknown_above_floor)
     from .scoring import rank
 
     if args.command == "taxonomy":
@@ -1042,10 +1043,10 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # PRESENT gap". Deciding it from the FINDING's verdict (via `unanswered`),
         # never from a second floor comparison, keeps the floor rule's one spelling.
         #
-        # Gated on `--gap`, and that is a scope decision rather than an oversight:
-        # over the whole register an unanswered record sits beside answered ones and
-        # the gate's verdict is still about the target, so what `--exit-code` returns
-        # for an unnarrowed scan is unchanged to the byte.
+        # Gated on `--gap`: over the whole register MANUAL and no-check records sit
+        # beside answered ones and are questions for a human, so they do not gate.
+        # An above-floor UNKNOWN does -- that refusal is decided below, AFTER the
+        # baseline step, so a baseline can never certify an UNKNOWN as clean.
         if args.exit_code and args.gap_id is not None:
             # At most one element here -- `--gap` narrows to one record -- but joined
             # rather than indexed, so the line stays true if the domain ever widens.
@@ -1086,6 +1087,18 @@ def _dispatch(argv: list[str] | None = None) -> int:
                              "carried": sorted(baseline.present),
                              "new": list(new_ids), "scanned": list(scanned_new),
                              "unscanned": list(unscanned_new)}
+        # Keyed on `not verdict`, so a known above-floor PRESENT (1) still outranks
+        # an unanswered record; otherwise `0` is never published while a finding
+        # that clears the floor reached no verdict. Decided before a byte is written.
+        if args.exit_code and not verdict:
+            unknown_ids = [g.id for g in unknown_above_floor(result, floor)]
+            if unknown_ids:
+                return _fail(
+                    f"{len(unknown_ids)} finding(s) at or above the confidence floor "
+                    f"{floor} reached no verdict (UNKNOWN): {', '.join(unknown_ids)}; "
+                    "--exit-code has no verdict to report, and 0 would publish a "
+                    "clean gate this scan never earned. Run without --exit-code "
+                    "to read each finding's reason.")
         sys.stdout.write(scan_json(result, floor, args.layer, baseline_json) if args.json
                          else render_scan(result, baseline_line))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
