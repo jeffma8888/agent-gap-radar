@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-384
+    lenses: unknown
+    - Candidate A1 -- `--cites TEXT` on `list`/`report`/`prd`: narrow the register to records whose EVIDENCE cites a source
+    - Candidate A2 -- `--match` repeatable as an AND of terms on `list`/`prd`/`report` (re-proposal of iter-383 B2, with what changed)
+    - Candidate A3 -- `prd --skip GAP-ID` (repeatable): the build loop gets the top-ranked gap it has NOT already claimed (re-proposal of iter-383 B3)
+    - Candidate B1 -- `validate` refuses a citation dated in the future: one typo re-anchors every evidence age in the register
+    - Candidate B2 -- `scan --exit-code` refuses a `--floor` above the ladder's ceiling (5), because no finding can clear it and the gate can never go red
+    - Candidate B3 -- A repeated single-valued flag is `Error:` exit 2, not a silent last-wins (third proposal, now with a gate flip on the self-scan)
+    winner: B2
+    ship: pending (not yet decided)
   iter-383
     lenses: narrative-and-docs (HEAD `5d8d81f`), new-capability (HEAD `5d8d81f`)
     - Candidate A1 -- `show`'s `## Detection` docstring still describes a 16-record register; the live register has 120
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `--match` is repeatable as an AND of terms on `list`/`prd`, so a two-word idea is not a literal-phrase lookup
     - Candidate B3 -- `radar prd --skip GAP-ID` (repeatable): the build loop gets the top gap it has NOT already claimed
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED abb6f4b
   iter-382
     lenses: unknown
     - Candidate A1 -- memoise the first-match search per (compiled regex, path) inside the scan's read-cache scope: 816 repeat searches, `scan .` ~8.0 s -> ~7.35 s, byte-identical
@@ -1847,4 +1857,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-185 scouted iterations
+186 scouted iterations

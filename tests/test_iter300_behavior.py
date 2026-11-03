@@ -516,21 +516,16 @@ def test_t6_two_new_ids_join_ascending_after_a_zero_carry(bed, b_none):
 
 
 def test_t6_floor_composes_with_the_line_and_gates_only_the_current_set(bed, b_none):
-    """At `--floor 6` nothing clears, so two PRESENT gaps the baseline never carried are
-    still not "new"; the document is the flagless `--floor 6` document plus one line."""
+    """At `--floor 6` nothing clears, so the flagless document is still published, but
+    the gated run REFUSES (re-pinned in iter 384): a floor above the ladder's ceiling
+    would make two PRESENT gaps the baseline never carried read as a clean `0`."""
     plain_rc, plain_out, plain_err = _scan(bed, "a_and_b", "--floor", "6")
     assert (plain_rc, plain_err) == (0, "")
+    assert plain_out.endswith("\n") and not plain_out.endswith("\n\n")
     rc, out, err = _scan(bed, "a_and_b", "--exit-code", "--baseline", str(b_none),
                          "--floor", "6")
-    assert (rc, err) == (CLEAN, "")
-    plain, flagged = plain_out.splitlines(), out.splitlines()
-    assert len(flagged) == len(plain) + 1
-    anchor = next(i for i, line in enumerate(plain)
-                  if line.startswith("Gaps with no check yet: "))
-    assert flagged[:anchor + 1] == plain[:anchor + 1]
-    assert flagged[anchor + 2:] == plain[anchor + 1:]
-    assert flagged[anchor + 1] == (f"Baseline: {b_none} -- carried PRESENT: 0; "
-                                   "new above-floor PRESENT: 0 (none); scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
+    assert (rc, out) == (REFUSED, "")
+    assert err.startswith("Error: --floor 6 exceeds the highest confidence"), err
     # The same tree at the default floor IS red against this baseline: the 0 was the floor.
     assert _scan(bed, "a_and_b", "--exit-code", "--baseline", str(b_none))[0] == NEW
 

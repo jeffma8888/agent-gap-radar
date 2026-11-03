@@ -685,9 +685,12 @@ def build_parser() -> argparse.ArgumentParser:
     # `--help` and `--version` path. The two are not asserted equal by a reader: a drift
     # shows up as `scan T` and `scan T --floor 2` producing different bytes.
     #
-    # No range or validity check, deliberately: `list --floor` has none, an unclearable
-    # floor is a legitimate question ("is anything here evidenced that well?"), and a
-    # second refusal dialect for one concept is what makes a CLI unlearnable. "confidence
+    # No range or validity check HERE, deliberately: `list --floor` has none, an
+    # unclearable floor is a legitimate question ("is anything here evidenced that
+    # well?"), and a second refusal dialect for one concept is what makes a CLI
+    # unlearnable. The one exception lives in `_dispatch`: beside `--exit-code` a floor
+    # above the ladder's ceiling is refused, because there it is a gate that can never
+    # fail rather than a question. "confidence
     # floor" leads the help text for the reason the group below says: argparse wraps on
     # whitespace, so the phrase the docs promise must survive a narrow terminal.
     p_scan.add_argument("--floor", type=int, default=2,
@@ -994,6 +997,16 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return _fail("--baseline requires --exit-code: a baseline only changes "
                          "the verdict, and without --exit-code there is no verdict "
                          "to change")
+        # A floor above the ladder's ceiling is an off switch spelled as a number: no
+        # finding can clear it, so `--exit-code` would answer 0 for every target. A
+        # shape defect of the invocation, refused before any directory is touched.
+        if args.exit_code:
+            from .scoring import CONFIDENCE_MAX
+            if args.floor > CONFIDENCE_MAX:
+                return _fail(f"--floor {args.floor} exceeds the highest confidence the "
+                             f"evidence ladder can derive ({CONFIDENCE_MAX}), so "
+                             "--exit-code could never fail; use a floor of "
+                             f"{CONFIDENCE_MAX} or less")
         if args.layer is not None and args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
         try:

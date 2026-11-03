@@ -34,6 +34,7 @@ from collections.abc import Iterator
 import pytest
 
 from agent_gap_radar.cli import main
+from agent_gap_radar.scoring import CONFIDENCE_MAX
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
@@ -126,7 +127,9 @@ def test_floor_sweep_json_is_the_oracle(capsys, target_t, floor) -> None:
         assert f["below_floor"] is (f["confidence"] < floor), f
     ids = _gating_unknown(doc)
     code, out, err = _run(capsys, "scan", target_t, "--gaps", GAPS, "--exit-code", "--floor", floor)
-    if ids:
+    if floor > CONFIDENCE_MAX:  # iter 384: an unclearable floor is refused, not a 0
+        assert (code, out) == (2, "") and "exceeds the highest confidence the evidence ladder can derive (5)" in _last(err)
+    elif ids:
         _assert_refusal(code, out, err, ids)
     else:
         _, plain, _ = _run(capsys, "scan", target_t, "--gaps", GAPS, "--floor", floor)
@@ -259,13 +262,19 @@ def test_baseline_with_floor_above_every_unknown_exits_zero(capsys, target_t, tm
     bfile.write_text(base)
     code, out, err = _run(capsys, "scan", target_t, "--gaps", GAPS, "--exit-code",
                           "--baseline", bfile, "--floor", top + 1)
-    assert (code, err) == (0, ""), err[-300:]
-    # `--baseline` needs `--exit-code`, so the oracle is the help's promise:
-    # the plain document plus exactly one `Baseline:` line
-    _, plain, _ = _run(capsys, "scan", target_t, "--gaps", GAPS, "--floor", top + 1)
-    extra = [line for line in out.splitlines() if line not in plain.splitlines()]
-    assert len(extra) == 1 and extra[0].startswith("Baseline:"), extra
-    assert out.endswith("\n") and not out.endswith("\n\n")
+    if top + 1 > CONFIDENCE_MAX:
+        # iter 384: a top UNKNOWN at the ladder's ceiling leaves no clearable floor
+        # above it, and the unclearable one is refused rather than verdicted 0.
+        assert (code, out) == (2, ""), err[-300:]
+        assert "exceeds the highest confidence the evidence ladder can derive" in _last(err)
+    else:
+        assert (code, err) == (0, ""), err[-300:]
+        # `--baseline` needs `--exit-code`, so the oracle is the help's promise:
+        # the plain document plus exactly one `Baseline:` line
+        _, plain, _ = _run(capsys, "scan", target_t, "--gaps", GAPS, "--floor", top + 1)
+        extra = [line for line in out.splitlines() if line not in plain.splitlines()]
+        assert len(extra) == 1 and extra[0].startswith("Baseline:"), extra
+        assert out.endswith("\n") and not out.endswith("\n\n")
     code, out, err = _run(capsys, "scan", target_t, "--gaps", GAPS, "--exit-code",
                           "--baseline", bfile, "--floor", top)
     assert code == 2 and out == "" and CLAUSE in _last(err)

@@ -60,6 +60,7 @@ import pytest
 
 from agent_gap_radar import cli
 from agent_gap_radar.cli import main
+from agent_gap_radar.scoring import CONFIDENCE_MAX
 from test_iter02_behavior import _record, _target, _write_register
 from _surface_contract import (contract_text, documented_tokens, invocation_verb,
                               parser_surface, surface_table_cells,
@@ -72,6 +73,13 @@ DEFAULT_FLOOR = 2
 #: Every floor the spec sweeps. 0 is cleared by everything and 6 is unclearable by
 #: construction, because confidence is derived on 0..5.
 FLOORS = (0, 1, 2, 3, 4, 5, 6)
+
+
+def _unclearable_floor_refusal(floor: int) -> str:
+    """The iter-384 refusal: beside `--exit-code` an unclearable floor is an off switch."""
+    return (f"Error: --floor {floor} exceeds the highest confidence the evidence ladder "
+            f"can derive ({CONFIDENCE_MAX}), so --exit-code could never fail; use a floor "
+            f"of {CONFIDENCE_MAX} or less\n")
 
 #: Evidence classes whose derived confidence this module needs. The mapping is a
 #: FIXTURE CHOICE, not an assertion: `test_b0_fixture_confidences_are_what_the_tool_
@@ -267,10 +275,16 @@ def test_b3_a_below_floor_record_is_displayed_and_flagged_never_dropped(json_swe
 @pytest.mark.parametrize("confidence", sorted(CLASS_FOR_CONFIDENCE))
 @pytest.mark.parametrize("floor", FLOORS)
 def test_b4_exit_code_verdict_tracks_the_floor(bed, floor, confidence):
-    """Behavior 4: `1` when `N <= C`, `0` when `N > C`, document byte-identical."""
+    """Behavior 4: `1` when `N <= C`, `0` when `C < N <= 5`, document byte-identical.
+
+    Re-pinned in iter 384: above the ladder's ceiling `--exit-code` refuses (exit 2,
+    empty stdout) instead of publishing an unearned `0`."""
     doc_rc, doc_out, doc_err = _scan(bed, register=confidence)
     rc, out, err = _scan(bed, "--exit-code", "--floor", str(floor),
                          register=confidence)
+    if floor > CONFIDENCE_MAX:
+        assert (rc, out, err) == (2, "", _unclearable_floor_refusal(floor))
+        return
     expected = 1 if floor <= confidence else 0
     assert rc == expected, (
         f"confidence {confidence} at floor {floor} verdicted {rc}, wanted {expected}")
@@ -283,10 +297,14 @@ def test_b4_exit_code_verdict_tracks_the_floor(bed, floor, confidence):
 
 @pytest.mark.parametrize("confidence", sorted(CLASS_FOR_CONFIDENCE))
 def test_b4_both_verdicts_are_reachable_for_every_fixture(bed, confidence):
-    """Guard: a `--exit-code` that always returned 1 would pass half the sweep."""
+    """Guard: a `--exit-code` that always returned 1 would pass half the sweep.
+
+    Re-pinned in iter 384: `0` needs a clearable floor above C, so at the ladder's
+    ceiling only `1` is reachable, and the unclearable floor 6 refuses with `2`."""
     codes = {_scan(bed, "--exit-code", "--floor", str(n), register=confidence)[0]
              for n in FLOORS}
-    assert codes == {0, 1}, (
+    expected = {0, 1, 2} if confidence < CONFIDENCE_MAX else {1, 2}
+    assert codes == expected, (
         f"confidence {confidence} never crossed its own floor: {codes}")
 
 
@@ -371,8 +389,14 @@ def test_b6_a_note_line_in_the_same_run_also_names_the_applied_floor(bed, floor)
 @pytest.mark.parametrize("floor", (0, 6))
 @pytest.mark.parametrize("extra", [(), ("--json",), ("--exit-code",)])
 def test_b7_the_extreme_floors_are_accepted(bed, floor, extra):
-    """Behavior 7: `--floor 0` and `--floor 6` produce no `Error: ` about the value."""
+    """Behavior 7: `--floor 0` and `--floor 6` produce no `Error: ` about the value.
+
+    Re-pinned in iter 384: the one exception is `--exit-code` at the unclearable floor,
+    which refuses because there the floor is a gate that can never fail."""
     rc, out, err = _scan(bed, *extra, "--floor", str(floor))
+    if "--exit-code" in extra and floor > CONFIDENCE_MAX:
+        assert (rc, out, err) == (2, "", _unclearable_floor_refusal(floor))
+        return
     assert err == ""
     assert rc in cli.EXIT_CODES and type(rc) is int
     assert len(out) > 100 and out.endswith("\n")

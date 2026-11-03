@@ -107,18 +107,21 @@ def test_b3_documents_unchanged_without_exit_code(capsys, target_t, extra) -> No
     code, out, err = run(capsys, "scan", target_t, "--gaps", GAPS, *extra)
     assert (code, err) == (0, "")
     assert out.endswith("\n") and not out.endswith("\n\n")
-    # --floor 6 clears no UNKNOWN, so --exit-code verdicts and must not alter the bytes.
+    # --floor 6 clears nothing: the flagless document is published unchanged, while
+    # beside --exit-code it is refused (iter 384) rather than read as a clean 0.
+    plain_at_6 = run(capsys, "scan", target_t, "--gaps", GAPS, *extra, "--floor", "6")
+    assert plain_at_6[0] == 0 and plain_at_6[1].endswith("\n") and plain_at_6[2] == ""
     gated = run(capsys, "scan", target_t, "--gaps", GAPS, *extra, "--exit-code",
                 "--floor", "6")
-    plain_at_6 = run(capsys, "scan", target_t, "--gaps", GAPS, *extra, "--floor", "6")
-    assert gated[1] == plain_at_6[1]
+    assert gated[:2] == (2, "") and "exceeds the highest confidence the evidence ladder can derive (5)" in gated[2]
 
 
 @needs_non_root
 def test_b4_floor_rule(capsys, target_t) -> None:
     code, out, err = run(capsys, "scan", target_t, "--gaps", GAPS, "--exit-code",
                          "--floor", "6")
-    assert code == 0 and out and err == ""
+    # iter 384: an unclearable floor is refused, never verdicted 0.
+    assert (code, out) == (2, "") and "exceeds the highest confidence the evidence ladder can derive (5)" in last_line(err)
     _, doc, _ = run(capsys, "scan", target_t, "--gaps", GAPS, "--json")
     lines = {}
     for floor in (4, 5):

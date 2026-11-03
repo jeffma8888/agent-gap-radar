@@ -327,3 +327,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 380 gate-honesty: whole-register `scan --exit-code` is exit 2, never 0, while an above-floor finding is UNKNOWN
 - iter 382 help-honesty: `scan`/`diff --exit-code` help names every exit code incl. 2; a brake derives them from runs
 - iter 383 builder-scoping: `report --match TEXT` narrows every report section to records whose prose contains TEXT
+- iter 384 gate-honesty: `scan --exit-code --floor N` above the ladder ceiling 5 is `Error:` exit 2, never an unearned 0

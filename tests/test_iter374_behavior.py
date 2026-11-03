@@ -108,7 +108,8 @@ def test_b5_unscanned_ids_land_in_unscanned(scan, bed):
 
 def test_b7_floor_only_shrinks_new(scan, bed):
     news, carried = [], []
-    for floor in ("0", "2", "5", "6"):
+    # "6" left the sweep in iter 384: beside `--exit-code` it is now refused.
+    for floor in ("0", "2", "5"):
         _, out, _ = scan("abcw", "--json", "--exit-code", "--baseline", bed["b_aw"],
                          "--floor", floor)
         _, md, _ = scan("abcw", "--exit-code", "--baseline", bed["b_aw"], "--floor", floor)
@@ -118,6 +119,9 @@ def test_b7_floor_only_shrinks_new(scan, bed):
         carried.append(obj["carried"])
     assert all(later <= earlier for earlier, later in zip(news, news[1:]))
     assert all(c == carried[0] for c in carried)
+    rc, out, err = scan("abcw", "--json", "--exit-code", "--baseline", bed["b_aw"],
+                        "--floor", "6")
+    assert (rc, out) == (2, "") and "exceeds the highest confidence the evidence ladder can derive (5)" in err
 
 
 def test_b8_markdown_has_no_json_artifacts(scan, bed):

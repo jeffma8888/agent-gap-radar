@@ -51,6 +51,10 @@ _MAX_WEIGHTED = 5 * (W_SEVERITY + W_FREQUENCY + W_TRACTABILITY)
 # independent low-weight sources would be silently demoted.
 CONFIDENCE_FLOOR_DEFAULT = 2
 
+#: The highest confidence the evidence ladder can derive. No record can clear a
+#: floor above it, so a verdict gated on such a floor could never fail.
+CONFIDENCE_MAX = 5
+
 #: The supported import surface, matching what `docs/CONSUMER_CONTRACT.md` publishes for a
 #: pydantic-less consumer: the two derived scores, what they are derived FROM, the
 #: below-floor prescription, and the floor's own default. Every other callable here is an
@@ -179,7 +183,7 @@ def confidence(gap: Gap) -> int:
         a.source_class != b.source_class and _source_key(a) != _source_key(b)
         for a, b in itertools.combinations(real, 2)
     ) else 0
-    return min(5, best + corroborated)
+    return min(CONFIDENCE_MAX, best + corroborated)
 
 
 def _ladder_rank(source_class: str) -> int:
