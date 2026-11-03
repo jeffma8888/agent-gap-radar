@@ -23,10 +23,11 @@ GAP_ID_RE = re.compile(r"^GAP-\d{3}$")
 # `tools/promote.py`'s ingest gate, which iteration 121 named AUTHORITATIVE for the
 # record-level promise, and which now calls this instead of holding its own copy --
 # two doors with two spellings of one rule is how the register grew two standards in
-# the first place. `re.match` + a trailing `$` (not `fullmatch`) is deliberate: it is
-# byte-for-byte the predicate the ingest gate has always applied, so sharing it moves
-# nothing that promote already accepted or rejected.
-RESOLVABLE_LOCATOR_RE = re.compile(r"https?://\S+$")
+# the first place. The pattern ends in `\Z`, not `$`: under `re.match`, `$` also
+# matches just before a trailing newline, so `"https://x/p\n"` used to read as
+# resolvable although no reader can paste it. `\Z` makes the rule a match of the
+# WHOLE string, the same promise a trailing space already got from `\S+`.
+RESOLVABLE_LOCATOR_RE = re.compile(r"https?://\S+\Z")
 
 
 def is_resolvable_locator(locator: str) -> bool:
@@ -228,10 +229,20 @@ class Evidence(RecordModel):
         path" still holds, and `tools/check_locators.py` still SKIPs a non-URL
         locator and still exits 0. A DOI or a stable local path remains a legal
         locator; it simply may not be a record's ONLY citation.
+
+        Edge whitespace IS refused here, though, because corroboration keys on
+        this exact string: `U` and `U + " "` (or a trailing newline) would read
+        as two source documents and earn a corroboration point from ONE. Inner
+        whitespace stays legal -- `docs/field notes.md` is a different artifact,
+        not a padded copy -- so the "stable local artifact path" promise holds.
         """
         if not v.strip():
             raise ValueError("locator must not be empty: a citation without a locator "
                              "cannot be resolved or checked by a reader")
+        if v != v.strip():
+            raise ValueError("locator must not begin or end with whitespace: "
+                             f"{v!r} is not the string a reader would paste, and "
+                             "corroboration would count it as a second source")
         return v
 
 

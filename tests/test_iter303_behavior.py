@@ -416,7 +416,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter382_new = {"test_iter382_behavior.py", "test_iter382_tester_behavior.py"}
     iter383_new = {"test_iter383_behavior.py", "test_iter383_tester_behavior.py"}
     iter384_new = {"test_iter384_behavior.py", "test_iter384_tester_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new, sorted(set(now) ^ set(before))
+    iter385_new = {"test_iter385_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}
@@ -428,6 +429,10 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
         "test_iter302_behavior.py": ([RETIRED_362_302], []),
         # iter 370: the `(?i)[A-Z]x` refusal pin flipped to an acceptance pin.
         "test_iter245_behavior.py": ([], ["test_b1_uppercase_class_now_lowered"]),
+        # iter 385: the trailing-newline admission pin inverted to a refusal pin.
+        "test_iter121_behavior.py": (
+            ["test_behavior6x_a_trailing_newline_is_admitted_by_the_authoritative_rule"],
+            ["test_behavior6x_a_trailing_newline_is_refused_at_both_doors"]),
     }, changed
 
 

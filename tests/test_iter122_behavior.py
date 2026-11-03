@@ -80,7 +80,7 @@ LOCATORS: list[tuple[str, str, bool]] = [
     ("plain-https", "https://a.example/x", True),
     ("plain-http", "http://a.example/x", True),
     ("query-frag", "https://a.example/x?q=1#frag", True),
-    ("trailing-newline", "https://a.example/x\n", True),
+    ("trailing-newline", "https://a.example/x\n", False),  # `\Z` since iter 385
     ("scheme-only-http", "http://", False),
     ("scheme-only-https", "https://", False),
     ("embedded-space", "https://a.example/x y", False),

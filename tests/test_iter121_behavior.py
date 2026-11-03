@@ -49,7 +49,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent_gap_radar.cli import main
-from agent_gap_radar.models import Evidence, Gap
+from agent_gap_radar.models import Evidence, Gap, is_resolvable_locator
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 #: The register this repo ships. Read only by RUNNING a verb against it (behavior 5).
@@ -455,6 +455,12 @@ NO_SPACE_AFTER_SCHEME = [
 #: stderr (see `tester2.md`). Used as a wording tripwire only.
 RECORD_RULE_SENTENCE = "no citation has a resolvable locator"
 
+#: The FIELD-level refusal iteration 385 added for a locator with leading or trailing
+#: whitespace. A padded locator in the two shape lists above is now refused by THIS door
+#: before the record-level rule runs, so those cases accept either sentence: what they pin
+#: is that the locator is never admitted, not which door refuses it first.
+EDGE_RULE_SENTENCE = "must not begin or end with whitespace"
+
 
 def _argv(verb: list[str], register: pathlib.Path, gid: str = "GAP-701") -> list[str]:
     """One verb's argv over `register`. `show` needs its record id positionally."""
@@ -653,34 +659,39 @@ def test_behavior6x_the_scheme_plus_one_non_space_character_is_enough(locator):
 def test_behavior6x_the_scheme_must_lead_the_locator(locator):
     """Each of these CONTAINS `https:` yet none of them IS a resolvable locator: the rule
     is anchored at the start, so a locator that merely mentions a URL inside prose does not
-    satisfy a record's one-resolvable-citation promise."""
+    satisfy a record's one-resolvable-citation promise. A whitespace-led one is refused at
+    the field since iteration 385, so either door's sentence is accepted."""
     with pytest.raises(ValidationError) as exc:
         Gap.model_validate(_with_locators(locator))
-    assert RECORD_RULE_SENTENCE in _messages(exc.value), _messages(exc.value)
+    msgs = _messages(exc.value)
+    assert RECORD_RULE_SENTENCE in msgs or EDGE_RULE_SENTENCE in msgs, msgs
 
 
 @pytest.mark.parametrize("locator", NO_SPACE_AFTER_SCHEME)
 def test_behavior6x_whitespace_after_the_scheme_is_not_resolvable(locator):
     r"""`\S+$` must reach the end of the string, so any whitespace after the scheme --
     including a NON-BREAKING space, which reads as part of a URL but is whitespace to the
-    rule -- leaves the locator unresolvable."""
+    rule -- leaves the locator unresolvable. A trailing-whitespace one is refused at the
+    field since iteration 385, so either door's sentence is accepted."""
     with pytest.raises(ValidationError) as exc:
         Gap.model_validate(_with_locators(locator))
-    assert RECORD_RULE_SENTENCE in _messages(exc.value), _messages(exc.value)
+    msgs = _messages(exc.value)
+    assert RECORD_RULE_SENTENCE in msgs or EDGE_RULE_SENTENCE in msgs, msgs
 
 
-def test_behavior6x_a_trailing_newline_is_admitted_by_the_authoritative_rule():
-    r"""AMBIGUITY, pinned on the reading the spec mandates and reported in `tester2.md`.
-    The Feature section names `tools/promote.py`'s `https?://\S+$` AUTHORITATIVE for the
-    record-level promise, and in Python `$` also matches immediately before a trailing
-    newline -- so `"https://example.com/a\n"` is resolvable at BOTH doors while
-    `"https://example.com/a "` is resolvable at NEITHER. That asymmetry is inherited, not
-    invented here, and the whole point of the iteration is that the two doors agree. This
-    test exists so that a successor who tightens the rule to a full match has to move both
-    doors together and read this note first.
+def test_behavior6x_a_trailing_newline_is_refused_at_both_doors():
+    r"""INVERTED in iteration 385, the successor this test's earlier note asked for. The
+    rule was `https?://\S+$`, and in Python `$` also matches before a trailing newline, so
+    `"https://example.com/a\n"` used to be resolvable while `"https://example.com/a "` was
+    not. Both doors moved together: the shared pattern ends in `\Z` (a whole-string match)
+    and the `locator` field refuses edge whitespace. So the newline case is now NOT
+    resolvable and a record carrying it is refused, exactly like the trailing space.
     """
-    gap = Gap.model_validate(_with_locators("https://example.com/a\n"))
-    assert gap.evidence[0].locator == "https://example.com/a\n"
+    locator = "https://example.com/a\n"
+    assert is_resolvable_locator(locator) is False
+    with pytest.raises(ValidationError) as exc:
+        Gap.model_validate(_with_locators(locator))
+    assert EDGE_RULE_SENTENCE in _messages(exc.value), _messages(exc.value)
 
 
 # ---------------------------------------------------------------- behavior 5, extended
@@ -852,13 +863,21 @@ def test_behavior6y_a_locator_that_merely_contains_a_url_is_not_resolvable(locat
     would lose: it is ANCHORED at the start (so `re.search` is wrong) and `\S+` cannot cross
     a newline while `$` admits at most ONE trailing newline (so `re.MULTILINE` is wrong).
     A rule written either looser way would admit all three and this module would be the only
-    thing standing between the register and a citation nobody can check."""
+    thing standing between the register and a citation nobody can check.
+
+    Since iteration 385 a locator with EDGE whitespace (the two-trailing-newline case) is
+    refused one door earlier, at the `locator` field, so its single error is attributed to
+    that field and carries the edge-whitespace sentence instead."""
     with pytest.raises(ValidationError) as exc:
         Gap.model_validate(_with_locators(locator))
     errors = exc.value.errors()
     assert len(errors) == 1, errors
-    assert errors[0]["loc"] == (), errors[0]["loc"]
-    assert RECORD_RULE_SENTENCE in errors[0]["msg"], errors[0]["msg"]
+    if locator != locator.strip():
+        assert errors[0]["loc"] == ("evidence", 0, "locator"), errors[0]["loc"]
+        assert EDGE_RULE_SENTENCE in errors[0]["msg"], errors[0]["msg"]
+    else:
+        assert errors[0]["loc"] == (), errors[0]["loc"]
+        assert RECORD_RULE_SENTENCE in errors[0]["msg"], errors[0]["msg"]
 
 
 def test_behavior6y_a_fragment_or_query_after_the_host_is_still_resolvable():

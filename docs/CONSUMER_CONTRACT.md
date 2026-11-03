@@ -206,7 +206,7 @@ in the register rather than as data it has to tolerate.
 |---|---|---|---|
 | `source_class` | yes | string | the evidence-ladder rung; a closed vocabulary, and the ceiling input to `confidence` |
 | `title` | yes | string | the source as a reader would cite it |
-| `locator` | yes | string | a URL, a DOI, or a stable local artifact path |
+| `locator` | yes | string | a URL, a DOI, or a stable local artifact path, with no leading or trailing whitespace (`radar validate` refuses one, because a padded copy of a locator would otherwise count as a second source document); a URL locator is resolvable only when it is `http(s)://` followed by non-whitespace to the very end of the string, so a trailing newline is not resolvable |
 | `date` | yes | string | ISO `YYYY-MM-DD`, when the source was published |
 | `quote` | yes | string | a verbatim excerpt, never a paraphrase |
 | `note` | no | string | why this source supports the gap; absent means no gloss |

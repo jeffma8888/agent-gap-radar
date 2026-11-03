@@ -168,10 +168,12 @@ def test_behavior4_blank_locator_is_refused(blank):
         Evidence.model_validate(_ev(locator=blank))
 
 
-@pytest.mark.parametrize("keeps", ["a", " a ", "\ta\n", GOOD_LOCATOR])
+@pytest.mark.parametrize("keeps", ["a", "a b", "docs/field notes.md", GOOD_LOCATOR])
 def test_behavior4_is_not_stronger_than_strip(keeps):
     """Two-sided against the same rule: a value with ANY non-whitespace character survives,
-    including one that needs stripping. This is what stops the rule creeping wider."""
+    including one with INNER whitespace. Iteration 385 refuses EDGE whitespace (a padded
+    copy would count as a second source), so the padded keepers this test once held became
+    inner-whitespace ones; the rule still must not creep wider than that."""
     assert keeps.strip() != ""
     assert Evidence.model_validate(_ev(locator=keeps)).locator is not None
 

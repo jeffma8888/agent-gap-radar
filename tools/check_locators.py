@@ -56,7 +56,7 @@ TIMEOUT_S = 45
 #: false. A copy is only safe while it cannot drift, so the suite -- not this comment -- holds
 #: the two spellings to one ANSWER over an enumerated corpus, and pins this file's stdlib
 #: purity so the reason for the copy stays enforced instead of merely stated.
-_RESOLVABLE_LOCATOR_RE = re.compile(r"https?://\S+$")
+_RESOLVABLE_LOCATOR_RE = re.compile(r"https?://\S+\Z")
 
 #: A locator checker: takes one url, returns an HTTP status code as a string ("000" when
 #: the request never completed). `main` takes one of these as a SEAM, which is the whole

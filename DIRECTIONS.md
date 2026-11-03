@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-385
+    lenses: hardening/DX (HEAD `8386df2`), integration-and-adoption (HEAD `8386df2`)
+    - Candidate A1 -- A locator holding whitespace is refused at the door: `U` and `U\n` are one document, but they earn a corroboration point and pass as "resolvable"
+    - Candidate A2 -- `validate` refuses a citation dated in the future (re-proposal of iter-384 B1, with what is different)
+    - Candidate A3 -- One document reached over `http://` and `https://` counts as two independent sources
+    - Candidate B1 -- A red `scan --exit-code` names the file it could not read: today the gate lists 105 gap ids and never the one cause
+    - Candidate B2 -- `scan --gap X --require ABSENT`: the first consumer of the PRD's `closure.verdict`, because today the closure check reads exit 0 when the loop has merely made the gap NOT_APPLICABLE
+    - Candidate B3 -- `prd`'s `branchName` carries the gap id, so "a gap closed by a loop that started from `radar prd`" is traceable in git history
+    winner: A1
+    ship: pending (not yet decided)
   iter-384
     lenses: unknown
     - Candidate A1 -- `--cites TEXT` on `list`/`report`/`prd`: narrow the register to records whose EVIDENCE cites a source
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `scan --exit-code` refuses a `--floor` above the ladder's ceiling (5), because no finding can clear it and the gate can never go red
     - Candidate B3 -- A repeated single-valued flag is `Error:` exit 2, not a silent last-wins (third proposal, now with a gate flip on the self-scan)
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED 8386df2
   iter-383
     lenses: narrative-and-docs (HEAD `5d8d81f`), new-capability (HEAD `5d8d81f`)
     - Candidate A1 -- `show`'s `## Detection` docstring still describes a 16-record register; the live register has 120
@@ -1857,4 +1867,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-186 scouted iterations
+187 scouted iterations
