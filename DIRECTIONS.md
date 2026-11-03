@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-383
+    lenses: narrative-and-docs (HEAD `5d8d81f`), new-capability (HEAD `5d8d81f`)
+    - Candidate A1 -- `show`'s `## Detection` docstring still describes a 16-record register; the live register has 120
+    - Candidate A2 -- README names every gate script in `tools/`: 5 of 9 still appear in it zero times
+    - Candidate A3 -- Every `--json` key is published in CONSUMER_CONTRACT.md: `list --json` `counts.total`/`counts.ranked` are not
+    - Candidate B1 -- `radar report --match TEXT`: the builder's project-scoped radar, with the below-floor section kept
+    - Candidate B2 -- `--match` is repeatable as an AND of terms on `list`/`prd`, so a two-word idea is not a literal-phrase lookup
+    - Candidate B3 -- `radar prd --skip GAP-ID` (repeatable): the build loop gets the top gap it has NOT already claimed
+    winner: B1
+    ship: pending (not yet decided)
   iter-382
     lenses: unknown
     - Candidate A1 -- memoise the first-match search per (compiled regex, path) inside the scan's read-cache scope: 816 repeat searches, `scan .` ~8.0 s -> ~7.35 s, byte-identical
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `list --json` publishes `counts.total` and `counts.ranked`, and the consumer contract never names them; the scan and prd payloads have two-way key brakes, list has none
     - Candidate B3 -- Board Status drift brake, re-proposed with what is different: rows 81 and 144 still read `open` 6 iterations after iter 376 measured them as shipped
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 5d8d81f
   iter-381
     lenses: simplification-and-deletion (HEAD `16de0b9`)
     - Candidate A1 -- One shared in-process CLI runner: 52 copy-pasted `_run`/`_cli`/`_radar` helpers (361 lines) become one `tests/_cli.py`
@@ -1837,4 +1847,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-184 scouted iterations
+185 scouted iterations

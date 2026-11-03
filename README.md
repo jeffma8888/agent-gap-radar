@@ -25,6 +25,7 @@ uv run radar list . --floor 3       # the same listing against a stricter confid
 uv run radar list . --layer context-memory --json  # one taxonomy layer's listing as a stable JSON object, for a consumer
 uv run radar report .            # the full ranked radar (markdown)
 uv run radar report . --floor 3 --layer context-memory  # the radar of one layer at a stricter confidence floor (default 2); below-floor records keep their own section
+uv run radar report . --match memory  # the radar of one idea: every section narrowed to the records `list --match` shows
 uv run radar show GAP-003 .      # one gap in depth, with evidence and quotes
 uv run radar show GAP-003 . --json  # the same gap as a stable JSON object, for a consumer
 uv run radar prd .               # emit a build-loop prd.json for the top gap

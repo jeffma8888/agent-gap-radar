@@ -224,14 +224,14 @@ def test_the_shipped_document_agrees_with_the_parser():
 
 
 def test_an_omitted_flag_is_reported():
-    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N] [--layer L]`",
+    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N] [--layer L] [--match TEXT]`",
                              "`radar report [<repo>]`")
-    assert surface_violations(document) == ["report: missing ['--floor', '--layer'], unexpected []"]
+    assert surface_violations(document) == ["report: missing ['--floor', '--layer', '--match'], unexpected []"]
 
 
 def test_an_invented_flag_is_reported():
-    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N] [--layer L]`",
-                             "`radar report [<repo>] [--floor N] [--layer L] [--strict]`")
+    document = _replace_once(contract_text(), "`radar report [<repo>] [--floor N] [--layer L] [--match TEXT]`",
+                             "`radar report [<repo>] [--floor N] [--layer L] [--match TEXT] [--strict]`")
     assert surface_violations(document) == [
         "report: missing [], unexpected ['--strict']"]
 

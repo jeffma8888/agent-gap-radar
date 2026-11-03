@@ -590,7 +590,7 @@ def build_parser() -> argparse.ArgumentParser:
                            help="layer to narrow the listing to; one value "
                                 "from the closed taxonomy that `radar "
                                 "taxonomy` publishes")
-        if name == "list":
+        if name in ("list", "report"):
             p.add_argument("--match", default=None, metavar="TEXT",
                            help="keep only records whose title, problem, "
                                 "symptom, why_now, existing, build_hypothesis "
@@ -1182,6 +1182,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command == "list" and args.match is not None and not args.match.strip():
         return _fail("--match needs non-blank TEXT; omit the flag to list "
                      "every record")
+    if args.command == "report" and args.match is not None and not args.match.strip():
+        return _fail("--match needs non-blank TEXT; omit the flag to report "
+                     "on every record")
     if args.command == "prd" and args.match is not None and not args.match.strip():
         return _fail("--match needs non-blank TEXT; omit the flag to select "
                      "from every record")
@@ -1225,7 +1228,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
 
         if args.command == "report":
             sys.stdout.write(radar_report(
-                _select_layer(gaps, args.layer), args.floor))
+                _select_match(_select_layer(gaps, args.layer), args.match),
+                args.floor))
             return EXIT_OK
 
         if args.command == "prd":

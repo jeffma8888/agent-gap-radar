@@ -326,3 +326,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 379 input-hardening: a record or baseline nested too deeply to read is an `Error:` exit 2, never a traceback
 - iter 380 gate-honesty: whole-register `scan --exit-code` is exit 2, never 0, while an above-floor finding is UNKNOWN
 - iter 382 help-honesty: `scan`/`diff --exit-code` help names every exit code incl. 2; a brake derives them from runs
+- iter 383 builder-scoping: `report --match TEXT` narrows every report section to records whose prose contains TEXT
