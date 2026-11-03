@@ -24,6 +24,7 @@ import argparse
 import os
 import pathlib
 import sys
+import textwrap
 from typing import TYPE_CHECKING, Any, NoReturn
 
 from . import __version__
@@ -545,6 +546,20 @@ class PublishedErrorParser(argparse.ArgumentParser):
         raise SystemExit(_fail(message))
 
 
+class WholeWordHelpFormatter(argparse.HelpFormatter):
+    """Help formatter that wraps only on whitespace, never inside a hyphenated word.
+
+    argparse's default wraps with `textwrap`'s `break_on_hyphens`, so at some terminal
+    width "above-floor" prints as "above-" / "floor" and "--gap" can split from its
+    sentence. The `--exit-code` help strings on `scan` and `diff` are a contract a CI
+    author reads to learn every exit code; whitespace-normalising the output must give
+    back the exact sentence at ANY `COLUMNS`, which only a whitespace-only wrap allows.
+    """
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        return textwrap.wrap(" ".join(text.split()), width, break_on_hyphens=False)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = PublishedErrorParser(
         prog="radar",
@@ -626,7 +641,8 @@ def build_parser() -> argparse.ArgumentParser:
                             "contains TEXT, as `list --match` (not with --gap)")
 
     p_scan = sub.add_parser(
-        "scan", help="Apply the register's checks to a target repo or service.")
+        "scan", help="Apply the register's checks to a target repo or service.",
+        formatter_class=WholeWordHelpFormatter)
     p_scan.add_argument("target", help="path to the repository/service to inspect")
     p_scan.add_argument("--gaps", default=".",
                         help="register location (default: current dir)")
@@ -699,7 +715,12 @@ def build_parser() -> argparse.ArgumentParser:
     verdict_surface.add_argument("--exit-code", action="store_true",
                                  help="confidence floor gated: exit 1 when this "
                                       "target has an above-floor PRESENT gap, 0 "
-                                      "when it has none; same document either way")
+                                      "when it has none, 2 when the scan has no "
+                                      "verdict to report -- zero records applied, "
+                                      "a --gap record with no automated verdict, "
+                                      "or an above-floor UNKNOWN finding -- with "
+                                      "an empty stdout; same document whenever it "
+                                      "exits 0 or 1")
     # OUTSIDE the group above, and registered LAST so the argument order
     # `tests/test_iter111_behavior.py` reads is extended rather than reshuffled. Not a
     # member of the group because it is not a verdict surface of its own: it MODIFIES
@@ -720,7 +741,8 @@ def build_parser() -> argparse.ArgumentParser:
                              "document plus one Baseline: line")
 
     p_diff = sub.add_parser(
-        "diff", help="Report what changed between two register states.")
+        "diff", help="Report what changed between two register states.",
+        formatter_class=WholeWordHelpFormatter)
     # Two REQUIRED positionals. Deliberately unlike `list`/`show`/`report`, whose
     # `nargs="?" default="."` lets a consumer copying a documented invocation read
     # whichever register sits in its own working directory -- a silent wrong answer,
@@ -743,7 +765,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_diff.add_argument("--exit-code", action="store_true",
                         help="exit 1 when the new state lost a record or reopened "
                              "a gap, 0 when neither, 2 when the old side is an "
-                             "empty baseline; same document either way")
+                             "empty baseline, with an empty stdout; same document "
+                             "whenever it exits 0 or 1")
 
     p_tax = sub.add_parser("taxonomy", help="Print the fixed vocabularies.")
     # Same help wording as `scan --json` and `diff --json`, for the reason `diff` gives:

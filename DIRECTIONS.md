@@ -1,6 +1,23 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-382
+    lenses: unknown
+    - Candidate A1 -- memoise the first-match search per (compiled regex, path) inside the scan's read-cache scope: 816 repeat searches, `scan .` ~8.0 s -> ~7.35 s, byte-identical
+    - Candidate A2 -- route the suite's 28 direct `scan <repo>` call sites through the shared `_selfscan` payload: 17 modules take 121 s wall at -n 12, slowest nodes 76 / 60 / 47 / 47 / 43 s
+    - Candidate A3 -- a gate that blocks AND hands the loop a PRD pays two full scans; `scan --exit-code` and `--prd` are mutually exclusive (~16 s -> ~8 s per CI run)
+    - Candidate B1 -- `radar scan --help` still describes the pre-iter-380 two-code gate: "0 when it has none; same document either way", but the process exits 2 with a 0-byte stdout
+    - Candidate B2 -- `list --json` publishes `counts.total` and `counts.ranked`, and the consumer contract never names them; the scan and prd payloads have two-way key brakes, list has none
+    - Candidate B3 -- Board Status drift brake, re-proposed with what is different: rows 81 and 144 still read `open` 6 iterations after iter 376 measured them as shipped
+    winner: B1
+    ship: pending (not yet decided)
+  iter-381
+    lenses: simplification-and-deletion (HEAD `16de0b9`)
+    - Candidate A1 -- One shared in-process CLI runner: 52 copy-pasted `_run`/`_cli`/`_radar` helpers (361 lines) become one `tests/_cli.py`
+    - Candidate A2 -- Retire the frozen-commit arms: 36 top-level defs and 467 lines in 11 modules re-run `git archive PRECHANGE_COMMIT` on every suite run (third proposal)
+    - Candidate A3 -- One refusal per flag in `_dispatch`: fold the duplicate `--layer` check (cli.py:974 and :1153) and the duplicate blank-`--match` check (:1159 and :1162) into one site each (re-proposal of 380 B2)
+    winner: absent (no pm.md)
+    ship: unknown
   iter-380
     lenses: integration-and-adoption (HEAD `8e091a8`), simplification-and-deletion (HEAD `8e091a8`)
     - Candidate A1 -- `scan --exit-code` over the whole register exits 2 when an above-floor finding is UNKNOWN (re-proposal of iter-379 B1, now with its red count)
@@ -10,7 +27,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One refusal site per flag in `_dispatch`: the unknown-`--layer` check (2 sites) and the blank-`--match` check (2 sites) collapse to one each
     - Candidate B3 -- "The record bare `prd` builds from" gets ONE construction site: `diff.prd_target` and cli's bare-prd path stop deriving it twice
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 16de0b9
   iter-379
     lenses: hardening/DX (HEAD `eac2256`), integration-and-adoption (HEAD `eac2256`)
     - Candidate A1 -- A deeply nested JSON file crashes `validate`/`list`/`diff`/`scan --baseline` with a RecursionError traceback, exit 1
@@ -1820,4 +1837,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-182 scouted iterations
+184 scouted iterations
