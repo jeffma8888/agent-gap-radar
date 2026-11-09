@@ -330,3 +330,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 384 gate-honesty: `scan --exit-code --floor N` above the ladder ceiling 5 is `Error:` exit 2, never an unearned 0
 - iter 385 ladder-honesty: a citation locator holding whitespace is refused at validate, never a free source point
 - iter 387 suite-speed: iter264/265/296 frozen arms retired for live HEAD pins; `.python-version` pins clones to 3.13
+- iter 388 suite-speed: iter376 `live` fixture scans lazily, only the arms a node reads; never 4 scans per worker

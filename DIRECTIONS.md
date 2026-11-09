@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-388
+    lenses: narrative-and-docs (HEAD `2c01af8`)
+    - Candidate A1 -- Worker-duplicated live-scan fixtures: iter376's 4-scan `live` fixture is set up 3 times per suite run (130 s), so make each heavy instrumented fixture run once per run
+    - Candidate A2 -- Determinism nodes pay ONE fresh self-scan compared with the cross-process cached document, not two back-to-back scans (about 300 -> about 150 worker-s over 11 nodes)
+    - Candidate A3 -- Check patterns are compiled twice per scan and fully compiled for verbs that never search: validate with the scanner's own flags through one shared cache (`radar list` about 253 -> about 210 ms, about 39 ms off every scan)
+    - Candidate B1 -- Every `tools/` command the docs publish runs as typed: 3 of 4 `python3 tools/...` lines die with `ModuleNotFoundError: pydantic`
+    - Candidate B2 -- Publish the prd `sourceGap.check` object: 13 of its 14 emitted key names, `closure` included, appear nowhere in the consumer contract (roadmap row 124, re-proposal of iter-376 B2)
+    - Candidate B3 -- The interpreter claim states what the repo pins and why: README says "Python 3.12+" while `.python-version` pins 3.13 for a reason recorded only outside the repo
+    winner: A1
+    ship: pending (not yet decided)
   iter-387
     lenses: simplification-and-deletion (HEAD `1b1c872`), performance-and-throughput (HEAD `1b1c872`)
     - Candidate A1 -- Re-land iter 386's frozen-arm deletion (iter264/265/296), now that the clone-red cause is known and is not the patch
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The suite's machinery-only self-scan nodes scan a `tests/`-free snapshot of HEAD: about 7.8 s -> 2.4 s per scan, about 190 worker-s per suite run
     - Candidate B3 -- One self-scan per suite run for the verdict-pinning nodes: share the live `scan --json .` payload across modules through one cached helper, not 35 subprocesses
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 2c01af8
   iter-386
     lenses: integration-and-adoption (HEAD `1b1c872`), simplification-and-deletion (HEAD `1b1c872`)
     - Candidate A1 -- `scan --gap X --require VERDICT`: the first consumer of the PRD's `closure.verdict`, so "fixed" and "matched code deleted" stop reading the same
@@ -1887,4 +1897,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-189 scouted iterations
+190 scouted iterations

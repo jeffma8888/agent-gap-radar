@@ -8,6 +8,8 @@ wall-clock assertion: a `str` subclass returned from a monkeypatched
 
 Every live-repo scan here is a monkeypatch/counting site, so it runs direct
 in-process `cli.main` and deliberately bypasses `tests/_selfscan.py`'s cache.
+The shared `live` fixture is lazy, scanning only the arms a node reads, because
+a module scope is per worker under `--dist worksteal`.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import io
 import pathlib
+import sys
 from collections import Counter
 
 import pytest
@@ -58,19 +61,47 @@ def _scan(argv: list[str], *, memo: bool, tally: Counter | None = None) -> tuple
     return code, out.getvalue()
 
 
+#: Every real scan the lazy fixture makes, keyed by (argv, memo): the counting brake.
+SCANS: Counter = Counter()
+
+_ARMS: dict[str, tuple[list[str], bool, bool]] = {
+    "text_on": (["scan", "."], True, True),
+    "text_off": (["scan", "."], False, True),
+    "json_on": (["scan", ".", "--json"], True, False),
+    "json_off": (["scan", ".", "--json"], False, False),
+}
+_TALLY_OF = {"on_tally": "text_on", "off_tally": "text_off"}
+_TALLY_KEY = {arm: key for key, arm in _TALLY_OF.items()}
+
+
+class _LazyLive:
+    """Each arm is scanned the first time a node reads it, at most once.
+
+    A module scope is per WORKER under `--dist worksteal`, so an eager fixture
+    made every worker that drew any of b1-b4 pay all four scans; now a worker
+    pays only for the arms its own nodes read.
+    """
+
+    def __init__(self, counter: Counter) -> None:
+        self.counter = counter
+        self._done: dict[str, object] = {}
+
+    def __getitem__(self, key: str) -> object:
+        arm = _TALLY_OF.get(key, key)
+        if arm not in self._done:
+            argv, memo, counted = _ARMS[arm]
+            tally: Counter | None = Counter() if counted else None
+            self.counter[(tuple(argv), memo)] += 1
+            self._done[arm] = _scan(argv, memo=memo, tally=tally)
+            if tally is not None:
+                self._done[_TALLY_KEY[arm]] = tally
+        return self._done[key]
+
+
 @pytest.fixture(scope="module")
-def live() -> dict[str, object]:
-    """Four live scans shared by behaviors 1-4: memo on/off x text/json."""
-    on_tally: Counter = Counter()
-    off_tally: Counter = Counter()
-    return {
-        "text_on": _scan(["scan", "."], memo=True, tally=on_tally),
-        "text_off": _scan(["scan", "."], memo=False, tally=off_tally),
-        "json_on": _scan(["scan", ".", "--json"], memo=True),
-        "json_off": _scan(["scan", ".", "--json"], memo=False),
-        "on_tally": on_tally,
-        "off_tally": off_tally,
-    }
+def live() -> _LazyLive:
+    """The four live scans shared by behaviors 1-4, computed lazily per arm."""
+    return _LazyLive(SCANS)
 
 
 # --- Behaviors 1-4: live repo -------------------------------------------------
@@ -106,6 +137,21 @@ def test_b4_census_not_vacuous(live) -> None:
     assert sum(on_tally.values()) < sum(off_tally.values())
     # Same questions asked, only fewer times: the memo drops no pair.
     assert set(on_tally) == set(off_tally)
+
+
+def test_b9_each_arm_scanned_at_most_once_per_worker(live) -> None:
+    for key in ("text_on", "on_tally", "text_on"):
+        live[key]
+    assert SCANS, "the lazy fixture made no scan at all"
+    assert {k: n for k, n in SCANS.items() if n > 1} == {}
+
+
+def test_b9_laziness_not_vacuous(monkeypatch) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "_scan", lambda argv, *, memo, tally=None: (0, "{}"))
+    own: Counter = Counter()
+    lazy = _LazyLive(own)
+    lazy["json_on"]
+    assert own == Counter({(("scan", ".", "--json"), True): 1})
 
 
 # --- Behaviors 5-8: scope and unit semantics ------------------------------------
@@ -187,3 +233,143 @@ def test_b8_memo_answers_equal_direct_answers(tmp_path: pathlib.Path) -> None:
             assert first is (literal in folded)
             assert hits[literal] is first
             assert checks._contains(folded, literal, hits) is first
+
+
+# --- Tester (iter 388): the lazy fixture, black-box over a stubbed scan -------
+
+#: The node names HEAD `2c01af8` collected from this module (behavior 1).
+_HEAD_NODES = frozenset({
+    "test_b1_text_byte_identical_memo_on_and_off",
+    "test_b2_json_byte_identical_memo_on_and_off",
+    "test_b3_each_pair_asked_at_most_once",
+    "test_b4_census_not_vacuous",
+    "test_b5_scope_lifetime",
+    "test_b5_stack_empty_after_a_scan",
+    "test_b6_no_scope_no_memo",
+    "test_b7_fresh_text_per_scope",
+    "test_b7_fresh_text_per_scope_present_then_absent",
+    "test_b8_memo_answers_equal_direct_answers",
+})
+
+_TEXT_ON = (("scan", "."), True)
+_TEXT_OFF = (("scan", "."), False)
+_JSON_ON = (("scan", ".", "--json"), True)
+_JSON_OFF = (("scan", ".", "--json"), False)
+
+
+def _stubbed(monkeypatch) -> tuple[_LazyLive, Counter, list]:
+    """A fresh lazy instance over a stub `_scan` that records each real call."""
+    calls: list = []
+
+    def fake(argv, *, memo, tally=None):
+        calls.append((tuple(argv), memo, tally is not None))
+        if tally is not None:
+            tally[("p", "lit", len(calls))] += 1
+        return len(calls), f"out-{len(calls)}"
+
+    monkeypatch.setattr(sys.modules[__name__], "_scan", fake)
+    own: Counter = Counter()
+    return _LazyLive(own), own, calls
+
+
+def test_tester_b1_head_nodes_all_still_defined() -> None:
+    here = {name for name in globals() if name.startswith("test_")}
+    assert _HEAD_NODES <= here
+    new = here - _HEAD_NODES
+    assert all(n.startswith(("test_b9_", "test_tester_")) for n in new), new
+
+
+@pytest.mark.parametrize(
+    ("keys", "expected"),
+    [
+        (("json_on", "json_off"), {_JSON_ON: 1, _JSON_OFF: 1}),
+        (("on_tally",), {_TEXT_ON: 1}),
+        (("text_on",), {_TEXT_ON: 1}),
+        (("on_tally", "text_on"), {_TEXT_ON: 1}),
+        (("off_tally", "on_tally"), {_TEXT_ON: 1, _TEXT_OFF: 1}),
+        (("json_on",), {_JSON_ON: 1}),
+    ],
+)
+def test_tester_b3_only_the_read_arms_are_scanned(monkeypatch, keys, expected) -> None:
+    lazy, own, calls = _stubbed(monkeypatch)
+    for key in keys:
+        lazy[key]
+    assert own == Counter(expected)
+    assert len(calls) == sum(expected.values())
+
+
+def test_tester_b3_json_reads_trigger_zero_text_scans(monkeypatch) -> None:
+    lazy, own, calls = _stubbed(monkeypatch)
+    lazy["json_on"], lazy["json_off"]
+    assert [c for c in calls if "--json" not in c[0]] == []
+    assert all(not counted for _, _, counted in calls)
+
+
+def test_tester_b4_whole_module_reads_cost_exactly_four(monkeypatch) -> None:
+    lazy, own, calls = _stubbed(monkeypatch)
+    for _ in range(3):
+        for key in ("text_on", "text_off", "json_on", "json_off",
+                    "on_tally", "off_tally"):
+            lazy[key]
+    assert own == Counter({_TEXT_ON: 1, _TEXT_OFF: 1, _JSON_ON: 1, _JSON_OFF: 1})
+    assert len(calls) == 4
+    # only the text arms are scanned with a tally
+    assert sorted(c for _, _, c in calls) == [False, False, True, True]
+
+
+def test_tester_b4_repeat_reads_return_the_same_objects(monkeypatch) -> None:
+    lazy, _own, _calls = _stubbed(monkeypatch)
+    first = lazy["text_on"]
+    tally = lazy["on_tally"]
+    assert lazy["text_on"] is first
+    assert lazy["on_tally"] is tally
+    assert isinstance(tally, Counter) and tally
+
+
+def test_tester_b4_tally_belongs_to_its_own_text_arm(monkeypatch) -> None:
+    lazy, _own, _calls = _stubbed(monkeypatch)
+    off = lazy["off_tally"]
+    on = lazy["on_tally"]
+    assert on is not off
+    assert lazy["text_off"][0] == 1  # the off tally came from the first scan
+    assert lazy["text_on"][0] == 2
+
+
+def test_tester_b5_instances_do_not_share_state(monkeypatch) -> None:
+    lazy_a, own_a, calls = _stubbed(monkeypatch)
+    lazy_a["json_on"]
+    own_b: Counter = Counter()
+    lazy_b = _LazyLive(own_b)
+    lazy_b["json_on"]
+    assert own_a == Counter({_JSON_ON: 1})
+    assert own_b == Counter({_JSON_ON: 1})
+    assert len(calls) == 2
+
+
+def test_tester_b5_unknown_arm_is_a_key_error(monkeypatch) -> None:
+    lazy, own, calls = _stubbed(monkeypatch)
+    with pytest.raises(KeyError):
+        lazy["text_sideways"]
+    assert calls == [] and sum(own.values()) == 0
+
+
+def test_tester_b5_counting_nodes_never_time() -> None:
+    import ast
+    import inspect
+    tree = ast.parse(inspect.getsource(sys.modules[__name__]))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported.add((node.module or "").split(".")[0])
+    clocks = {"time", "timeit", "datetime"}
+    assert imported & clocks == set()
+
+
+def test_tester_b8_docstring_keeps_bypass_and_gains_lazy_reason() -> None:
+    doc = " ".join((sys.modules[__name__].__doc__ or "").split())
+    assert "bypasses `tests/_selfscan.py`'s cache" in doc
+    assert "monkeypatch/counting site" in doc
+    assert "lazy" in doc
+    assert "per worker" in doc and "worksteal" in doc
