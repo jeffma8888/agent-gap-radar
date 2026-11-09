@@ -35,8 +35,8 @@ def unreadable(d: pathlib.Path | str) -> RegistryError:
     return RegistryError(f"cannot read register directory: {d}")
 
 
-def _record_paths(d: pathlib.Path) -> list[pathlib.Path]:
-    """Every `*.json` entry of `d`, sorted, or refuse because `d` cannot be listed.
+def _record_paths(d: pathlib.Path) -> tuple[list[pathlib.Path], list[str]]:
+    """Every `*.json` entry of `d` plus every NEAR-MISS name, both sorted -- or refuse.
 
     This exists because the obvious spelling -- `sorted(d.glob("*.json"))` -- is
     FAIL-OPEN at the register's front door: `pathlib.Path.glob` swallows a
@@ -53,12 +53,43 @@ def _record_paths(d: pathlib.Path) -> list[pathlib.Path]:
 
     Filtering on the `.json` suffix reproduces `glob("*.json")` exactly, hidden names
     included, so no readable register's record set moves.
+
+    The SAME pass collects the names `_is_near_miss` flags, because the suffix filter
+    is fail-open in its own way: a record saved as `GAP-002-x.JSON` (a case-insensitive
+    filesystem, an editor) or left as `GAP-002-x.json.bak` was simply not in the list,
+    so `validate` certified a register one record short. Returning the near-misses from
+    the enumeration itself, rather than from a second listing, keeps one `iterdir()` and
+    so one answer to "what is in this directory".
     """
     try:
-        entries = [path for path in d.iterdir() if path.name.endswith(".json")]
+        names = [path.name for path in d.iterdir()]
     except OSError as exc:
         raise unreadable(d) from exc
-    return sorted(entries)
+    records = sorted(d / name for name in names if name.endswith(".json"))
+    near_misses = sorted(name for name in names if _is_near_miss(name))
+    return records, near_misses
+
+
+def _is_near_miss(name: str) -> bool:
+    """True when `name` is plainly meant as a gap record but will not load as one.
+
+    The rule is NARROW on purpose: casefolded, the name starts `gap-` AND contains
+    `.json`, yet it does not end in exactly `.json`. Both conditions are needed. The
+    prefix alone would refuse `GAP-002-notes.md`, a curator's legitimate side file; the
+    `.json` substring alone would refuse `notes.JSON` or `schema.jsonc`, which claim to
+    be no record at all. Only a name that says "gap record" twice -- by its id prefix
+    and by its extension -- and is still skipped is the silent drop the register's
+    never-silently-dropped invariant forbids. It is refused, never auto-loaded under
+    its odd spelling: guessing which of `x.json` and `x.json.bak` is the real record is
+    exactly the call a curator, not the loader, must make.
+    """
+    folded = name.casefold()
+    return folded.startswith("gap-") and ".json" in folded and not name.endswith(".json")
+
+
+def _near_miss_problem(name: str) -> str:
+    """The ONE spelling of the near-miss clause, `<name>: ...` like every file clause."""
+    return f"{name}: looks like a gap record but is not named *.json, so it was not loaded"
 
 
 #: Rendered in place of an EMPTY error `loc`. pydantic reports a RECORD-level failure
@@ -224,14 +255,19 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     file can have -- unreadable, not JSON, a repeated key, a schema error -- becomes
     ONE clause naming that file, and the whole set is raised together, so a fixer
     reads every bad file per run rather than one per run.
+
+    A NEAR-MISS entry (see `_is_near_miss`) is one more clause, placed FIRST: it is a
+    record that never reached the parser at all, and a fixer who renames it may find
+    that it was also the missing half of a duplicate id reported later in the line.
     """
     d = pathlib.Path(directory)
     if not d.is_dir():
         raise RegistryError(f"not a directory: {d}{_gap_id_hint(str(directory))}")
 
     gaps: list[Gap] = []
-    problems: list[str] = []
-    for path in _record_paths(d):
+    record_paths, near_misses = _record_paths(d)
+    problems = [_near_miss_problem(name) for name in near_misses]
+    for path in record_paths:
         try:
             raw = parse_record(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:

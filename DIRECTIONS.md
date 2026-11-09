@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-390
+    lenses: new-capability (HEAD `ac15e81`)
+    - Candidate A1 -- A `retired` record can name the record that supersedes it (`superseded_by: GAP-NNN`), and `validate` refuses a pointer that does not resolve
+    - Candidate A2 -- `radar list` (markdown and `--json`) carries `distinct_sources`, so confidence 5 resting on ONE document reads differently from confidence 5 on five (re-proposal of iter-389 B3)
+    - Candidate A3 -- `radar validate FILE` checks ONE draft record before it enters the register
+    - Candidate B1 -- `validate` refuses two records that share a check id, as it already refuses two that share a gap id
+    - Candidate B2 -- a register entry named like a record but not ending in `.json` is refused, never silently left out of the radar
+    - Candidate B3 -- a red `scan --exit-code` names the unreadable files in its `Error:` line, stderr only (re-proposal of 380 A3 / 385 B1 / 386 A2, re-sliced)
+    winner: B2
+    ship: pending (not yet decided)
   iter-389
     lenses: unknown
     - Candidate A1 -- Every `tools/` command the docs publish runs as typed: 3 of 4 `python3 tools/...` lines die with `ModuleNotFoundError: pydantic` (re-proposal of iter-388 B1, named "the next candidate" by PM 388)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar diff` names floor CROSSINGS: a record that entered or left the ranking is called that (re-proposal of iter-378 A3)
     - Candidate B3 -- `list --json` rows carry `distinct_sources`, so a consumer can tell a confidence-5 record resting on ONE source from one resting on five
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED ac15e81
   iter-388
     lenses: narrative-and-docs (HEAD `2c01af8`)
     - Candidate A1 -- Worker-duplicated live-scan fixtures: iter376's 4-scan `live` fixture is set up 3 times per suite run (130 s), so make each heavy instrumented fixture run once per run
@@ -1907,4 +1917,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-191 scouted iterations
+192 scouted iterations

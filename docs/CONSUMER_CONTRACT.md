@@ -161,7 +161,10 @@ at all covered the surface that IS consumed.
 **The guarantee, bounded exactly.** One record is one JSON object, stored at
 `<register>/gaps/<ID>-<slug>.json`; the id is the file name's PREFIX, so a
 consumer discovers records by globbing `gaps/*.json` -- which is what the declared
-consumer does -- rather than by constructing a path from an id. The key NAMES
+consumer does -- rather than by constructing a path from an id. A `GAP-*` entry
+that contains `.json` but does not end in exactly `.json` (`.JSON`, `.json.bak`,
+`.jsonc`) is refused by every verb with an `Error:` naming it, never skipped, so
+that glob and `radar validate` always see the same record set. The key NAMES
 listed below are not renamed and not removed without a Done-ledger row in
 `PRODUCT.md`. New fields MAY be added at any time, and that is safe for a consumer
 reading by key -- so what is frozen here is the documented subset's NAMES, not the
