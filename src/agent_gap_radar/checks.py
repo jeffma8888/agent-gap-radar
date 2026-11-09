@@ -186,6 +186,59 @@ def is_test_path(target: pathlib.Path, path: pathlib.Path) -> bool:
     return bool(TEST_PATH_RE.search(rel))
 
 
+#: Dependency lockfiles, by lower-cased basename. A lockfile is GENERATED data
+#: that never runs, and a package's NAME is not a gate: proven on GAP-016's bad
+#: fixture, a one-line `package-lock.json` naming a package `sandbox` flipped
+#: PRESENT rc 1 to ABSENT rc 0 through the `**/*.json` mitigation glob. It is
+#: the CHK-009 test-file fail-open again, arriving through a file `TEST_PATH_RE`
+#: cannot name. Compared case-insensitively, because the filesystems this tool
+#: scans most (macOS) are, and `Package-Lock.json` is the same generated file.
+LOCKFILE_BASENAMES = frozenset({
+    "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+    "bun.lock", "poetry.lock", "uv.lock", "pipfile.lock", "cargo.lock",
+    "composer.lock", "gemfile.lock",
+})
+
+
+def _names_literally(glob: str, basename: str) -> bool:
+    """True if the glob's last `/` segment IS this basename, a plain string compare.
+
+    The carve-out that keeps GAP-011 honest: there a pinned lockfile IS the
+    mitigation, and its record says so by naming `**/package-lock.json`
+    literally. A wildcard segment (`*.json`, `*`, `package-lock.*`) asked for a
+    file KIND, so a lockfile reached through it was swept in, not asked for.
+    """
+    return glob.rsplit("/", 1)[-1] == basename
+
+
+def _drop_wildcard_lockfiles(target: pathlib.Path, files: list[pathlib.Path],
+                             globs: list[str]) -> list[pathlib.Path]:
+    """`files` minus every lockfile that no glob of the rule names literally.
+
+    Judged PER GLOB: a lockfile stays only if some glob both names it literally
+    and matches it, so a rule mixing `**/*.json` with `**/package-lock.json`
+    keeps the file the second glob asked for and nothing the first swept in.
+
+    Applied by `evaluate` to the domain `iter_files` hands out, never inside the
+    memo, so `file_cache_scope` only ever holds UNFILTERED domains and its key
+    needs no new dimension: no cached list can be a filtered answer handed to a
+    rule that did not ask for one, or the reverse, because none is ever stored.
+    The cost is one lower-cased basename lookup per file in the domain.
+    """
+    kept: list[pathlib.Path] = []
+    for path in files:
+        if path.name.lower() not in LOCKFILE_BASENAMES:
+            kept.append(path)
+            continue
+        literal = [glob for glob in globs if _names_literally(glob, path.name)]
+        # `_match_globs` and not a second `_glob_regex` loop: it is the ONE match
+        # loop, and a lockfile is rare enough that its stat costs nothing here.
+        rel = path.relative_to(target).as_posix()
+        if literal and _match_globs(target, [rel], literal, False):
+            kept.append(path)
+    return kept
+
+
 #: Regex metacharacters that carry no glob meaning and must be escaped.
 _GLOB_META = ".^$+{}()|[]\\"
 
@@ -857,6 +910,33 @@ def _cached_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
     return compiled
 
 
+def _rule_domain(rule: dict, target: pathlib.Path,
+                 exclude_tests: bool) -> list[pathlib.Path]:
+    """The files one leaf rule searches: `iter_files`, minus swept-in lockfiles
+    exactly where a lockfile could only ever LOWER the verdict.
+
+    Two places, and only two:
+
+    * a MITIGATION (`exclude_tests`, so every node under `mitigated_when`): a
+      lockfile credited as evidence makes generated dependency data read as a
+      gate, which is a false ABSENT -- the claim of safety;
+    * any `content_absent` rule: there a lockfile spelling the vocabulary can
+      only SUPPRESS a signature. GAP-016 pairs its mitigation with a
+      `content_absent` twin over the same globs, so filtering the mitigation
+      alone measured MANUAL rc 0 -- still a passing gate on an exhibiting target.
+
+    A `content_matches`, `file_exists` or `file_absent` SIGNATURE rule keeps
+    every lockfile: dropping one there could hide a signature, the fail-open.
+    `iter_files` is reached through its module-global name with its published
+    three-argument call, so `tools/scan_cost.py`'s census wrapper still sees
+    exactly one ask per rule.
+    """
+    files = iter_files(target, rule["globs"], exclude_tests)
+    if exclude_tests or rule.get("kind") == "content_absent":
+        return _drop_wildcard_lockfiles(target, files, rule["globs"])
+    return files
+
+
 def evaluate(rule: dict, target: pathlib.Path,
              exclude_tests: bool = False, *,
              boolean_only: bool = False) -> RuleHit:
@@ -960,7 +1040,7 @@ def evaluate(rule: dict, target: pathlib.Path,
                        hit.skipped_files, hit.unreadable_files)
 
     if kind in ("file_exists", "file_absent"):
-        files = iter_files(target, rule["globs"], exclude_tests)
+        files = _rule_domain(rule, target, exclude_tests)
         found = bool(files)
         if kind == "file_exists":
             return RuleHit(found, [str(p.relative_to(target)) for p in files[:10]])
@@ -975,7 +1055,7 @@ def evaluate(rule: dict, target: pathlib.Path,
             raise ValueError(f"invalid pattern {rule.get('pattern')!r}: {exc}") from exc
         code_hits: list[str] = []
         test_hits: list[str] = []
-        files = iter_files(target, rule["globs"], exclude_tests)
+        files = _rule_domain(rule, target, exclude_tests)
         # The slice below is the iterable of the read/regex loop, so the cap bounds
         # the dominant cost of a scan. What it does not do is stay quiet about it:
         # the files past the cap go UNREAD, so a non-match here is a fact about a

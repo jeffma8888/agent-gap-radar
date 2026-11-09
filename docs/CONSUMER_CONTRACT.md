@@ -427,6 +427,9 @@ diagnosis below is kept verbatim because the reasoning is the durable part.**
    from every `mitigated_when`.** A mitigation must be found in code that runs,
    never in a test that names it - otherwise thorough test suites read as
    healthier than untested code, which inverts the signal.
+   A dependency lockfile (`package-lock.json`, `uv.lock` and the like) reached by
+   a wildcard glob is likewise never mitigation evidence and is never read by a
+   `content_absent` rule, unless the glob names the file literally.
    **FIXED structurally, not per-check:** `mitigated_when` is now always
    evaluated with test paths excluded, and the flag propagates through every
    nested combinator, so a future research candidate cannot reintroduce it. The

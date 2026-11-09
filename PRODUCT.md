@@ -333,3 +333,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 388 suite-speed: iter376 `live` fixture scans lazily, only the arms a node reads; never 4 scans per worker
 - iter 389 scan-parity: `scan --match TEXT` narrows the scanned domain like list/report/prd; below-floor still shown
 - iter 390 never-drop: a `GAP-*` register entry misnamed `.JSON`/`.json.bak`/`.jsonc` is an `Error:`, never skipped
+- iter 391 fail-closed: a wildcard-matched dependency lockfile is never mitigation evidence; scan stays PRESENT

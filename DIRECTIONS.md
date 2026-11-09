@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-391
+    lenses: hardening/DX (HEAD `f8c1b5f`), integration-and-adoption (HEAD `f8c1b5f`)
+    - Candidate A1 -- A dependency lockfile is never mitigation evidence unless the check names it: `package-lock.json` listing a package called `sandbox` turns a PRESENT gap ABSENT
+    - Candidate A2 -- The citation gates in `tools/` refuse a near-miss `GAP-*.JSON` record, as `radar validate` has since iter 390
+    - Candidate A3 -- One document cited with a tracking query (`?utm_source=...`) or an empty `?` earns an independent-source corroboration point that the same page with `#s2` does not
+    - Candidate B1 -- A committed `scan --json` baseline survives a CI checkout under a different directory name: `scan --name NAME` pins `target_name`
+    - Candidate B2 -- `--gaps R` is accepted by every register-reading verb, not only `scan`, so the spelling README teaches 8 times stops being a dead end on the other six
+    - Candidate B3 -- `show --json` carries `needs`, the research prescription its `list --json` twin already publishes, so the one-record surface a research pass opens tells it what source would lift the record
+    winner: A1
+    ship: pending (not yet decided)
   iter-390
     lenses: new-capability (HEAD `ac15e81`)
     - Candidate A1 -- A `retired` record can name the record that supersedes it (`superseded_by: GAP-NNN`), and `validate` refuses a pointer that does not resolve
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- a register entry named like a record but not ending in `.json` is refused, never silently left out of the radar
     - Candidate B3 -- a red `scan --exit-code` names the unreadable files in its `Error:` line, stderr only (re-proposal of 380 A3 / 385 B1 / 386 A2, re-sliced)
     winner: B2
-    ship: pending (not yet decided)
+    ship: PUSHED f8c1b5f
   iter-389
     lenses: unknown
     - Candidate A1 -- Every `tools/` command the docs publish runs as typed: 3 of 4 `python3 tools/...` lines die with `ModuleNotFoundError: pydantic` (re-proposal of iter-388 B1, named "the next candidate" by PM 388)
@@ -1917,4 +1927,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-192 scouted iterations
+193 scouted iterations
