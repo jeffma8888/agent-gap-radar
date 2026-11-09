@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-389
+    lenses: unknown
+    - Candidate A1 -- Every `tools/` command the docs publish runs as typed: 3 of 4 `python3 tools/...` lines die with `ModuleNotFoundError: pydantic` (re-proposal of iter-388 B1, named "the next candidate" by PM 388)
+    - Candidate A2 -- `radar <verb> --help` describes every argument: 7 have no description, including `prd --project`, whose default is this tool's own name
+    - Candidate A3 -- The interpreter claim says what the repo pins and why: README says "Python 3.12+" beside a `.python-version` of 3.13 whose reason lives only in the foundry state dir (re-proposal of iter-388 B3)
+    - Candidate B1 -- `radar scan --match TEXT`: the builder's own words narrow the one verb that inspects their code
+    - Candidate B2 -- `radar diff` names floor CROSSINGS: a record that entered or left the ranking is called that (re-proposal of iter-378 A3)
+    - Candidate B3 -- `list --json` rows carry `distinct_sources`, so a consumer can tell a confidence-5 record resting on ONE source from one resting on five
+    winner: B1
+    ship: pending (not yet decided)
   iter-388
     lenses: narrative-and-docs (HEAD `2c01af8`)
     - Candidate A1 -- Worker-duplicated live-scan fixtures: iter376's 4-scan `live` fixture is set up 3 times per suite run (130 s), so make each heavy instrumented fixture run once per run
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Publish the prd `sourceGap.check` object: 13 of its 14 emitted key names, `closure` included, appear nowhere in the consumer contract (roadmap row 124, re-proposal of iter-376 B2)
     - Candidate B3 -- The interpreter claim states what the repo pins and why: README says "Python 3.12+" while `.python-version` pins 3.13 for a reason recorded only outside the repo
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED f899990
   iter-387
     lenses: simplification-and-deletion (HEAD `1b1c872`), performance-and-throughput (HEAD `1b1c872`)
     - Candidate A1 -- Re-land iter 386's frozen-arm deletion (iter264/265/296), now that the clone-red cause is known and is not the patch
@@ -1897,4 +1907,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-190 scouted iterations
+191 scouted iterations

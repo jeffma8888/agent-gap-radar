@@ -264,7 +264,7 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
 
 def test_b2_long_flags_and_verbs_without_are_read_off_the_inventory():
     assert long_flags("scan") == ["--baseline", "--exit-code", "--floor", "--gap", "--gaps",
-                                  "--json", "--layer", "--prd"], long_flags("scan")
+                                  "--json", "--layer", "--match", "--prd"], long_flags("scan")
     assert long_flags("taxonomy") == ["--json"], long_flags("taxonomy")
     assert long_flags("show") == ["--json"], long_flags("show")
     with pytest.raises(KeyError):
@@ -442,7 +442,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter385_new = {"test_iter385_behavior.py"}
     iter386_new = {"test_iter386_behavior.py"}
     iter387_new = {"test_iter387_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new, sorted(set(now) ^ set(before))
+    iter389_new = {"test_iter389_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new | iter389_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

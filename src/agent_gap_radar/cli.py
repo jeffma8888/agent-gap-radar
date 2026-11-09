@@ -669,6 +669,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="gap id to narrow the scanned register to; the "
                              "checks of that ONE record are applied, and an "
                              "unknown id is refused")
+    # Composes with `--gap` and `--layer` as an AND rather than being refused beside
+    # `--gap` (as `prd` refuses it): scan's `--layer` already composes with `--gap`, and
+    # one verb should not hold two composition rules for its domain filters.
+    p_scan.add_argument("--match", default=None, metavar="TEXT",
+                        help="narrow the scanned register to records whose prose "
+                             "contains TEXT, as `list --match` (case-folded "
+                             "literal substring)")
     p_scan.add_argument("--json", action="store_true",
                         help="emit a stable object for a machine consumer")
     # The floor the three verdict surfaces below APPLY. Until iteration 255 it was
@@ -1009,6 +1016,12 @@ def _dispatch(argv: list[str] | None = None) -> int:
                              f"{CONFIDENCE_MAX} or less")
         if args.layer is not None and args.layer not in LAYERS:
             return _fail(_unknown_layer(args.layer))
+        # The list/report/prd refusal, for their reason: an empty needle is a substring
+        # of every field, so a blank `--match` would scan the whole register under a
+        # narrowed-looking invocation. Decided before any directory is read.
+        if args.match is not None and not args.match.strip():
+            return _fail("--match needs non-blank TEXT; omit the flag to scan "
+                         "every record")
         try:
             # `_resolve` is INSIDE the guard because it, too, can refuse in this
             # vocabulary: an unreadable argument makes the nested-`gaps/` probe
@@ -1019,8 +1032,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
             # is a `RegistryError` for exactly that reason. Narrowing here, before
             # `scan()`, is what keeps the domain -- not the answers -- the thing that
             # `--gap` changes.
-            gaps = _select_layer(
-                _select_gap(load_all(directory), args.gap_id), args.layer)
+            gaps = _select_match(_select_layer(
+                _select_gap(load_all(directory), args.gap_id), args.layer),
+                args.match)
         except RegistryError as exc:
             return _fail(str(exc))
         try:
@@ -1135,7 +1149,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     "--exit-code has no verdict to report, and 0 would publish a "
                     "clean gate this scan never earned. Run without --exit-code "
                     "to read each finding's reason.")
-        sys.stdout.write(scan_json(result, floor, args.layer, baseline_json) if args.json
+        sys.stdout.write(scan_json(result, floor, args.layer, baseline_json,
+                                   args.match) if args.json
                          else render_scan(result, baseline_line))
         return EXIT_GAPS_PRESENT if verdict else EXIT_OK
 

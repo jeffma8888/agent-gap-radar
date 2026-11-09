@@ -242,14 +242,14 @@ def test_b9_whitespace_only_match_is_refused_on_a_real_register(tmp_path, capsys
         "Error: --match needs non-blank TEXT; omit the flag to select from every record")
 
 
-# --- behavior 10: no new flag on scan; unflagged prd still selects the global top -----
+# --- behavior 10: unflagged prd still selects the global top -------------------------
+# Iteration 389 gave `scan` the `--match` flag this node used to prove absent; it is
+# re-pinned to the blank-TEXT refusal, which is what still makes `--match` exit 2 there.
 
-def test_b10_scan_gains_no_match_flag(tmp_path, capsys):
+def test_b10_scan_match_refuses_blank_text(tmp_path, capsys):
     root = _three(tmp_path)
-    with pytest.raises(SystemExit) as exc:
-        main([str(a) for a in ["scan", root, "--gaps", root, "--prd", "--match", NEEDLE]])
-    out, err = capsys.readouterr()
-    assert (exc.value.code, out) == (2, "")
+    code, out, err = _run(capsys, ["scan", root, "--gaps", root, "--prd", "--match", "  "])
+    assert (code, out) == (2, "")
     assert "--match" in err.splitlines()[-1]
     assert err.splitlines()[-1].startswith("Error: ")
 

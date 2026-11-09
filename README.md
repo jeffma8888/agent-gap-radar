@@ -42,6 +42,7 @@ uv run radar scan ../my-service --gaps gaps          # which gaps does THIS repo
 uv run radar scan ../my-service --gaps gaps --json   # the same, for a CI gate
 uv run radar scan ../my-service --gaps gaps --prd    # build against its worst finding that clears the floor; the prd carries that finding's verdict and path:line locators under "finding"
 uv run radar scan ../my-service --gaps gaps --layer context-memory  # only gaps in one taxonomy layer
+uv run radar scan ../my-service --gaps gaps --match memory  # only gaps whose prose mentions memory, as `list --match`
 uv run radar scan ../my-service --gaps gaps --gap GAP-003 --exit-code --floor 3  # apply only that record's checks (an unknown id is refused); exit 1 only if it is PRESENT and clears a stricter confidence floor (default 2)
 uv run radar scan ../my-service --gaps gaps --exit-code  # same report, but exit 1 if it has an above-floor gap, 2 with an empty stdout if it has no verdict, e.g. an above-floor UNKNOWN (for CI)
 uv run radar scan ../my-service --gaps gaps --json > baseline.json && uv run radar scan ../my-service --gaps gaps --exit-code --baseline baseline.json  # exit 1 only for an above-floor gap the baseline did not carry

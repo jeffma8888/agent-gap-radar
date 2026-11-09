@@ -495,7 +495,8 @@ def _split_locations(entries: list[str]) -> tuple[list[str], list[str]]:
 def scan_json(result: ScanResult,
               confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT,
               layer: str | None = None,
-              baseline: dict | None = None) -> str:
+              baseline: dict | None = None,
+              match: str | None = None) -> str:
     """A stable object for machine consumers (a CI gate, a build loop).
 
     Separate from the markdown brief on purpose: a gate that regex-scrapes prose
@@ -521,12 +522,17 @@ def scan_json(result: ScanResult,
     `uncheckable` already yields the number, and leaving a consumer to re-derive
     it across the repo boundary -- where no test here can see the arithmetic drift
     -- is precisely how a register that never loaded reads as a clean target.
+
+    `match` is echoed ONLY when `--match` was given, inserted after `layer`, as
+    `list --json` does: an unconditional `"match": null` would move the bytes of
+    every existing scan document a consumer has already committed.
     """
     payload = {
         "target": result.displayed_target,
         "target_name": result.target.name,
         "confidence_floor": confidence_floor,
         "layer": layer,
+        **({"match": match} if match is not None else {}),
         "records_applied": result.records_applied,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],

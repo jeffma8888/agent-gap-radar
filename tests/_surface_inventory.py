@@ -49,8 +49,9 @@ EXPECTED_SURFACE = {
     # `report` do; the sorted list is the inventory, not a ranking.
     # Iteration 299 added `--baseline`, the prior-scan document `--exit-code` gates
     # against; it takes a value and defaults to None, like `--gap`.
+    # Iteration 389 added `--match`, the list/report/prd prose filter; None default.
     "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
-              "--layer", "--prd"], 1, ["target"], ["target"]),
+              "--layer", "--match", "--prd"], 1, ["target"], ["target"]),
     "show": (["--json"], 2, ["gap_id"], ["gap_id", "path"]),
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
@@ -112,6 +113,9 @@ EXPECTED_ARGUMENTS = {
         # Iteration 120: the per-record domain. Same dest and same flag spelling as
         # `prd`'s row above, which is the point -- one name for one concept.
         ("gap_id", ["--gap"], False, None, None),
+        # Iteration 389: the prose filter, same dest and spelling as `list`/`report`/
+        # `prd`, registered beside the other two domain filters.
+        ("match", ["--match"], False, None, None),
         ("json", ["--json"], False, False, 0),
         # Iteration 255: the floor the verdict surfaces apply, previously hard-coded
         # at all three of them. Same dest, same spelling and the SAME DEFAULT as
