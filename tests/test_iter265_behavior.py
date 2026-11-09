@@ -54,9 +54,6 @@ def test_iter265_b1_every_locations_element_is_a_pure_locator(self_scan_json) ->
 # Shared shapes (measured by RUNNING the tool; pm.md names the three prose dialects)
 # --------------------------------------------------------------------------------------
 
-#: The commit immediately before this iteration's change (control arm, iter-264 recipe).
-PRECHANGE_COMMIT = "a4193db"
-
 NOTE_DIALECTS = (
     re.compile(r"^\(\+\d+ more match(?:es)?(, \d+ in test files)?\)$"),
     re.compile(r"^\(no match\) searched .+ for /.+/$", re.DOTALL),
@@ -70,45 +67,10 @@ def _is_note(text: str) -> bool:
     return any(d.match(text) for d in NOTE_DIALECTS)
 
 
-@pytest.fixture(scope="module")
-def prechange_src(tmp_path_factory) -> pathlib.Path:
-    """``git archive PRECHANGE_COMMIT src`` under a tmp dir, probed to be what is imported."""
-    import io
-    import tarfile
-
-    root = tmp_path_factory.mktemp("prechange265")
-    archive = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "archive", PRECHANGE_COMMIT, "src"], capture_output=True)
-    assert archive.returncode == 0, archive.stderr.decode("utf-8", "replace")
-    with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
-        tar.extractall(root, filter="data")
-    src = root / "src"
-    probe = subprocess.run(
-        [sys.executable, "-c", "import agent_gap_radar; print(agent_gap_radar.__file__)"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), env=_env(src))
-    assert probe.returncode == 0, probe.stderr
-    assert probe.stdout.strip().startswith(str(src)), probe.stdout
-    return src
-
-
-def _env(src: pathlib.Path) -> dict:
-    import os
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(src)
-    return env
-
-
-def _radar_bytes(*argv: str, env: dict | None = None) -> subprocess.CompletedProcess:
+def _radar_bytes(*argv: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "agent_gap_radar.cli", *argv],
-        cwd=str(REPO_ROOT), capture_output=True, env=env)
-
-
-@pytest.fixture(scope="module")
-def prechange_scan_json(prechange_src) -> dict:
-    proc = _radar_bytes("scan", ".", "--gaps", "gaps", "--json", env=_env(prechange_src))
-    assert proc.returncode == 0, proc.stderr
-    return json.loads(proc.stdout.decode("utf-8"))
+        cwd=str(REPO_ROOT), capture_output=True)
 
 
 # --------------------------------------------------------------------------------------
@@ -125,12 +87,16 @@ def test_iter265_b2_every_finding_carries_location_notes_as_a_list_of_strings(
         assert all(isinstance(n, str) for n in f["location_notes"]), f["gap_id"]
 
 
-def test_iter265_b2_location_notes_is_appended_last_and_prior_keys_keep_their_order(
-        self_scan_json, prechange_scan_json) -> None:
-    """Additive only: every pre-change key keeps its index; the new key is the tail."""
-    for before, now in zip(prechange_scan_json["findings"], self_scan_json["findings"]):
-        assert now["gap_id"] == before["gap_id"]
-        assert list(now.keys()) == list(before.keys()) + ["location_notes", "skipped_files"], list(now.keys())
+def test_iter265_b2_location_notes_and_skipped_files_are_the_last_two_finding_keys(
+        self_scan_json) -> None:
+    """Additive only: the key iteration 265 appended is followed only by ``skipped_files``.
+
+    Iteration 386 retired the frozen-tree comparison (every pre-change key keeps its
+    index); the live pin keeps the tail order a consumer reads."""
+    findings = self_scan_json["findings"]
+    assert findings, "the self-scan produced no findings"
+    for f in findings:
+        assert list(f)[-2:] == ["location_notes", "skipped_files"], (f["gap_id"], list(f))
 
 
 def test_iter265_b2_every_note_is_one_of_the_three_prose_dialects(self_scan_json) -> None:
@@ -142,62 +108,8 @@ def test_iter265_b2_every_note_is_one_of_the_three_prose_dialects(self_scan_json
 
 
 # --------------------------------------------------------------------------------------
-# Behavior 3 -- the two arrays PARTITION the pre-change list, in order, nothing dropped
+# Behavior 4 -- the markdown brief still renders the notes inline
 # --------------------------------------------------------------------------------------
-
-def test_iter265_b3_locations_and_notes_partition_the_prechange_list_in_order(
-        self_scan_json, prechange_scan_json) -> None:
-    before_f = prechange_scan_json["findings"]
-    now_f = self_scan_json["findings"]
-    assert [f["gap_id"] for f in before_f] == [f["gap_id"] for f in now_f]
-    for before, now in zip(before_f, now_f):
-        old = before["locations"]
-        assert [x for x in old if LOCATOR.match(x)] == now["locations"], before["gap_id"]
-        assert [x for x in old if not LOCATOR.match(x)] == now["location_notes"], before["gap_id"]
-        assert len(old) == len(now["locations"]) + len(now["location_notes"])
-
-
-def test_iter265_b3_two_sided_the_prechange_tree_mixed_prose_into_locations(
-        prechange_scan_json) -> None:
-    """The control arm is proven OLD: it had no ``location_notes`` and prose in ``locations``."""
-    findings = prechange_scan_json["findings"]
-    assert all("location_notes" not in f for f in findings)
-    prose = [x for f in findings for x in f["locations"] if not LOCATOR.match(x)]
-    assert prose, "the pre-change payload had no prose in locations; the arm is not old"
-    # Every prose element the old tree mixed in is one of the published note dialects,
-    # and at least one PRESENT finding ended in one. Not "every PRESENT tail": the
-    # self-scan's match counts move whenever the repo grows a file, so a PRESENT
-    # finding at or under the cap legitimately ends in a locator (iter 373 hotfix).
-    assert all(_is_note(x) for x in prose), [x[:80] for x in prose if not _is_note(x)]
-    present_tails = [f["locations"][-1] for f in findings
-                     if f["verdict"] == "PRESENT" and f["locations"]]
-    assert present_tails and any(_is_note(t) for t in present_tails), present_tails
-
-
-def test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged(
-        self_scan_json, prechange_scan_json) -> None:
-    strip = {"locations", "location_notes", "skipped_files"}
-    for before, now in zip(prechange_scan_json["findings"], self_scan_json["findings"]):
-        assert {k: v for k, v in before.items() if k not in strip} == \
-               {k: v for k, v in now.items() if k not in strip}, before["gap_id"]
-    skip_top = {"findings", "layer", "baseline"}  # `baseline` added iter 374
-    assert {k: v for k, v in prechange_scan_json.items() if k not in skip_top} == \
-           {k: v for k, v in self_scan_json.items() if k not in skip_top}
-
-
-# --------------------------------------------------------------------------------------
-# Behavior 4 -- the markdown brief is byte-identical to the pre-change tree
-# --------------------------------------------------------------------------------------
-
-def test_iter265_b4_markdown_brief_is_byte_identical_to_the_prechange_tree(
-        prechange_src) -> None:
-    # direct: one side of a byte-identity comparison against the pre-change tree
-    now = _radar_bytes("scan", ".", "--gaps", "gaps")
-    before = _radar_bytes("scan", ".", "--gaps", "gaps", env=_env(prechange_src))
-    assert now.returncode == before.returncode == 0, (now.stderr, before.stderr)
-    assert now.stdout == before.stdout, (len(before.stdout), len(now.stdout))
-    assert now.stdout.endswith(b"\n") and not now.stdout.endswith(b"\n\n")
-
 
 def test_iter265_b4_markdown_still_renders_the_notes_inline(self_scan_json) -> None:
     """Only the machine payload separates them; the brief keeps the prose beside locators."""

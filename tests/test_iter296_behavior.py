@@ -10,8 +10,8 @@ the commit before this iteration.
 ISOLATION CONTRACT HONORED: nothing here read `src/`, `tools/`, the engineer's or
 reviewer's notes, or a diff of any source file. Expectations come from `pm.md`; shapes
 were measured by RUNNING the tool and by reading files under `tests/` and the published
-`docs/CONSUMER_CONTRACT.md`. The pre-change control arm is the product itself at the
-commit before this iteration, extracted with `git archive` and EXECUTED, never read.
+`docs/CONSUMER_CONTRACT.md`. The pre-change control arm (the product at the commit
+before this iteration, EXECUTED, never read) was retired in iteration 386 for live HEAD pins.
 
 Behavior 1 derives its inventory from `build_parser()` through the same oracle
 `tests/_surface_contract.py` uses (`parser_surface()`), so a flag added later is covered
@@ -22,14 +22,11 @@ below (behavior 8) reads `tests/*.py` as TEXT, which the contract names as reada
 from __future__ import annotations
 
 import argparse
-import io
 import json
-import os
 import pathlib
 import re
 import subprocess
 import sys
-import tarfile
 
 import pytest
 
@@ -40,9 +37,6 @@ from agent_gap_radar.cli import PublishedErrorParser, build_parser
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 TESTS = REPO_ROOT / "tests"
 CONTRACT = REPO_ROOT / "docs" / "CONSUMER_CONTRACT.md"
-
-#: The commit immediately before this iteration's change (control arm).
-PRECHANGE_COMMIT = "3eea489"
 
 UNRECOGNIZED = "Error: unrecognized arguments: "
 MISSING_COMMAND = "Error: the following arguments are required: command"
@@ -67,10 +61,10 @@ POSITIONALS: dict[str, tuple[str, ...]] = {
 LIVE_LAYER = "orchestration"
 
 
-def _radar(*argv: str, env: dict | None = None) -> subprocess.CompletedProcess:
+def _radar(*argv: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "agent_gap_radar.cli", *argv],
-        cwd=str(REPO_ROOT), capture_output=True, env=env)
+        cwd=str(REPO_ROOT), capture_output=True)
 
 
 def _tail(stderr: bytes) -> str:
@@ -209,42 +203,10 @@ def test_iter296_b2_exact_help_still_prints_help_and_exits_0(verb: str, spelling
 
 
 # --------------------------------------------------------------------------------------
-# Behavior 3 -- exact spellings are byte-identical to the pre-change commit (two trees,
-# ONE target: both emitters read the same working tree, so locators agree)
+# Behavior 3 -- exact spellings still run clean at HEAD. Iteration 386 retired the
+# frozen pre-change-tree byte comparison (a one-time proof that re-ran an old tree on
+# every suite run); the live pin keeps each document's exit/stderr/newline contract.
 # --------------------------------------------------------------------------------------
-
-def _env(src: pathlib.Path) -> dict:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(src)
-    return env
-
-
-@pytest.fixture(scope="module")
-def prechange_src(tmp_path_factory) -> pathlib.Path:
-    """`git archive PRECHANGE_COMMIT src` under a tmp dir, probed to be what is imported."""
-    root = tmp_path_factory.mktemp("prechange296")
-    archive = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "archive", PRECHANGE_COMMIT, "src"], capture_output=True)
-    assert archive.returncode == 0, archive.stderr.decode("utf-8", "replace")
-    with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
-        tar.extractall(root, filter="data")
-    src = root / "src"
-    probe = subprocess.run(
-        [sys.executable, "-c", "import agent_gap_radar; print(agent_gap_radar.__file__)"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), env=_env(src))
-    assert probe.returncode == 0, probe.stderr
-    assert probe.stdout.strip().startswith(str(src)), probe.stdout
-    return src
-
-
-def test_iter296_b3_the_control_arm_is_really_the_pre_change_build(prechange_src) -> None:
-    """At the pre-change commit `prd . --flo 3` was a working alias of `--floor 3`."""
-    old = _radar("prd", ".", "--flo", "3", env=_env(prechange_src))
-    assert old.returncode == 0, old.stderr
-    assert old.stdout == _radar("prd", ".", "--floor", "3", env=_env(prechange_src)).stdout
-    # and the working tree refuses the same tokens
-    _assert_structural_refusal(_radar("prd", ".", "--flo", "3"), "--flo 3")
-
 
 CONTROL_CASES = (
     ("list", ".", "--layer", LIVE_LAYER),
@@ -261,22 +223,22 @@ CONTROL_CASES = (
 )
 
 
-@pytest.mark.parametrize("argv", CONTROL_CASES, ids=[" ".join(c) for c in CONTROL_CASES])
-def test_iter296_b3_exact_spelling_is_byte_identical_to_the_pre_change_commit(
-        argv: tuple[str, ...], prechange_src) -> None:
-    new = _radar(*argv)
-    old = _radar(*argv, env=_env(prechange_src))
+#: The scan case is left out of the live pin on purpose: a HEAD self-scan costs ~7.6 s and
+#: other modules already pin scan's exit code and single trailing newline.
+LIVE_CONTROL_CASES = tuple(c for c in CONTROL_CASES if c[0] != "scan")
+
+
+@pytest.mark.parametrize("argv", LIVE_CONTROL_CASES,
+                         ids=[" ".join(c) for c in LIVE_CONTROL_CASES])
+def test_iter296_b3_exact_spelling_runs_clean_at_head(argv: tuple[str, ...]) -> None:
+    proc = _radar(*argv)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stderr == b"", proc.stderr
+    assert proc.stdout, "the exact spelling printed no document"
+    assert proc.stdout.endswith(b"\n") and not proc.stdout.endswith(b"\n\n"), proc.stdout[-3:]
     if argv[0] == "diff":
-        # Iteration 377 appended a LAST `ranking` key to `diff --json`; every key the
-        # pre-change commit published must still be byte-identical, in its order.
-        payload = json.loads(new.stdout)
-        assert list(payload)[-1] == "ranking", list(payload)
-        del payload["ranking"]
-        assert json.dumps(payload) == json.dumps(json.loads(old.stdout))
-        assert (new.returncode, new.stderr) == (old.returncode, old.stderr)
-        return
-    assert (new.returncode, new.stdout, new.stderr) == (old.returncode, old.stdout, old.stderr)
-    assert new.stdout.endswith(b"\n") and not new.stdout.endswith(b"\n\n"), new.stdout[-3:]
+        # Iteration 377 appended a LAST `ranking` key to `diff --json`.
+        assert list(json.loads(proc.stdout))[-1] == "ranking", proc.stdout[:200]
 
 
 def test_iter296_b3_the_equals_form_still_parses_and_matches_the_space_form() -> None:
@@ -291,23 +253,13 @@ def test_iter296_b3_the_equals_form_still_parses_and_matches_the_space_form() ->
 # Behavior 4 -- `scan`'s `--gap`/`--gaps` pair keeps both exact meanings
 # --------------------------------------------------------------------------------------
 
-def test_iter296_b4_scan_gap_and_gaps_keep_both_exact_meanings(prechange_src) -> None:
-    argv = ("scan", ".", "--gaps", "gaps", "--gap", "GAP-003", "--json")
-    new = _radar(*argv)
-    old = _radar(*argv, env=_env(prechange_src))
-    assert new.returncode == old.returncode, new.stderr
-    skip_top = {"layer", "baseline"}  # `baseline` added iter 374
-    skip_finding = {"skipped_files"}
-    def _strip(doc):
-        d = {k: v for k, v in doc.items() if k not in skip_top}
-        d["findings"] = [{k: v for k, v in f.items() if k not in skip_finding}
-                         for f in d["findings"]]
-        return d
-    old_doc = _strip(json.loads(old.stdout))
-    new_doc = _strip(json.loads(new.stdout))
-    assert new_doc == old_doc
-    payload = json.loads(new.stdout.decode("utf-8"))
-    assert payload["records_applied"] == 1
+def test_iter296_b4_scan_gap_and_gaps_keep_both_exact_meanings() -> None:
+    """`--gaps` still names the register directory and `--gap` still selects one record."""
+    proc = _radar("scan", ".", "--gaps", "gaps", "--gap", "GAP-003", "--json")
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout.decode("utf-8"))
+    assert payload["records_applied"] == 1, payload["records_applied"]
+    assert [f["gap_id"] for f in payload["findings"]] == ["GAP-003"], payload["findings"]
 
 
 # --------------------------------------------------------------------------------------

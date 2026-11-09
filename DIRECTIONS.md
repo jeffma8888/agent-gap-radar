@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-387
+    lenses: simplification-and-deletion (HEAD `1b1c872`), performance-and-throughput (HEAD `1b1c872`)
+    - Candidate A1 -- Re-land iter 386's frozen-arm deletion (iter264/265/296), now that the clone-red cause is known and is not the patch
+    - Candidate A2 -- One refusal site per narrowing flag in `_dispatch`: the 3 blank-`--match` copies and 2 unknown-`--layer` copies become one each
+    - Candidate A3 -- Delete src helpers that the shipped dormancy classifier reports as `test-only`/`dormant`
+    - Candidate B1 -- Re-land iter 386's frozen-arm deletion as the throughput fix it is, gated on a fresh-clone run (perf framing of scout A's A1)
+    - Candidate B2 -- The suite's machinery-only self-scan nodes scan a `tests/`-free snapshot of HEAD: about 7.8 s -> 2.4 s per scan, about 190 worker-s per suite run
+    - Candidate B3 -- One self-scan per suite run for the verdict-pinning nodes: share the live `scan --json .` payload across modules through one cached helper, not 35 subprocesses
+    winner: A1
+    ship: pending (not yet decided)
+  iter-386
+    lenses: integration-and-adoption (HEAD `1b1c872`), simplification-and-deletion (HEAD `1b1c872`)
+    - Candidate A1 -- `scan --gap X --require VERDICT`: the first consumer of the PRD's `closure.verdict`, so "fixed" and "matched code deleted" stop reading the same
+    - Candidate A2 -- An UNKNOWN finding names the target-relative file it could not read, in the existing `location_notes` key and in the `Error:` line
+    - Candidate A3 -- `python -m agent_gap_radar` runs the CLI; today it fails with "is a package and cannot be directly executed"
+    - Candidate B1 -- Retire the frozen-commit arms in only the 3 modules that hold 83 % of their cost (iter264, iter265, iter296)
+    - Candidate B2 -- One refusal site per narrowing flag in `_dispatch`: 3 blank-`--match` copies and 2 unknown-`--layer` copies become one each
+    - Candidate B3 -- Move the spent Done ledger (66 % of PRODUCT.md) out of the roadmap into the `PRODUCT_ARCHIVE.md` that `roadmap_integrity` already unions
+    winner: B1
+    ship: REVERTED
   iter-385
     lenses: hardening/DX (HEAD `8386df2`), integration-and-adoption (HEAD `8386df2`)
     - Candidate A1 -- A locator holding whitespace is refused at the door: `U` and `U\n` are one document, but they earn a corroboration point and pass as "resolvable"
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `scan --gap X --require ABSENT`: the first consumer of the PRD's `closure.verdict`, because today the closure check reads exit 0 when the loop has merely made the gap NOT_APPLICABLE
     - Candidate B3 -- `prd`'s `branchName` carries the gap id, so "a gap closed by a loop that started from `radar prd`" is traceable in git history
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 1b1c872
   iter-384
     lenses: unknown
     - Candidate A1 -- `--cites TEXT` on `list`/`report`/`prd`: narrow the register to records whose EVIDENCE cites a source
@@ -1867,4 +1887,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-187 scouted iterations
+189 scouted iterations

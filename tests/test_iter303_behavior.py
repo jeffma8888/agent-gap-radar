@@ -88,6 +88,27 @@ KEPT_300_HELPERS = ["_texts", "_new_scan_cell"]
 #: Behavior 4 -- the renamed 296 node.
 RENAMED_296 = "test_iter296_b1_the_derived_inventory_is_the_pinned_inventory"
 
+#: Iteration 386 retired the frozen-commit (`git archive`) control arms of three modules
+#: and replaced each with a live HEAD pin: (removed names, added names) per module.
+RETIRED_386 = {
+    "test_iter264_behavior.py": (
+        ["test_b2_help_bytes_are_identical_to_the_prechange_tree",
+         "test_b3_the_prechange_tree_exited_zero_on_bare_radar_and_the_tree_now_refuses",
+         "test_b3_verb_stdout_and_exit_code_are_byte_identical_to_the_prechange_tree"],
+        ["test_b3_control_verb_runs_clean_at_head"]),
+    "test_iter265_behavior.py": (
+        ["test_iter265_b2_location_notes_is_appended_last_and_prior_keys_keep_their_order",
+         "test_iter265_b3_every_other_finding_key_and_the_top_level_are_unchanged",
+         "test_iter265_b3_locations_and_notes_partition_the_prechange_list_in_order",
+         "test_iter265_b3_two_sided_the_prechange_tree_mixed_prose_into_locations",
+         "test_iter265_b4_markdown_brief_is_byte_identical_to_the_prechange_tree"],
+        ["test_iter265_b2_location_notes_and_skipped_files_are_the_last_two_finding_keys"]),
+    "test_iter296_behavior.py": (
+        ["test_iter296_b3_exact_spelling_is_byte_identical_to_the_pre_change_commit",
+         "test_iter296_b3_the_control_arm_is_really_the_pre_change_build"],
+        ["test_iter296_b3_exact_spelling_runs_clean_at_head"]),
+}
+
 #: Census probes, assembled so this module is not its own hit. Described, not quoted:
 #: the opening of a hand-spelled `scan` flag row (key, colon, bracket, quote, two
 #: dashes); the 296 flag-count words; the 300 count words; the two assignment openers.
@@ -304,7 +325,9 @@ def test_b4_test_iter296_b1_derives_from_the_inventory_and_pins_no_count(head_te
     before = _read(head_tests / "test_iter296_behavior.py")
     old = {n for n in _test_names(before) if n.startswith("test_iter296_b1_the_derived")}
     assert len(old) == 1 and RENAMED_296 not in old, sorted(old)
-    assert _test_names(now) == (_test_names(before) - old) | {RENAMED_296}, (
+    retired_386, live_386 = RETIRED_386["test_iter296_behavior.py"]
+    assert _test_names(now) == (
+        (_test_names(before) - old - set(retired_386)) | {RENAMED_296} | set(live_386)), (
         sorted(_test_names(now) ^ _test_names(before)))
     assert not [n for n in _test_names(now) if n.endswith("_flags")], "the old id survives"
     assert COUNT_WORDS_296.findall(now) == [], COUNT_WORDS_296.findall(now)
@@ -417,14 +440,22 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter383_new = {"test_iter383_behavior.py", "test_iter383_tester_behavior.py"}
     iter384_new = {"test_iter384_behavior.py", "test_iter384_tester_behavior.py"}
     iter385_new = {"test_iter385_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new, sorted(set(now) ^ set(before))
+    iter386_new = {"test_iter386_behavior.py"}
+    iter387_new = {"test_iter387_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}
     assert changed == {
+        # iter 386 extends this entry: the frozen-commit control arms left for live pins.
         "test_iter296_behavior.py": (
-            sorted(n for n in before["test_iter296_behavior.py"]
-                   if n.startswith("test_iter296_b1_the_derived")), [RENAMED_296]),
+            sorted([n for n in before["test_iter296_behavior.py"]
+                    if n.startswith("test_iter296_b1_the_derived")]
+                   + RETIRED_386["test_iter296_behavior.py"][0]),
+            sorted([RENAMED_296] + RETIRED_386["test_iter296_behavior.py"][1])),
+        # iter 386: the frozen-commit control arms left these two modules for live pins.
+        "test_iter264_behavior.py": RETIRED_386["test_iter264_behavior.py"],
+        "test_iter265_behavior.py": RETIRED_386["test_iter265_behavior.py"],
         "test_iter300_behavior.py": ([DELETED_300], []),
         "test_iter302_behavior.py": ([RETIRED_362_302], []),
         # iter 370: the `(?i)[A-Z]x` refusal pin flipped to an acceptance pin.
