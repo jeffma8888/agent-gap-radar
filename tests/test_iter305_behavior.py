@@ -196,7 +196,8 @@ def test_b2_partition_algebra_on_mixed_case(bed):
     r_count = int(r_str.split("(")[0].strip())
     r_ids_raw = r_str.split("(")[1].rstrip(")")
     r_ids = [x.strip() for x in r_ids_raw.split(",")] if r_ids_raw != "none" else []
-    unscanned_part = bline.split("unscanned by the baseline: ")[1]
+    # Re-pinned iter 396: the clause is no longer last, so stop at the next `;`.
+    unscanned_part = bline.split("unscanned by the baseline: ")[1].split(";")[0]
     u_count = int(unscanned_part.split("(")[0].strip())
     u_ids_raw = unscanned_part.split("(")[1].rstrip(")")
     u_ids = [x.strip() for x in u_ids_raw.split(",")] if u_ids_raw != "none" else []

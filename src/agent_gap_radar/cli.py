@@ -938,7 +938,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .registry import RegistryError, load_all, load_one
     from .render import document, gap_brief, json_document, radar_report
     from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
-                       new_since_baseline, partition_by_baseline,
+                       new_since_baseline, no_longer_present,
+                       partition_by_baseline,
                        render_baseline_line, render_scan,
                        scan, scan_json, select_for_prd, unanswered,
                        unknown_above_floor)
@@ -1131,12 +1132,17 @@ def _dispatch(argv: list[str] | None = None) -> int:
             # a gate needs WHICH ids are new, not only the exit code's WHETHER.
             new_ids = new_since_baseline(result, floor, baseline.present)
             verdict = bool(new_ids)
-            baseline_line = render_baseline_line(baseline, new_ids)
+            # The closure list is computed ONCE too, and read by both surfaces below.
+            no_longer = no_longer_present(result, baseline.present)
+            baseline_line = render_baseline_line(baseline, new_ids, no_longer=no_longer)
             scanned_new, unscanned_new = partition_by_baseline(new_ids, baseline.scanned)
             baseline_json = {"path": baseline.spelling,
                              "carried": sorted(baseline.present),
                              "new": list(new_ids), "scanned": list(scanned_new),
-                             "unscanned": list(unscanned_new)}
+                             "unscanned": list(unscanned_new),
+                             "no_longer_present": [
+                                 {"gap_id": gap_id, "verdict": value}
+                                 for gap_id, value in no_longer]}
         # Keyed on `not verdict`, so a known above-floor PRESENT (1) still outranks
         # an unanswered record; otherwise `0` is never published while a finding
         # that clears the floor reached no verdict. Decided before a byte is written.

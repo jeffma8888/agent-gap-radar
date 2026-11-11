@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-396
+    lenses: hardening/DX (HEAD `2daf422`)
+    - Candidate A1 -- `scan --baseline` names the carried gaps that are no longer PRESENT, and what they are now, so a closed gap is visible instead of silent
+    - Candidate A2 -- A scan's ABSENT evidence shows the line that matched, so the reader sees what the "mitigation" actually is (re-proposal of iter-395 B2)
+    - Candidate A3 -- `radar overlaps`: name the same-layer record pairs that rest on the same cited documents, so a curator can spot one gap filed twice (re-proposal of iter-395 B1)
+    - Candidate B1 -- A test that names the mitigation still downgrades PRESENT to MANUAL: the `not` inside `present_when` reads test files, so the CHK-009 fix is half-applied in 13 checks
+    - Candidate B2 -- `x.test.ts` / `x.test.js` (Jest and Vitest's default name) is not a test path, while `x.spec.ts` is, so a JS test that names the mitigation reads ABSENT, "mitigation positively identified"
+    - Candidate B3 -- Re-land iter-395's test-path paragraph (`PRE_REVERT_FULL.patch`), with its self-scan-vs-base test hardened so it no longer depends on DIRECTIONS.md churn
+    winner: A1
+    ship: pending (not yet decided)
+  iter-395
+    lenses: narrative-and-docs (HEAD `2daf422`), new-capability (HEAD `2daf422`)
+    - Candidate A1 -- Publish what a "test path" is: no consumer or research-facing doc says that `spec/`, `fixtures/` and `testing/` are excluded from mitigation evidence
+    - Candidate A2 -- The scan domain off-git is published nowhere, and README:89 states it wrong (re-proposal of iter-394 B1, re-measured; what is different stated)
+    - Candidate A3 -- CONSUMER_CONTRACT publishes a stale count ("there are ten") and a vague set ("`package-lock.json`, `uv.lock` and the like") where the code holds exact values (re-proposal merging iter-394 B2+B3)
+    - Candidate B1 -- `radar overlaps`: name the record pairs in one layer that rest on the same cited documents, so a curator can spot one gap filed twice
+    - Candidate B2 -- A scan's ABSENT evidence shows the line that matched, so the reader sees what the mitigation actually is without opening the file
+    - Candidate B3 -- `radar show GAP` gains a "Related records" section: the records that cite the same documents, with how many each shares
+    winner: A1
+    ship: REVERTED
   iter-394
     lenses: unknown
     - Candidate A1 -- Re-land iter393's literal-proof memo (`05cb629`), now that the clone-only red is identified
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- CONSUMER_CONTRACT's Defaults prose says "there are ten" beside the 11-row table its own test pins to the parser
     - Candidate B3 -- The iter-391 lockfile rule is published only inside a "kept verbatim" 2026-08-16 incident narrative, as "`package-lock.json`, `uv.lock` and the like", while the code holds an exact set of 11
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 2daf422
   iter-393
     lenses: simplification-and-deletion (HEAD `cbf1426`)
     - Candidate A1 -- One narrowing-refusal guard in `cli._dispatch`, replacing 6 copied sites of 2 rules
@@ -1956,4 +1976,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-196 scouted iterations
+198 scouted iterations

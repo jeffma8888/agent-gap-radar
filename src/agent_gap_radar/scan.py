@@ -329,6 +329,30 @@ def new_since_baseline(result: ScanResult, confidence_floor: int,
         if clears_floor(f, confidence_floor) and f.gap.id not in baseline_present))
 
 
+def no_longer_present(result: ScanResult, baseline_present: frozenset[str],
+                      ) -> tuple[tuple[str, str], ...]:
+    """The baseline-PRESENT ids whose CURRENT finding is not PRESENT, with that verdict.
+
+    The closure half of the gate, kept beside `new_since_baseline` because it reads
+    the same two inputs from the other side. Without it a fixed gap passes the gate
+    as one more count inside `carried`, so the builder cannot see WHICH gap the loop
+    closed. Each id is paired with its current verdict's value rather than labelled
+    "fixed", because only `ABSENT` means a mitigation was positively found: a gap
+    that now reads `NOT_APPLICABLE` (the matched code was deleted), `MANUAL` or
+    `UNKNOWN` was not shown to be fixed, and calling it fixed would be a claim made
+    without evidence. The reader judges the closure from the verdict.
+
+    Only ids with a finding in THIS scan qualify: a baseline id the current domain
+    did not reach (`--gap`, `--layer`, `--match`, or a record that left the
+    register) was not scanned, so it was not closed. The floor plays no part -- a
+    gap still PRESENT below the floor is still PRESENT -- and nothing here feeds
+    the exit code. Ascending by id, like every other id list on the baseline line.
+    """
+    return tuple(sorted(
+        (f.gap.id, f.verdict.value) for f in result.findings
+        if f.gap.id in baseline_present and f.verdict is not Verdict.PRESENT))
+
+
 def partition_by_baseline(new_ids: tuple[str, ...], scanned: frozenset[str],
                           ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Split the NEW ids into (scanned by the baseline, unscanned by the baseline).
@@ -357,7 +381,8 @@ def _id_list(ids: tuple[str, ...]) -> str:
     return f"({', '.join(ids) or 'none'})"
 
 
-def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...]) -> str:
+def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...], *,
+                         no_longer: tuple[tuple[str, str], ...] = ()) -> str:
     """The ONE line `--baseline` adds to the markdown document.
 
     Spelled here, beside the predicate that produced `new_ids`, so `render_scan`
@@ -367,14 +392,19 @@ def render_baseline_line(baseline: Baseline, new_ids: tuple[str, ...]) -> str:
     list so the line keeps one shape whatever the verdict. The prefix through the
     `new above-floor PRESENT` clause is the line as it was first published; the two
     clauses after it are `partition_by_baseline`'s halves of that same id list, so
-    `scanned + unscanned == new` on every line this renders.
+    `scanned + unscanned == new` on every line this renders. The last clause is
+    `no_longer_present`'s pairs, taken as an argument rather than re-derived so the
+    line and `--json`'s `no_longer_present` key print one computation; keyword-only
+    and defaulted empty so every caller of the two-argument form still renders.
     """
     scanned_new, unscanned_new = partition_by_baseline(new_ids, baseline.scanned)
     return (f"Baseline: {baseline.spelling} -- carried PRESENT: "
             f"{len(baseline.present)}; new above-floor PRESENT: {len(new_ids)} "
             f"{_id_list(new_ids)}; scanned by the baseline: {len(scanned_new)} "
             f"{_id_list(scanned_new)}; unscanned by the baseline: "
-            f"{len(unscanned_new)} {_id_list(unscanned_new)}")
+            f"{len(unscanned_new)} {_id_list(unscanned_new)}; no longer PRESENT: "
+            f"{len(no_longer)} "
+            f"{_id_list(tuple(f'{gap_id} {verdict}' for gap_id, verdict in no_longer))}")
 
 
 #: The verdicts that ANSWER a gate's question about a target. Named positively and

@@ -57,7 +57,8 @@ def test_line_is_the_iteration_300_prefix_plus_the_two_partition_clauses():
     prefix = "Baseline: typed/b.json -- carried PRESENT: 2; new above-floor PRESENT: 2 (G-2, G-3)"
     assert line.startswith(prefix)
     assert line[len(prefix):] == ("; scanned by the baseline: 1 (G-2); "
-                                  "unscanned by the baseline: 1 (G-3)")
+                                  "unscanned by the baseline: 1 (G-3); "
+                                  "no longer PRESENT: 0 (none)")
     assert "\n" not in line
 
 
@@ -65,7 +66,8 @@ def test_empty_lists_spell_none_in_all_three_clauses():
     baseline = Baseline(spelling="b", target_name="t", present=frozenset(), scanned=frozenset())
     assert render_baseline_line(baseline, ()) == (
         "Baseline: b -- carried PRESENT: 0; new above-floor PRESENT: 0 (none); "
-        "scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none)")
+        "scanned by the baseline: 0 (none); unscanned by the baseline: 0 (none); "
+        "no longer PRESENT: 0 (none)")
 
 
 def test_load_baseline_fills_scanned_from_every_finding_at_any_verdict(tmp_path: pathlib.Path):

@@ -18,7 +18,8 @@ from test_iter305_behavior import REGISTER, _run, _tree
 
 KEY_ORDER = ["target", "target_name", "confidence_floor", "layer", "records_applied",
              "counts", "uncheckable", "findings", "baseline"]
-BASELINE_KEYS = ["path", "carried", "new", "scanned", "unscanned"]
+BASELINE_KEYS = ["path", "carried", "new", "scanned", "unscanned",
+                 "no_longer_present"]  # re-pinned iter 396: key appended
 
 
 @pytest.fixture(scope="module")

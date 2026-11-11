@@ -18,12 +18,14 @@ from test_iter305_behavior import GAP, REGISTER, _run, _tree
 
 KEY_ORDER = ["target", "target_name", "confidence_floor", "layer", "records_applied",
              "counts", "uncheckable", "findings", "baseline"]
-BASELINE_KEYS = ["path", "carried", "new", "scanned", "unscanned"]
+BASELINE_KEYS = ["path", "carried", "new", "scanned", "unscanned",
+                 "no_longer_present"]  # re-pinned iter 396: key appended
 LINE = re.compile(
     r"^Baseline: (?P<path>.+) -- carried PRESENT: (?P<k>\d+); "
     r"new above-floor PRESENT: (?P<m>\d+) \((?P<new>[^)]*)\); "
     r"scanned by the baseline: (?P<r>\d+) \((?P<scanned>[^)]*)\); "
-    r"unscanned by the baseline: (?P<u>\d+) \((?P<unscanned>[^)]*)\)$")
+    r"unscanned by the baseline: (?P<u>\d+) \((?P<unscanned>[^)]*)\); "
+    r"no longer PRESENT: (?P<f>\d+) \((?P<no_longer>[^)]*)\)$")  # re-pinned iter 396
 
 
 @pytest.fixture(scope="module")
