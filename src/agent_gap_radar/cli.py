@@ -333,6 +333,17 @@ def _show_json(gap: Gap) -> str:
     return json_document(payload)
 
 
+def _is_valid_name(name: str) -> bool:
+    """Whether `scan --name` may report NAME as the target's identity.
+
+    Non-empty, unpadded and printable, because the name is compared byte-for-byte
+    against a committed baseline and echoed in the mismatch refusal: a padded or
+    control-character name would fail that comparison in a line whose difference
+    no reader can see. Interior spaces are fine -- they render.
+    """
+    return bool(name) and name == name.strip() and name.isprintable()
+
+
 def _unknown_layer(layer: str) -> str:
     """The refusal for a `--layer` value outside the closed vocabulary.
 
@@ -749,6 +760,16 @@ def build_parser() -> argparse.ArgumentParser:
                              "--exit-code, exit 1 only for an above-floor PRESENT "
                              "gap that document did not list as PRESENT; same "
                              "document plus one Baseline: line")
+    # Registered AFTER `--baseline`, outside the verdict group, for the reason that
+    # flag is: argument-order pins are extended rather than reshuffled, and it is not
+    # a verdict surface. It RENAMES the target (heading, `--json`'s `target_name`,
+    # `--prd`'s `project`, the name `--baseline` compares) so a baseline written in
+    # one checkout gates another whose directory the CI runner named; it never
+    # waives the mismatch check. `default=None` keeps it out of `## Defaults`.
+    p_scan.add_argument("--name", default=None, metavar="NAME",
+                        help="name to report for the target instead of its "
+                             "directory name: the heading, --json's target_name, "
+                             "--prd's project, and the name --baseline compares")
 
     p_diff = sub.add_parser(
         "diff", help="Report what changed between two register states.",
@@ -1023,6 +1044,14 @@ def _dispatch(argv: list[str] | None = None) -> int:
         if args.match is not None and not args.match.strip():
             return _fail("--match needs non-blank TEXT; omit the flag to scan "
                          "every record")
+        # A pinned name is an IDENTITY a baseline compares byte-for-byte, so a value
+        # that renders invisibly (blank, padded, a control character) would be a
+        # mismatch nobody can read in the error line. Decided before any directory
+        # is read, so the refusal leaves stdout empty on every surface.
+        if args.name is not None and not _is_valid_name(args.name):
+            return _fail("--name needs a non-blank printable NAME with no leading "
+                         "or trailing whitespace; omit the flag to use the "
+                         "target's directory name")
         try:
             # `_resolve` is INSIDE the guard because it, too, can refuse in this
             # vocabulary: an unreadable argument makes the nested-`gaps/` probe
@@ -1039,7 +1068,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
         except RegistryError as exc:
             return _fail(str(exc))
         try:
-            result = scan(gaps, args.target)
+            result = scan(gaps, args.target, name=args.name)
         except (NotADirectoryError, OSError):
             return _fail(f"cannot scan target: {args.target}")
         # Read the floor ONCE, ahead of every surface branch, and let that one local
@@ -1073,7 +1102,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     f"confidence floor {floor}.\n")
             sys.stdout.write(json_document(
                 _prd_with_finding(prd_for(selection.selected.gap,
-                                          project=result.target.name),
+                                          project=result.target_name),
                                   _finding_json(selection.selected, floor))))
             return EXIT_OK
         # Decided BEFORE a byte is written, because a scan that verdicted NOTHING
@@ -1113,9 +1142,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
         # zero-records and unanswered-record doors keep firing first: a baseline
         # can MODIFY a verdict, never manufacture one where the scan reached none.
         # Both refusals here are decided BEFORE a byte is written, so the published
-        # `2` row (stdout empty) holds. The mismatch compares the RESOLVED base name
-        # on both sides -- the baseline's `target_name` was written from the same
-        # accessor -- because a gate that silently compared two different targets
+        # `2` row (stdout empty) holds. The mismatch compares the EFFECTIVE name
+        # (`--name`, else the resolved base name) on both sides -- the baseline's
+        # `target_name` was written from the same accessor -- because a gate that silently compared two different targets
         # would report every one of this target's gaps as new, or none of them.
         baseline_line = None
         baseline_json = None
@@ -1124,9 +1153,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
                 baseline = load_baseline(args.baseline)
             except BaselineError as exc:
                 return _fail(str(exc))
-            if baseline.target_name != result.target.name:
+            if baseline.target_name != result.target_name:
                 return _fail(f"baseline target mismatch: {baseline.target_name} "
-                             f"(baseline) vs {result.target.name} (target)")
+                             f"(baseline) vs {result.target_name} (target)")
             # ONE walk feeds the exit code, the document's line AND `--json`'s
             # `baseline` key, so the three cannot disagree about which gaps are new:
             # a gate needs WHICH ids are new, not only the exit code's WHETHER.

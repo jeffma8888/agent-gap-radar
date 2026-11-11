@@ -813,7 +813,7 @@ def _new_scan_cell() -> str:
     cells = [c for c in surface_table_cells(contract_text()) if "radar scan" in c]
     assert len(cells) == 1, cells
     (cell,) = cells
-    assert cell.endswith("[--prd] [--exit-code] [--baseline BASELINE]" + chr(96)), cell
+    assert cell.endswith("[--prd] [--exit-code] [--baseline BASELINE] [--name NAME]" + chr(96)), cell
     return cell
 
 

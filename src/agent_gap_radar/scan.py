@@ -54,10 +54,31 @@ class ScanResult:
     #: How the caller spelled the target, verbatim -- or `None` when a caller
     #: constructed the result directly and named no spelling. Carried BESIDE the
     #: resolved `target` and never instead of it: the file walk, `target_name`
-    #: and the document heading all keep reading the resolved path, so the
-    #: document still states WHAT was scanned. Defaulted because committed
+    #: and the document heading never read it, so the document still states
+    #: WHAT was scanned. Defaulted because committed
     #: callers pass the first three fields positionally.
     requested_spelling: str | None = None
+    #: The name the caller pinned with `scan --name`, or `None` to report the
+    #: resolved base name. Defaulted for the same positional callers as above.
+    name_override: str | None = None
+
+    @property
+    def target_name(self) -> str:
+        """The name every surface reports for this target: the pinned name, else the base name.
+
+        The SINGLE accessor for that identity. The markdown heading, `--json`'s
+        `target_name`, `--prd`'s `project` and the `--baseline` mismatch check are
+        one claim about which target this is, so they read one property rather than
+        each re-deriving `target.name` -- otherwise a pinned name could reach the
+        heading and miss the gate's comparison.
+
+        WHY a pin exists at all: a CI checkout's directory is named by the runner
+        (`app`, `workspace`, a job id), not by the project, so a baseline written
+        on a laptop compared base names that were an accident of placement. A
+        caller who pins the same name on both runs makes the identity a value they
+        commit. It only renames: two different names still mismatch.
+        """
+        return self.target.name if self.name_override is None else self.name_override
 
     @property
     def displayed_target(self) -> str:
@@ -75,8 +96,8 @@ class ScanResult:
         produced it -- so the same committed invocation (`radar scan .`) reports a
         change that did not happen, and exports an account name nobody asked the
         tool to invent. The portable identity is already published beside it:
-        `target_name` stays the resolved base name, so this removes an invented
-        value rather than information.
+        `target_name` stays the resolved base name (or the caller's `--name`
+        pin), so this removes an invented value rather than information.
 
         The echo is VERBATIM -- no expansion, no resolution, no trailing-slash
         normalisation -- because a normalised spelling is a value the caller never
@@ -559,7 +580,7 @@ def scan_json(result: ScanResult,
     """
     payload = {
         "target": result.displayed_target,
-        "target_name": result.target.name,
+        "target_name": result.target_name,
         "confidence_floor": confidence_floor,
         "layer": layer,
         **({"match": match} if match is not None else {}),
@@ -579,7 +600,10 @@ def scan_json(result: ScanResult,
     return json_document(payload)
 
 
-def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
+def scan(gaps: list[Gap], target: pathlib.Path | str,
+         name: str | None = None) -> ScanResult:
+    # `name` is carried, never applied to the walk: it changes what the target
+    # is CALLED (`ScanResult.target_name`), not which files are read.
     # Captured BEFORE resolution, because resolution destroys it: this is the one
     # value in the result the tool did not compute, and echoing it is what makes a
     # committed invocation's document reproducible off this machine. An empty
@@ -610,7 +634,7 @@ def scan(gaps: list[Gap], target: pathlib.Path | str) -> ScanResult:
 
     return ScanResult(target=target, findings=findings,
                       uncheckable=uncheckable,
-                      requested_spelling=requested)
+                      requested_spelling=requested, name_override=name)
 
 
 def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
@@ -625,10 +649,10 @@ def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
     always has. Taken as a rendered line rather than as a `Baseline` so this renderer
     holds no second copy of the gate's arithmetic.
     """
-    # The heading names the RESOLVED base name (what was scanned) while the
+    # The heading names the target's identity (what was scanned) while the
     # Target line echoes the caller's spelling (what they asked for); both read
     # one accessor each, so neither can drift into the other's job.
-    lines = [f"# Gap scan: {result.target.name}", "",
+    lines = [f"# Gap scan: {result.target_name}", "",
              f"Target: `{result.displayed_target}`", ""]
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}

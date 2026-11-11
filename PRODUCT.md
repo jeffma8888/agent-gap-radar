@@ -336,3 +336,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 391 fail-closed: a wildcard-matched dependency lockfile is never mitigation evidence; scan stays PRESENT
 - iter 394 scan-speed: one `relative_to` per tracked file per scan; the iter322 brake ceiling is tracked + 200
 - iter 396 closure-visible: `scan --baseline` names each carried gap no longer PRESENT, with its current verdict
+- iter 398 baseline-portable: `scan --name NAME` pins target_name, so a baseline gates a differently named checkout

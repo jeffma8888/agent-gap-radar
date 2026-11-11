@@ -50,8 +50,9 @@ EXPECTED_SURFACE = {
     # Iteration 299 added `--baseline`, the prior-scan document `--exit-code` gates
     # against; it takes a value and defaults to None, like `--gap`.
     # Iteration 389 added `--match`, the list/report/prd prose filter; None default.
+    # Iteration 398 added `--name`, the target-identity pin; None default.
     "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
-              "--layer", "--match", "--prd"], 1, ["target"], ["target"]),
+              "--layer", "--match", "--name", "--prd"], 1, ["target"], ["target"]),
     "show": (["--json"], 2, ["gap_id"], ["gap_id", "path"]),
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
@@ -128,6 +129,9 @@ EXPECTED_ARGUMENTS = {
         # Registered LAST so the rows above keep their positions; `None` default
         # like `--gap`, so it earns no `## Defaults` row.
         ("baseline", ["--baseline"], False, None, None),
+        # Iteration 398: the target-identity pin, registered after `--baseline` so
+        # every row above keeps its position; `None` default, no `## Defaults` row.
+        ("name", ["--name"], False, None, None),
     ],
     "show": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

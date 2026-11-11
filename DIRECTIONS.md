@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-398
+    lenses: unknown
+    - Candidate A1 -- A committed `scan --json` baseline survives a checkout under a different directory name: `scan --name NAME` pins `target_name` (re-proposal of iter-391 B1 / iter-392 A3)
+    - Candidate A2 -- The installed `radar` ships the register: the built wheel holds 0 of the 120 gap records, so `pip install` / `uvx` gets a radar with nothing on it
+    - Candidate A3 -- `scan --annotations`: one GitHub workflow-command line per above-floor PRESENT locator, so a CI run marks the exact lines on the PR diff without a SARIF uploader
+    - Candidate B1 -- Delete `checks.is_test_path`: the classifier calls it `test-only`, and the scanner asks `TEST_PATH_RE` directly
+    - Candidate B2 -- One shared in-process CLI runner: 51 AST-identical `_run`/`_cli` copies in 17 shapes become imports from `tests/_cli.py` (re-proposal of iter-392 B3, re-measured)
+    - Candidate B3 -- `_required_literal_sets_ascii` and `required_literal_sets` share one floor-and-fallback tail instead of two byte-identical copies (re-proposal of iter-393 A2)
+    winner: A1
+    ship: pending (not yet decided)
+  iter-397
+    lenses: hardening/DX (HEAD `a33a4a6`), integration-and-adoption (HEAD `a33a4a6`)
+    - Candidate A1 -- A test that names the mitigation turns PRESENT into MANUAL in 104 of 114 checks, not 13: `content_absent` in `present_when` reads test files (re-proposal of iter-396 B1, re-measured)
+    - Candidate A2 -- Django's `tests.py`, a plain `test.py`, and Jest/Vitest's `x.test.ts` / `x.test.js` are not test paths, so a test that names the mitigation reads ABSENT, "mitigation positively identified" (re-proposal of iter-396 B2, widened and measured)
+    - Candidate A3 -- The radar's own `prd.json` at the target root is mitigation evidence, closing the gap it describes (re-proposal of iter-392 A1; not fixed at HEAD)
+    - Candidate B1 -- A committed `scan --json` baseline survives a checkout under a different directory name: `scan --name NAME` pins `target_name` (re-proposal of iter-391 B1 / iter-392 A3)
+    - Candidate B2 -- `python -m agent_gap_radar` runs the CLI, as the quality-reference repo's `python -m repolens` does (re-proposal of iter-386 A3)
+    - Candidate B3 -- `--gaps R` is accepted by every verb that reads one register (`validate/list/report/show/prd`), not only `scan` (re-proposal of iter-391 B2)
+    winner: A2
+    ship: REVERTED
   iter-396
     lenses: hardening/DX (HEAD `2daf422`)
     - Candidate A1 -- `scan --baseline` names the carried gaps that are no longer PRESENT, and what they are now, so a closed gap is visible instead of silent
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `x.test.ts` / `x.test.js` (Jest and Vitest's default name) is not a test path, while `x.spec.ts` is, so a JS test that names the mitigation reads ABSENT, "mitigation positively identified"
     - Candidate B3 -- Re-land iter-395's test-path paragraph (`PRE_REVERT_FULL.patch`), with its self-scan-vs-base test hardened so it no longer depends on DIRECTIONS.md churn
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED a33a4a6
   iter-395
     lenses: narrative-and-docs (HEAD `2daf422`), new-capability (HEAD `2daf422`)
     - Candidate A1 -- Publish what a "test path" is: no consumer or research-facing doc says that `spec/`, `fixtures/` and `testing/` are excluded from mitigation evidence
@@ -1976,4 +1996,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-198 scouted iterations
+200 scouted iterations

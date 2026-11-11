@@ -45,8 +45,10 @@ uv run radar scan ../my-service --gaps gaps --layer context-memory  # only gaps 
 uv run radar scan ../my-service --gaps gaps --match memory  # only gaps whose prose mentions memory, as `list --match`
 uv run radar scan ../my-service --gaps gaps --gap GAP-003 --exit-code --floor 3  # apply only that record's checks (an unknown id is refused); exit 1 only if it is PRESENT and clears a stricter confidence floor (default 2)
 uv run radar scan ../my-service --gaps gaps --exit-code  # same report, but exit 1 if it has an above-floor gap, 2 with an empty stdout if it has no verdict, e.g. an above-floor UNKNOWN (for CI)
-uv run radar scan ../my-service --gaps gaps --json > baseline.json && uv run radar scan ../my-service --gaps gaps --exit-code --baseline baseline.json  # exit 1 only for an above-floor gap the baseline did not carry
+uv run radar scan ../my-service --gaps gaps --name my-service --json > baseline.json && uv run radar scan ../my-service --gaps gaps --name my-service --exit-code --baseline baseline.json  # exit 1 only for an above-floor gap the baseline did not carry
 ```
+
+In CI the runner names the checkout's directory (`app`, `workspace`), which is why the last line above pins the same `--name my-service` on both runs: the gate then compares the name you chose rather than the directory's, and a different name is still refused.
 
 ## Documents in this repo
 
