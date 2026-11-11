@@ -178,7 +178,15 @@ TEST_PATH_RE = re.compile(
 
 
 def is_test_path(target: pathlib.Path, path: pathlib.Path) -> bool:
-    """True if this path is test scaffolding rather than code that runs."""
+    """True if this path is test scaffolding rather than code that runs.
+
+    The scan's hot paths (`_match_globs`, `evaluate`) do NOT call this: they
+    already hold the target-relative string, and re-deriving it here cost one
+    `relative_to` per file per rule per hit -- 2,854 of a self-scan's 4,998.
+    They apply `TEST_PATH_RE` to that string directly, which is the same
+    question asked of the same string. This stays the entry point for a caller
+    holding only a path.
+    """
     try:
         rel = path.relative_to(target).as_posix()
     except ValueError:
@@ -233,7 +241,7 @@ def _drop_wildcard_lockfiles(target: pathlib.Path, files: list[pathlib.Path],
         literal = [glob for glob in globs if _names_literally(glob, path.name)]
         # `_match_globs` and not a second `_glob_regex` loop: it is the ONE match
         # loop, and a lockfile is rare enough that its stat costs nothing here.
-        rel = path.relative_to(target).as_posix()
+        rel = _relative_posix(target, path)
         if literal and _match_globs(target, [rel], literal, False):
             kept.append(path)
     return kept
@@ -408,10 +416,30 @@ def _match_globs(target: pathlib.Path, relatives: list[str],
                     continue
             except OSError:
                 continue  # unreadable link chain: not a file we can judge
-            if exclude_tests and is_test_path(target, path):
+            # `rel` IS `path.relative_to(target)`, since `path` was built as
+            # `target / rel`, so the test verdict is judged on it directly.
+            if exclude_tests and TEST_PATH_RE.search(rel):
                 continue
             seen.add(path)
+            if _RELPATH_CACHE_STACK:
+                _RELPATH_CACHE_STACK[-1][(target, path)] = rel
     return sorted(seen)
+
+
+def _relative_posix(target: pathlib.Path, path: pathlib.Path) -> str:
+    """`path.relative_to(target).as_posix()`, answered from the scan memo if held.
+
+    Every path `evaluate` reports came out of `_match_globs`, which already held
+    its relative string, so inside a scan this is a dict lookup instead of a
+    re-derivation per hit (1,727 per self-scan for the locators alone). Outside
+    a scan, or for a path the memo never saw, it derives the string exactly as
+    the callers did before, so a miss can only cost time, never change a byte.
+    """
+    if _RELPATH_CACHE_STACK:
+        rel = _RELPATH_CACHE_STACK[-1].get((target, path))
+        if rel is not None:
+            return rel
+    return path.relative_to(target).as_posix()
 
 
 def _tracked_relatives(target: pathlib.Path,
@@ -517,6 +545,12 @@ _FILE_CACHE_STACK: list[dict[_FileDomainKey, list[pathlib.Path]]] = []
 #: scan). This stack gives it the scan lifetime `file_cache_scope` manages.
 _RELATIVES_CACHE_STACK: list[dict[pathlib.Path, list[str]]] = []
 
+#: Per-path relative-string frames, innermost last, keyed `(target as given,
+#: path)` because one path is a different relative string under a different
+#: target. Written by `_match_globs` for each path it publishes and read by
+#: `_relative_posix`; scan lifetime only, for the reason `file_cache_scope` gives.
+_RELPATH_CACHE_STACK: list[dict[tuple[pathlib.Path, pathlib.Path], str]] = []
+
 
 @contextlib.contextmanager
 def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
@@ -545,6 +579,7 @@ def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
     frame: dict[_FileDomainKey, list[pathlib.Path]] = {}
     _FILE_CACHE_STACK.append(frame)
     _RELATIVES_CACHE_STACK.append({})
+    _RELPATH_CACHE_STACK.append({})
     try:
         yield frame
     finally:
@@ -552,6 +587,7 @@ def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
         # must not leave a frame open for the next scan to answer from.
         _FILE_CACHE_STACK.pop()
         _RELATIVES_CACHE_STACK.pop()
+        _RELPATH_CACHE_STACK.pop()
 
 
 def _enumerate_files(target: pathlib.Path, globs: list[str],
@@ -1043,7 +1079,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         files = _rule_domain(rule, target, exclude_tests)
         found = bool(files)
         if kind == "file_exists":
-            return RuleHit(found, [str(p.relative_to(target)) for p in files[:10]])
+            return RuleHit(found, [_relative_posix(target, p) for p in files[:10]])
         # An absence has no line to point at, but it does have a searched scope.
         # Naming that scope is what makes the finding actionable.
         return RuleHit(not found, [_scope_note(rule["globs"])] if not found else [])
@@ -1213,8 +1249,10 @@ def evaluate(rule: dict, target: pathlib.Path,
                     # substring test, and this tool scans ITSELF, so naming the banned
                     # shape here would red that check from inside a comment.
                     line_no = text.count("\n", 0, m.start()) + 1
-                    loc = f"{path.relative_to(target)}:{line_no}"
-                    (test_hits if is_test_path(target, path) else code_hits).append(loc)
+                    # One derivation serves both the locator and the verdict.
+                    rel = _relative_posix(target, path)
+                    is_test = bool(TEST_PATH_RE.search(rel))
+                    (test_hits if is_test else code_hits).append(f"{rel}:{line_no}")
                     break
                 if stop_at_first_hit and (code_hits or test_hits):
                     # The answer is settled here and cannot change, so every further

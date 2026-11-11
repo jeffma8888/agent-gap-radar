@@ -30,7 +30,7 @@ def _scan_in_process(capsys, *extra_args: str) -> tuple[int, str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Behavior 1 -- relative_to call count < 400 during a self-scan.
+# Behavior 1 -- relative_to call count < tracked files + 200 during a self-scan.
 # ---------------------------------------------------------------------------
 
 def test_b1_relative_to_calls_dramatically_reduced(capsys):
@@ -46,15 +46,15 @@ def test_b1_relative_to_calls_dramatically_reduced(capsys):
         code, out, err = _scan_in_process(capsys)
     assert code == 0, f"scan failed: {err[:300]}"
     assert out, "scan must produce output"
-    # Spec says < 400 (307 tracked + headroom) but that counts only _iter_tracked's
-    # contribution.  PurePosixPath.relative_to is also called by other code paths
-    # during a scan (locator building, etc.).  The meaningful oracle: the old
-    # uncached behavior produced ~49,000 calls; with caching the total must be
-    # well below that.  5,000 proves >=90% reduction while leaving room for
-    # non-_iter_tracked callers.
-    assert call_count < 5_000, (
-        f"relative_to called {call_count} times, expected < 5,000 "
-        f"(old behavior was ~49,000)")
+    # Re-pinned in iter 394: the ceiling is RELATIVE to the tracked count, never a
+    # constant. The constant `< 5_000` counted per-hit re-derivations that grew
+    # with every tracked file, so committing any new module crossed it in a fresh
+    # clone. Since iter 394 the scan derives one relative path per tracked file;
+    # +200 is headroom for callers outside that loop.
+    ceiling = len(checks.tracked_files(REPO)) + 200
+    assert call_count < ceiling, (
+        f"relative_to called {call_count} times, expected < {ceiling} "
+        f"(tracked files + 200; old behavior was ~49,000)")
     assert call_count > 0, "relative_to must be called at least once"
 
 

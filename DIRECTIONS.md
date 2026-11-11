@@ -1,6 +1,35 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-394
+    lenses: unknown
+    - Candidate A1 -- Re-land iter393's literal-proof memo (`05cb629`), now that the clone-only red is identified
+    - Candidate A2 -- One `relative_to` per tracked file per scan: 4,998 -> about 400 calls, and the iter322 brake gets its headroom back
+    - Candidate A3 -- The literal prefilter descends ONE group-alternation level (re-proposal; what is different stated)
+    - Candidate B1 -- README says scanning "is restricted to what `git ls-files` reports", but on a non-git or not-yet-staged target a vendored file produces PRESENT
+    - Candidate B2 -- CONSUMER_CONTRACT's Defaults prose says "there are ten" beside the 11-row table its own test pins to the parser
+    - Candidate B3 -- The iter-391 lockfile rule is published only inside a "kept verbatim" 2026-08-16 incident narrative, as "`package-lock.json`, `uv.lock` and the like", while the code holds an exact set of 11
+    winner: A2
+    ship: pending (not yet decided)
+  iter-393
+    lenses: simplification-and-deletion (HEAD `cbf1426`)
+    - Candidate A1 -- One narrowing-refusal guard in `cli._dispatch`, replacing 6 copied sites of 2 rules
+    - Candidate A2 -- Collapse the byte-identical floor-and-fallback tail shared by `required_literal_sets` and `_required_literal_sets_ascii`
+    - Candidate A3 -- Fold `RuleHit`'s three completeness counters with one rule, not three hand-written `max` lines per combinator
+    - Candidate B1 -- Prove a literal prefilter through a group alternation, so the 39 evaluations that "proved nothing" stop paying a regex pass on every file
+    - Candidate B2 -- Memoise the per-pattern literal-set proof for the life of the process: 142 ms per scan, re-derived by every in-process scan in the suite
+    winner: B2
+    ship: REVERTED
+  iter-392
+    lenses: simplification-and-deletion (HEAD `cbf1426`)
+    - Candidate A1 -- The radar's own artifacts are never evidence: a `prd.json` the build loop commits into the target closes the gap it describes (32 of 114 records)
+    - Candidate A2 -- `scan --baseline` names the carried gaps that are no longer PRESENT, so a fix can be locked in instead of silently regressing
+    - Candidate A3 -- A committed baseline survives a CI checkout under a different directory name: `scan --name NAME` pins `target_name` (re-proposal of iter-391 B1)
+    - Candidate B1 -- One refusal helper for the narrowing flags: 4 blank-`--match` copies and 2 unknown-`--layer` copies in `_dispatch` become one `_refuse_narrowing(args)` called from the two places they live today
+    - Candidate B2 -- Move the spent Done ledger (65.8 % of PRODUCT.md) into the `PRODUCT_ARCHIVE.md` that `roadmap_integrity` already unions, and retire the two iter-368 "no archive" pins
+    - Candidate B3 -- One shared in-process CLI runner: the 43 AST-identical `_run`/`_cli` copies (152 lines in 6 shapes) become imports from `tests/_cli.py`
+    winner: A1
+    ship: unknown
   iter-391
     lenses: hardening/DX (HEAD `f8c1b5f`), integration-and-adoption (HEAD `f8c1b5f`)
     - Candidate A1 -- A dependency lockfile is never mitigation evidence unless the check names it: `package-lock.json` listing a package called `sandbox` turns a PRESENT gap ABSENT
@@ -10,7 +39,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `--gaps R` is accepted by every register-reading verb, not only `scan`, so the spelling README teaches 8 times stops being a dead end on the other six
     - Candidate B3 -- `show --json` carries `needs`, the research prescription its `list --json` twin already publishes, so the one-record surface a research pass opens tells it what source would lift the record
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED cbf1426
   iter-390
     lenses: new-capability (HEAD `ac15e81`)
     - Candidate A1 -- A `retired` record can name the record that supersedes it (`superseded_by: GAP-NNN`), and `validate` refuses a pointer that does not resolve
@@ -1927,4 +1956,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-193 scouted iterations
+196 scouted iterations
