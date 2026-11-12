@@ -35,6 +35,8 @@ import pytest
 from agent_gap_radar import checks
 from agent_gap_radar.cli import main
 
+from test_iter245_behavior import FROZEN_COMMIT, FROZEN_DIR_NAME, _extract
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
 CHUNKS = 8
@@ -288,11 +290,11 @@ def test_b6_docstring_describes_the_new_rules():
 
 # --- behavior 7: differential soundness over the live register -----------------
 
-@pytest.fixture(scope="module")
-def repo_ascii_texts() -> list[tuple[str, str]]:
+def _ascii_texts(root: pathlib.Path, tops: tuple[str, ...]) -> list[tuple[str, str]]:
+    """(path relative to `root`, text) for every UTF-8, all-ASCII file under `tops`."""
     out = []
-    for top in ("src", "tests"):
-        for path in sorted((REPO / top).rglob("*")):
+    for top in tops:
+        for path in sorted((root / top).rglob("*")):
             if not path.is_file() or "__pycache__" in path.parts:
                 continue
             try:
@@ -300,7 +302,32 @@ def repo_ascii_texts() -> list[tuple[str, str]]:
             except (UnicodeDecodeError, OSError):
                 continue
             if text.isascii():
-                out.append((str(path.relative_to(REPO)), text))
+                out.append((str(path.relative_to(root)), text))
+    return out
+
+
+def live_ascii_texts() -> list[tuple[str, str]]:
+    """The HEAD-style walk: every ASCII file of the live `src` + `tests`."""
+    return _ascii_texts(REPO, ("src", "tests"))
+
+
+def frozen_text_set(tmp_path_factory) -> frozenset[str]:
+    """Every ASCII text of the `FROZEN_COMMIT` tree, extracted the way iter245 does."""
+    root = _extract(FROZEN_COMMIT, tmp_path_factory.mktemp("frozen370") / FROZEN_DIR_NAME)
+    return frozenset(text for _, text in _ascii_texts(root, ("",)))
+
+
+@pytest.fixture(scope="module")
+def repo_ascii_texts(tmp_path_factory) -> list[tuple[str, str]]:
+    """Live texts MINUS those byte-identical to a frozen-corpus text, plus synthetics.
+
+    WHY subtract: `test_iter245_behavior::test_b3_folded_arm_span_lists_equal_raw_arm_span_lists`
+    already proves this exact differential (same classifier, every accepted register
+    pattern) over every `FROZEN_COMMIT` ASCII text, so re-running it on an identical
+    text proves nothing new and cost ~35 % of this oracle (iteration 402).
+    """
+    frozen = frozen_text_set(tmp_path_factory)
+    out = [(name, text) for name, text in live_ascii_texts() if text not in frozen]
     assert len(out) > 100, len(out)
     return out + SYNTHETIC_TEXTS
 

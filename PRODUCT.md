@@ -340,3 +340,5 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 399 scan-speed: the literal prefilter proves through one mandatory group alternation; byte-identical verdicts
 - iter 400 suite-speed: each self-scan determinism test compares ONE fresh scan with the cross-worker cached copy
 - iter 401 duplicate-visible: `report` lists records whose cited document set is identical to another record's
+- iter 402 suite-speed: reviewer-approved, INTERRUPTED by a power loss; tree kept as iter-402 PRE_INTERRUPT_FULL.patch
+- iter 404 re-land of 402: the frozen-corpus span differential runs once; iter370 b7 skips texts it already proved

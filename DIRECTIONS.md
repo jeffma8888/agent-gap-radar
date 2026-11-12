@@ -1,6 +1,37 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-404
+    lenses: simplification-and-deletion (HEAD `cf6e10f`)
+    - Candidate A1 -- OPERATOR PIN: re-land iteration 402 from state/iter-402/PRE_INTERRUPT_FULL.patch at cf6e10f
+    - Candidate B1 -- `list` (text and `--json`) refuses a register that loaded ZERO records, and `show` names the real cause, both with exit 2 like `validate`
+    - Candidate B2 -- `python -m agent_gap_radar` runs the CLI, as the quality-reference repo's `python -m repolens` does
+    - Candidate B3 -- every register-reading verb's `--help` says what `path` is
+    - Candidate A1 -- OPERATOR PIN: re-land iteration 402 from `state/iter-402/PRE_INTERRUPT_FULL.patch` (`--exclude=PRODUCT.md`) at `cf6e10f`, with NO new sha-pinned tester module
+    - Candidate B1 -- Collapse the twin literal provers into ONE walk and delete the unreachable "DNF fails to intersect" fallback (in both `required_literal_sets` and `_required_literal_sets_ascii`)
+    - Candidate C1 -- One `tests/conftest.py` socket tripwire replaces six hand-copied per-module tripwires
+    winner: A1
+    ship: pending (not yet decided)
+  iter-403
+    lenses: hardening/DX (HEAD `cf6e10f`)
+    - Candidate A1 -- OPERATOR PIN: land state/iter-402/PRE_INTERRUPT_FULL.patch (tests-only, reviewer already APPROVED)
+    - Candidate A2 -- Re-land the iter-397 test-path widening: Django `tests.py`, plain `test.py`, Jest/Vitest `x.test.ts`/`x.test.js` count as test paths
+    - Candidate A3 -- iter303 b6 accepts a NEW test module by rule, not by an append-only hand allowlist
+    - Candidate B1 -- OPERATOR PIN: land iter-402's PRE_INTERRUPT_FULL.patch (tests-only suite-time trim)
+    - Candidate B2 -- A bare install can find a register: ship the 120 records as package data behind an explicit `--gaps builtin` (re-proposal of iter-398 A2 and four earlier slates)
+    - Candidate B3 -- `list`, `list --json` and `report` refuse a register holding zero records, as `validate` and `scan --exit-code` already do (re-proposal of iter-14-era C2 "list writes zero bytes over an empty register")
+    winner: A1
+    ship: REVERTED
+  iter-402
+    lenses: new-capability (HEAD `cf6e10f`), hardening/DX (HEAD `cf6e10f`)
+    - Candidate A1 -- `radar validate --json`: emit per-error `[{file, loc, msg}]` objects so a CI gate can act on a refusal without parsing one prose line (roadmap row 126, still `open`)
+    - Candidate A2 -- `radar show GAP-X` names the records that cite the same or a nested document set, so the per-gap brief stops presenting a record as if it stood alone
+    - Candidate A3 -- `scan --annotations`: print one GitHub workflow-command line per above-floor PRESENT location, so CI marks the exact PR lines with no converter (re-proposal of iter-398 A3)
+    - Candidate B1 -- Preship returns a verdict again: the clone suite fits inside PRESHIP_BUDGET_SECONDS=240 with margin
+    - Candidate B2 -- Django `tests.py`, plain `test.py` and Jest/Vitest `x.test.ts` count as test paths, so a test that only NAMES a mitigation cannot read ABSENT (re-land of iter-397 A2)
+    - Candidate B3 -- A `prd.json` the radar itself wrote at the target root is not mitigation evidence (re-proposal of iter-397 A3)
+    winner: B1
+    ship: unknown
   iter-401
     lenses: narrative-and-docs (HEAD `f9e8357`), new-capability (HEAD `f9e8357`)
     - Candidate A1 -- PRODUCT.md marks rows 81 and 144 `open` although their own ledger rows record them shipped, and `roadmap_integrity` cannot see it; flip both and add an `open-but-shipped` brake
@@ -10,7 +41,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- A scan's ABSENT finding quotes the line that matched, so the reader sees what the "mitigation" actually is (re-proposal of iter-395 B2 / iter-396 A2, now measured)
     - Candidate B3 -- `radar report` publishes the layer × gap-type matrix, so the register shows where the taxonomy is thin or doesn't fit (re-proposal of iter-96 A3 / iter-119 B3 / iter-372 A3; still not at HEAD)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED cf6e10f
   iter-400
     lenses: unknown
     - Candidate A1 -- Determinism nodes pay ONE fresh self-scan and compare it with the cross-worker cached document, not two fresh scans (re-proposal of iter-388 A2; preship now overruns)
@@ -2026,4 +2057,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-203 scouted iterations
+206 scouted iterations

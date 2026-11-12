@@ -15,9 +15,12 @@ the spec measured at the pre-change head (160 of 361), so a restatement that
 drifted from the real old rule reds instead of silently comparing to itself.
 
 Costs, as COUNTS: TWO whole-repo self-scans in one module fixture (behavior 10,
-markdown) plus TWO more (`--json`), and EIGHT regex-only chunks of the
-register-wide span oracle (behavior 9) over the frozen corpus iteration 245
-already uses.  Offline, deterministic, no network; writes land in `tmp_path`.
+markdown) plus TWO more (`--json`).  Behavior 9's register-wide span oracle over
+the frozen corpus was retired in iteration 402: it was the SAME proof as
+`test_iter245_behavior::test_b3_folded_arm_span_lists_equal_raw_arm_span_lists`
+(same classifier, same patterns, same `FROZEN_COMMIT` corpus), so it paid ~120
+worker-s to prove one statement twice.  `tests/test_iter402_behavior.py` guards
+that equivalence.  Offline, deterministic, no network; writes land in `tmp_path`.
 """
 
 from __future__ import annotations
@@ -33,15 +36,12 @@ import pytest
 from agent_gap_radar import checks
 from agent_gap_radar.cli import main
 from test_iter245_behavior import (
-    FROZEN_COMMIT,
-    FROZEN_DIR_NAME,
-    _extract,
+    FROZEN_COMMIT,  # noqa: F401 -- re-exported: iter402 pins the shared corpus by it
     _register_patterns,
 )
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
-CHUNKS = 8
 
 #: Measured by the PM at the pre-change head; pinned literally per behavior 7.
 #: Re-baseline BOTH together if a later iteration grows the register.
@@ -301,39 +301,7 @@ def test_b8_every_accepted_rewrite_is_flag_strip_plus_lowercased_body():
 
 
 # --- behavior 9: span equality -----------------------------------------------
-
-@pytest.fixture(scope="module")
-def frozen_texts(tmp_path_factory) -> list[tuple[str, str]]:
-    root = _extract(FROZEN_COMMIT, tmp_path_factory.mktemp("frozen364") / FROZEN_DIR_NAME)
-    out = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        if text.isascii():
-            out.append((str(path.relative_to(root)), text))
-    assert len(out) > 100, len(out)
-    return out
-
-
-@pytest.mark.parametrize("chunk", range(CHUNKS))
-def test_b9_span_equality_over_frozen_corpus(chunk: int, frozen_texts):
-    accepted = [p for p in _register_patterns() if f(p) is not None][chunk::CHUNKS]
-    assert accepted, f"chunk {chunk} is empty"
-    bad = []
-    for p in accepted:
-        raw = re.compile(p, re.MULTILINE)
-        folded = re.compile(f(p), re.MULTILINE)
-        for name, text in frozen_texts:
-            a = [m.span() for m in raw.finditer(text)]
-            b = [m.span() for m in folded.finditer(text.lower())]
-            if a != b:
-                bad.append(f"{p!r} on {name}: {a[:3]} vs {b[:3]}")
-    assert bad == [], f"{len(bad)} divergence(s); first 3: {bad[:3]}"
-
+# The frozen-corpus span oracle lives in iter245 b3 alone (retired here in iter 402).
 
 @pytest.mark.parametrize(("pattern", "text"), [
     (r"(?i)MaxTurnsExceeded", "raise MAXTURNSEXCEEDED; maxturnsexceeded MaxTurnsExceeded\n"),
