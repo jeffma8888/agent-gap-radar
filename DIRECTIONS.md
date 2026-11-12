@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-400
+    lenses: unknown
+    - Candidate A1 -- Determinism nodes pay ONE fresh self-scan and compare it with the cross-worker cached document, not two fresh scans (re-proposal of iter-388 A2; preship now overruns)
+    - Candidate A2 -- Memoise the per-pattern literal-set proof for the life of the process, so every in-process scan after the first skips ~0.5 s of proof work (re-proposal of iter-393 B2 / iter-399 B3)
+    - Candidate A3 -- Register validation compiles every pattern with the scanner's own flags through one shared cache: 998 → ~640 compiles per `scan .` (re-proposal of iter-388 A3 / iter-399 B2, re-measured honestly small)
+    - Candidate B1 -- CONSUMER_CONTRACT still defines `target_name` as "the resolved directory's base name", which has been false since iter 398's `scan --name`
+    - Candidate B2 -- The contract claims the test-path exclusion was "FIXED structurally ... a future research candidate cannot reintroduce it", but 103 of 114 `present_when` rules carry an absence-shaped leaf that still reads test files, and the test-path set itself is published nowhere (re-proposal of iter-395 A1 / iter-396 B3, re-measured)
+    - Candidate B3 -- Three literal figures in the docs are stale or vaguer than the code: "there are ten" defaults (the parser has 11), lockfiles "and the like" (the code holds exactly 11), and README's "restricted to what `git ls-files` reports" (re-proposal merging iter-394 B1/B2/B3 and iter-395 A2/A3; still unfixed 6 iterations later)
+    winner: A1
+    ship: pending (not yet decided)
   iter-399
     lenses: simplification-and-deletion (HEAD `110d1d5`)
     - Candidate A1 -- One closed-vocabulary validator instead of four copy-pasted membership checks in `models.py`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One compile per (pattern, flags) per process: models validation and the scanner share `_cached_compile`, so a scan compiles each register pattern once instead of twice (983 → ~622 compiles) (re-proposal of iter-388 A3, re-measured)
     - Candidate B3 -- Memoise the per-pattern literal-set proof (`required_literal_sets` + ASCII twin) for the life of the process: 0.50 s per in-process scan, re-derived by every scan the suite runs (re-proposal of iter-393 B2, re-measured)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 283e32b
   iter-398
     lenses: unknown
     - Candidate A1 -- A committed `scan --json` baseline survives a checkout under a different directory name: `scan --name NAME` pins `target_name` (re-proposal of iter-391 B1 / iter-392 A3)
@@ -2006,4 +2016,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-201 scouted iterations
+202 scouted iterations

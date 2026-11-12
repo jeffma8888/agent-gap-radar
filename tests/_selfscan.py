@@ -15,8 +15,11 @@ elects exactly one computer per key; `os.replace` publishes atomically so a read
 never sees half a file. A waiter whose computer died (or is slow past the bound)
 computes locally instead of raising, because a cache must never fail a test.
 
-Sites that COUNT, MONKEYPATCH or compare a scan against itself for determinism keep
-calling the CLI directly -- a cache hit would make them observe nothing.
+Sites that COUNT or MONKEYPATCH still call the CLI directly -- a cache hit would make
+them observe nothing. A determinism site takes ONE side fresh via `run_direct` and the
+other from `selfscan` with the identical argv: the cached document may come from a
+different worker process (another hash seed, fresh module state), which witnesses
+byte-stability at least as strongly as two runs in one process, at half the cost.
 """
 
 from __future__ import annotations

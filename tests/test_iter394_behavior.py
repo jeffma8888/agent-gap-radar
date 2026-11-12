@@ -26,6 +26,8 @@ import pytest
 
 from agent_gap_radar import checks
 from agent_gap_radar.cli import main
+import _selfscan
+from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
@@ -233,7 +235,10 @@ def test_b7_stacks_restored_and_no_carry_over(tmp_path):
 
 
 def test_b8_self_scan_twice_byte_identical():
-    first = _run("scan", str(REPO), "--gaps", str(GAPS), "--json")
-    second = _run("scan", str(REPO), "--gaps", str(GAPS), "--json")
+    argv = ("--gaps", "gaps", "--json")
+    first = _selfscan.run_direct(argv)
+    second = selfscan(argv)
     assert first == second
-    assert first[1].endswith("\n") and not first[1].endswith("\n\n")
+    assert first[0] == 0 and first[2] == ""
+    assert first[1].strip() and first[1].endswith("\n") and not first[1].endswith("\n\n")
+    assert json.loads(first[1]), "scan --json emitted an empty document"

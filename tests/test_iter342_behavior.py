@@ -19,9 +19,9 @@ import json as _json
 import pathlib
 
 from agent_gap_radar.checks import Verdict, run_check
-from agent_gap_radar.cli import main
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scan import scan, scan_json
+import _selfscan
 from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -36,15 +36,6 @@ MAX_FILE_BYTES = 512 * 1024
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
-
-def _cli(argv, capsys):
-    try:
-        rc = main(argv) or 0
-    except SystemExit as exc:
-        rc = exc.code if isinstance(exc.code, int) else 1
-    captured = capsys.readouterr()
-    return rc, captured.out, captured.err
-
 
 def _materialise(root, text_files, binary_files=None):
     target = root / "target"
@@ -279,10 +270,12 @@ def test_b9_clean_target_skipped_files_zero(tmp_path):
 # B10 -- determinism: two scan --json runs produce identical skipped_files (EB3)
 # ---------------------------------------------------------------------------
 
-def test_b10_scan_json_deterministic(capsys):
-    # direct: a determinism comparison must compute both sides
-    argv = ["scan", str(REPO), "--gaps", str(GAPS), "--json"]
-    rc1, out1, _ = _cli(argv, capsys)
-    rc2, out2, _ = _cli(argv, capsys)
-    assert rc1 == rc2 == 0
-    assert out1 == out2, "two identical scan --json runs must be byte-identical"
+def test_b10_scan_json_deterministic():
+    # direct: the fresh side of a fresh-vs-cached determinism comparison
+    argv = ("--gaps", "gaps", "--json")
+    rc1, out1, err1 = _selfscan.run_direct(argv)
+    rc2, out2, _ = selfscan(argv)
+    assert rc1 == rc2 == 0 and err1 == ""
+    assert out1 == out2, "a fresh scan --json must be byte-identical to the cached one"
+    assert out1.strip() and out1.endswith("\n") and not out1.endswith("\n\n")
+    assert _json.loads(out1), "scan --json emitted an empty document"

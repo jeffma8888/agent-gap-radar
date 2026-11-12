@@ -70,6 +70,8 @@ from pydantic import ValidationError
 from agent_gap_radar import models
 from agent_gap_radar.cli import main
 from agent_gap_radar.models import Gap
+import _selfscan
+from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 #: The artifacts under test, found relative to this file so no machine path is written down.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -403,24 +405,37 @@ VERBS = (
 
 @pytest.mark.parametrize("name,argv", VERBS, ids=[v[0] for v in VERBS])
 def test_verb_is_deterministic_and_ends_in_one_newline(name, argv, capsys):
-    """Behavior 8, the durable half: same bytes twice, exit 0, exactly one trailing newline."""
-    # direct: a determinism comparison must compute both sides
-    first_code = main(list(argv))
-    first = capsys.readouterr()
-    second_code = main(list(argv))
-    second = capsys.readouterr()
-    assert first_code == 0, f"{name} exited {first_code}; stderr={first.err!r}"
+    """Behavior 8, the durable half: same bytes twice, exit 0, exactly one trailing newline.
+
+    A scan takes ONE side fresh and the other from the run-wide self-scan cache, which a
+    different worker process may have computed -- a stronger byte-stability witness than
+    two runs in one process, at half the cost. The cheap verbs still run twice.
+    """
+    if argv[0] == "scan":
+        # direct: the fresh side of a fresh-vs-cached determinism comparison
+        # `--gaps gaps` names the default register explicitly so the key is one that
+        # other modules already warm; a cold key would compute both sides right here.
+        cache_argv = ("--gaps", "gaps", *argv[2:])
+        first_code, first_out, first_err = _selfscan.run_direct(cache_argv)
+        second_code, second_out, _ = selfscan(cache_argv)
+    else:
+        # direct: a determinism comparison must compute both sides
+        first_code = main(list(argv))
+        first_out, first_err = capsys.readouterr()
+        second_code = main(list(argv))
+        second_out = capsys.readouterr().out
+    assert first_code == 0, f"{name} exited {first_code}; stderr={first_err!r}"
     assert second_code == first_code, f"{name}: {first_code} then {second_code}"
-    assert first.err == "", f"{name} wrote to stderr: {first.err!r}"
-    assert first.out == second.out, f"{name} is not byte-stable across two runs"
-    assert first.out.endswith("\n"), f"{name} does not end in a newline"
-    assert not first.out.endswith("\n\n"), f"{name} ends in more than one newline"
+    assert first_err == "", f"{name} wrote to stderr: {first_err!r}"
+    assert first_out == second_out, f"{name} is not byte-stable across two runs"
+    assert first_out.endswith("\n"), f"{name} does not end in a newline"
+    assert not first_out.endswith("\n\n"), f"{name} ends in more than one newline"
     # Anti-vacuity WITHOUT pinning today's byte count: a verb printing nothing would be
     # trivially "deterministic", but a floor pinned at the current size reds on any
     # legitimate register growth. Non-blank is the floor; the json verb must also parse.
-    assert first.out.strip(), f"{name} produced only whitespace"
+    assert first_out.strip(), f"{name} produced only whitespace"
     if "--json" in argv:
-        payload = json.loads(first.out)
+        payload = json.loads(first_out)
         assert payload, f"{name} emitted an empty JSON document"
 
 

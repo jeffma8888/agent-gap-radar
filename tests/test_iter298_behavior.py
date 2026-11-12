@@ -20,6 +20,7 @@ import pytest
 from agent_gap_radar import checks
 from agent_gap_radar.cli import main
 from test_iter02_behavior import _record, _write_register
+import _selfscan
 from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -393,18 +394,14 @@ def test_b8_census_is_byte_identical_to_the_single_folded_arm(cost_tool, scan_fi
 # Behaviors 7 and 9 -- the live self-scan, at a real process boundary.
 # ---------------------------------------------------------------------------
 
-def _scan(*args: str) -> subprocess.CompletedProcess[bytes]:
-    code = "import sys; from agent_gap_radar.cli import main; sys.exit(main())"
-    return subprocess.run([sys.executable, "-c", code, "scan", str(REPO),
-                           "--gaps", str(GAPS), *args], cwd=REPO, capture_output=True)
-
-
 def test_b7_b9_scan_is_deterministic_and_ends_in_one_newline():
-    # direct: a determinism comparison must compute both sides
-    first, second = _scan(), _scan()
-    assert first.returncode == 0 and first.stderr == b""
-    assert first.stdout == second.stdout
-    assert first.stdout.endswith(b"\n") and not first.stdout.endswith(b"\n\n")
+    # direct: the fresh side of a fresh-vs-cached determinism comparison
+    argv = ("--gaps", "gaps")
+    rc, out, err = _selfscan.run_direct(argv)
+    cached_rc, cached_out, _ = selfscan(argv)
+    assert rc == cached_rc == 0 and err == ""
+    assert out == cached_out
+    assert out.strip() and out.endswith("\n") and not out.endswith("\n\n")
     js_rc, js_out, _ = selfscan(("--gaps", "gaps", "--json"))
     assert js_rc == 0 and json.loads(js_out) is not None
     assert js_out.endswith("\n") and not js_out.endswith("\n\n")

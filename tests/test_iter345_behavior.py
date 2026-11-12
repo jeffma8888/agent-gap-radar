@@ -24,7 +24,8 @@ from __future__ import annotations
 import json as _json
 import pathlib
 
-from agent_gap_radar.cli import main
+import _selfscan
+from _selfscan import selfscan, selfscan_run_cache  # noqa: F401  (autouse: run-wide cache)
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
@@ -34,26 +35,18 @@ GAPS = REPO / "gaps"
 # helpers
 # ---------------------------------------------------------------------------
 
-def _cli(argv, capsys):
-    try:
-        rc = main(argv) or 0
-    except SystemExit as exc:
-        rc = exc.code if isinstance(exc.code, int) else 1
-    captured = capsys.readouterr()
-    return rc, captured.out, captured.err
-
-
 # ---------------------------------------------------------------------------
 # B3 -- determinism: two consecutive ``radar scan .`` runs produce
 # byte-identical output.  (EB3)
 # ---------------------------------------------------------------------------
 
-def test_b3_scan_determinism(capsys):
-    argv = ["scan", str(REPO), "--gaps", str(GAPS)]
-    rc1, out1, _ = _cli(argv, capsys)
-    rc2, out2, _ = _cli(argv, capsys)
-    assert rc1 == rc2 == 0
-    assert out1 == out2, "two identical scan runs must be byte-identical"
+def test_b3_scan_determinism():
+    argv = ("--gaps", "gaps")
+    rc1, out1, err1 = _selfscan.run_direct(argv)
+    rc2, out2, _ = selfscan(argv)
+    assert rc1 == rc2 == 0 and err1 == ""
+    assert out1 == out2, "a fresh scan must be byte-identical to the cached one"
+    assert out1.strip() and out1.endswith("\n") and not out1.endswith("\n\n")
 
 
 # ---------------------------------------------------------------------------
