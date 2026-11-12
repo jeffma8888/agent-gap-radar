@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-399
+    lenses: simplification-and-deletion (HEAD `110d1d5`)
+    - Candidate A1 -- One closed-vocabulary validator instead of four copy-pasted membership checks in `models.py`
+    - Candidate A2 -- Retire the hand-copied network vocabularies that `tools/check_offline.py` already supersedes, one of which can never fire
+    - Candidate A3 -- Delete test-only `checks.is_test_path`; the oracle pins `TEST_PATH_RE`, the predicate the scan actually runs (re-proposal of iter-398 B1)
+    - Candidate B1 -- The literal prefilter proves a conjunction through a mandatory group alternation, so the 45 unproven patterns stop paying 2.55 s of full-text regex per self-scan (re-proposal of iter-393 B1 / iter-394 A3, now measured)
+    - Candidate B2 -- One compile per (pattern, flags) per process: models validation and the scanner share `_cached_compile`, so a scan compiles each register pattern once instead of twice (983 → ~622 compiles) (re-proposal of iter-388 A3, re-measured)
+    - Candidate B3 -- Memoise the per-pattern literal-set proof (`required_literal_sets` + ASCII twin) for the life of the process: 0.50 s per in-process scan, re-derived by every scan the suite runs (re-proposal of iter-393 B2, re-measured)
+    winner: B1
+    ship: pending (not yet decided)
   iter-398
     lenses: unknown
     - Candidate A1 -- A committed `scan --json` baseline survives a checkout under a different directory name: `scan --name NAME` pins `target_name` (re-proposal of iter-391 B1 / iter-392 A3)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One shared in-process CLI runner: 51 AST-identical `_run`/`_cli` copies in 17 shapes become imports from `tests/_cli.py` (re-proposal of iter-392 B3, re-measured)
     - Candidate B3 -- `_required_literal_sets_ascii` and `required_literal_sets` share one floor-and-fallback tail instead of two byte-identical copies (re-proposal of iter-393 A2)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 110d1d5
   iter-397
     lenses: hardening/DX (HEAD `a33a4a6`), integration-and-adoption (HEAD `a33a4a6`)
     - Candidate A1 -- A test that names the mitigation turns PRESENT into MANUAL in 104 of 114 checks, not 13: `content_absent` in `present_when` reads test files (re-proposal of iter-396 B1, re-measured)
@@ -1996,4 +2006,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-200 scouted iterations
+201 scouted iterations

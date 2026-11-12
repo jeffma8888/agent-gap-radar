@@ -660,7 +660,7 @@ def test_b1_the_extractor_is_consulted_once_per_rule_not_once_per_file(
 
 
 def test_b3_the_prefilter_is_really_engaged_during_the_live_register_scan(
-        capsys, monkeypatch):
+        capsys, monkeypatch, tmp_path):
     """Behavior 3's missing non-vacuity (kills rival 3).
 
     Two byte-identical documents prove nothing about a prefilter that never ran in that
@@ -668,6 +668,11 @@ def test_b3_the_prefilter_is_really_engaged_during_the_live_register_scan(
     target, and that BOTH of its branches were taken: patterns it proved, and patterns it
     declined. Lower bounds only -- the register is grown by an outside research pass, so
     no count over it may be pinned as equality.
+
+    Iteration 399's group descent made every pattern the `src/` scan consults provable,
+    so the DECLINE branch is reached by a second real scan over the same live register:
+    a one-file target that drives a live record as far as its lookahead-only pattern,
+    which the prover still (correctly) declines.
     """
     seen: list[bool] = []
     real = checks.required_literals
@@ -684,6 +689,12 @@ def test_b3_the_prefilter_is_really_engaged_during_the_live_register_scan(
 
     assert rc == 0 and out.err == "", (rc, out.err)
     assert out.out.strip(), "the scan rendered nothing, so nothing was scanned"
+    declining = tmp_path / "declining"
+    declining.mkdir()
+    (declining / "app.py").write_text(
+        'import openai\nsystem_prompt = "x"\nmodel = "m-1"\n', encoding="utf-8")
+    assert main(["scan", str(declining), "--gaps", str(REPO_ROOT)]) == 0
+    capsys.readouterr()
     assert len(seen) >= 8, (
         "behavior 3 non-vacuity: the live scan consulted the prefilter only "
         f"{len(seen)} time(s), so the byte-identity pair was compared over a code path "

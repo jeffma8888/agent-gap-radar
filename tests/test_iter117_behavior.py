@@ -354,13 +354,13 @@ def test_b2_no_proved_literal_comes_out_of_its_own_patterns_count_body():
 # --- behavior 3: the fail-open default is preserved, not replaced ----------
 
 
-@pytest.mark.parametrize("pattern", ["[ab](?:foo)?", "[ab](foo|bar)"])
+@pytest.mark.parametrize("pattern", ["[ab](?:foo)?"])
 def test_b3_an_alternative_with_no_depth_zero_literal_still_returns_none(pattern):
     """Behavior 3: a widening is not a licence to invent. No depth-0 literal, no claim.
 
-    Both patterns hold literal TEXT (`foo`, `bar`), but only inside an optional atom or a
-    nested alternation, so neither is mandatory. Claiming one would skip a file the regex
-    matches -- the PRESENT-turned-ABSENT inversion.
+    The pattern holds literal TEXT (`foo`), but only inside an OPTIONAL atom, so it is
+    not mandatory. Claiming it would skip a file the regex matches -- the
+    PRESENT-turned-ABSENT inversion.
     """
     assert checks.required_literals(pattern) is None, (
         f"behavior 3: {pattern!r} has no mandatory depth-0 literal run, yet the "
@@ -368,6 +368,15 @@ def test_b3_an_alternative_with_no_depth_zero_literal_still_returns_none(pattern
         "claim skips files the regex matches"
     )
 
+
+def test_b3_a_mandatory_group_alternation_proves_its_alternatives():
+    """Re-pinned at iteration 399: `[ab](foo|bar)` was once listed above as unprovable.
+
+    That premise ("a nested alternation, so neither is mandatory") was false. The group
+    is unquantified at depth 0, so every match passes through `foo` or `bar`, and the
+    iteration-399 group descent proves exactly that disjunction -- no invented claim.
+    """
+    assert checks.required_literals("[ab](foo|bar)") == {"foo", "bar"}
 
 def test_b3_the_unprovable_branch_is_still_reachable_over_the_live_register():
     """Behavior 3: at least ONE live content pattern still returns `None`.

@@ -1528,6 +1528,14 @@ _INLINE_FLAGS_RE = re.compile(r"\(\?[ims]+\)")
 #: without the refusal skipped 40 files whose text the regex does match.
 _BRACE_BODY_RE = re.compile(r"\{\d*(?:,\d*)?\}")
 
+#: ANY inline flag group whose letters include `x` -- global `(?x)`, `(?ix)`, or
+#: scoped `(?x:`/`(?-x:` -- found ANYWHERE. VERBOSE changes what a literal IS:
+#: unescaped whitespace and `#` comments stop being characters, so `(?x)foo bar`
+#: matches `foobar` while a run read off its text claims `foo bar`. A pattern
+#: carrying one is therefore unprovable. Over-matching (an escaped `\(?x)`) only
+#: refuses a proof, which costs a regex pass and never a verdict.
+_VERBOSE_FLAG_RE = re.compile(r"\(\?[a-zA-Z-]*x[a-zA-Z-]*[:)]")
+
 
 def _scan_unescaped(pattern: str) -> Iterator[tuple[int, str, int, bool]]:
     """Yield `(index, char, depth, in_class)` for every UNESCAPED character.
@@ -1749,6 +1757,43 @@ def _longest_literal_run(alternative: str, fold: bool) -> str:
     return longest
 
 
+def _mandatory_group_bodies(alternative: str) -> Iterator[str]:
+    """Bodies of the depth-0 groups EVERY match of one alternative must pass through.
+
+    The caller has split every depth-0 `|` away, so the alternative is a plain
+    concatenation and each depth-0 ATOM in it must match -- a group included, as
+    long as nothing after it can make it optional. So a match of `[ab](foo|bar)`
+    contains a match of `foo|bar`, and whatever that body provably requires, the
+    whole alternative requires too.
+
+    Only a plain `(...)` or a non-capturing `(?:...)`, the two groups that match
+    exactly their body. A lookaround consumes nothing (and `(?!` inverts), while
+    `(?P<n>`, `(?i:` and every other `(?` extension stay refused rather than
+    reasoned about. A group followed by `?`, `*` or `{` is refused too: the first
+    two admit zero repetitions, and every `{` count is refused conservatively,
+    `{1,2}` included. `+` qualifies, because it requires at least one.
+
+    The close is located by the same `_scan_unescaped` walk the split trusts, so
+    an escaped paren or one inside a class can never misplace it, and a group
+    that never closes yields nothing. Earliest first, so the answer is
+    deterministic.
+    """
+    opener: int | None = None
+    for index, char, depth, in_class in _scan_unescaped(alternative):
+        if depth or in_class:
+            continue
+        if char == "(":
+            opener = index
+        elif char == ")" and opener is not None:
+            start, opener = opener, None
+            if alternative[index + 1:index + 2] in _OPTIONAL_QUANTIFIER_OPENERS:
+                continue
+            if alternative.startswith("(?:", start):
+                yield alternative[start + 3:index]
+            elif not alternative.startswith("(?", start):
+                yield alternative[start + 1:index]
+
+
 def _prove_literals(pattern: str, depth: int, fold: bool) -> frozenset[str] | None:
     """One level of the public extractor, carrying the fold state down the walk.
 
@@ -1777,7 +1822,16 @@ def _prove_literals(pattern: str, depth: int, fold: bool) -> frozenset[str] | No
         # proves a literal keeps a byte-identical answer and the whole blast
         # radius of the fallback is claims that did not exist before it.
         run = _leading_literal_run(pattern, fold) or _longest_literal_run(pattern, fold)
-        return frozenset({run}) if run else None
+        if run:
+            return frozenset({run})
+        # Reached ONLY where no depth-0 run proves anything, i.e. where the walk
+        # answered None before group descent existed, so no prior claim moves.
+        # Each descent costs one level of the stack bound.
+        for body in _mandatory_group_bodies(pattern):
+            proved = _prove_literals(body, depth + 1, fold)
+            if proved is not None:
+                return proved
+        return None
     literals: set[str] = set()
     for alternative in alternatives:
         proved = _prove_literals(alternative, depth + 1, fold)
@@ -1836,11 +1890,26 @@ def required_literals(pattern: str) -> frozenset[str] | None:
     COUNT: `[^.\n]{0,70}rollback` proves `rollback`, never `0,70`. An alternative
     that already proves a leading run keeps that exact answer.
 
+    ONLY when no depth-0 run proves anything, the walk descends into ONE mandatory
+    group: the earliest plain `(...)` or `(?:...)` at depth 0 that no `?`, `*` or
+    `{` follows and whose body proves, so `\b(?:benchmark|evals?)\b` proves
+    `benchmark` and `eval` -- any match passes through one of them. Lookarounds,
+    named and scoped-flag groups and optional or counted groups never qualify, and
+    the in-effect `(?i)` travels into the body unchanged. Because the descent is
+    reached only where the walk would otherwise answer None, every pattern it
+    proved before keeps a byte-identical answer.
+
+    A pattern carrying ANY verbose (`x`) flag group, global or scoped, is
+    unprovable: under VERBOSE `foo bar` matches `foobar`, so a run read off the
+    pattern's text is a literal no match need contain.
+
     Returns `None` or a NON-EMPTY frozenset, never `frozenset()`: an empty set
     would read as "no literal is required", which is what a caller checking
     `if literals:` would treat as "skip nothing" while a caller checking
     `if literals is not None:` would treat as "skip everything".
     """
+    if _VERBOSE_FLAG_RE.search(pattern):
+        return None
     return _prove_literals(pattern, 0, False)
 
 
@@ -1919,7 +1988,15 @@ def _prove_literal_sets(pattern: str, depth: int,
     alternatives = _split_alternatives(stripped)
     if len(alternatives) == 1 and stripped == pattern:
         conjunction = _maximal_runs(pattern, fold)
-        return None if conjunction is None else (conjunction,)
+        if conjunction is not None:
+            return (conjunction,)
+        # The same group descent, at the same point, as `_prove_literals`: the
+        # parallel is what keeps every set intersecting that walk's answer.
+        for body in _mandatory_group_bodies(pattern):
+            proved = _prove_literal_sets(body, depth + 1, fold)
+            if proved is not None:
+                return proved
+        return None
     sets: list[frozenset[str]] = []
     for alternative in alternatives:
         proved = _prove_literal_sets(alternative, depth + 1, fold)
@@ -1952,6 +2029,11 @@ def required_literal_sets(pattern: str) -> tuple[frozenset[str], ...] | None:
     proved, exactly as there: a missing literal is decisive, a present one proves
     nothing, and `None` means "run the regex", so an unproved pattern costs a
     regex pass and can never cost a verdict.
+
+    It inherits both rules of that walk unchanged: the single mandatory-group
+    descent (taken at the same point, so `[ab](foo|bar)` yields the two sets
+    `{foo}` and `{bar}`), and the verbose refusal -- a pattern with any `x` flag
+    group gets None from `required_literals` below and therefore None here.
 
     The shipped extractor is consulted FIRST and is the floor, which is a
     soundness device and not deference. Its answer decides provability, so
@@ -2000,8 +2082,12 @@ def _required_literal_sets_ascii(pattern: str) -> tuple[frozenset[str], ...] | N
     `(?m)(?i)foo` is a legal pattern whose `i` the walk would otherwise re-read
     one level down and turn the fold back on. For a pattern with no leading `(?i)`
     the walks receive the same body under the same `fold`, so the answer equals
-    `required_literal_sets(pattern)` by construction.
+    `required_literal_sets(pattern)` by construction. The verbose refusal is
+    repeated here for the same reason the walks are reached directly: this path
+    never passes through `required_literals`, where that guard lives.
     """
+    if _VERBOSE_FLAG_RE.search(pattern):
+        return None
     stripped = pattern
     while True:
         body, _folded_flag = _strip_inline_flags(stripped)
