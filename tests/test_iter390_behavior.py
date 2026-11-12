@@ -29,6 +29,8 @@ import pytest
 
 from agent_gap_radar.cli import main
 
+from _iter401_section import without_identical_evidence_section
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 LIVE_GAPS = REPO_ROOT / "gaps"
 
@@ -235,7 +237,10 @@ def test_b8_list_and_report_bytes_match_head(head_tree, verb):
     head = _child(head_tree / "src", head_tree, verb, "gaps")
     now = _child(REPO_ROOT / "src", REPO_ROOT, verb, "gaps")
     assert head.returncode == now.returncode == 0, (head.stderr, now.stderr)
-    assert now.stdout == head.stdout
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted from BOTH sides as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    assert (without_identical_evidence_section(now.stdout)
+            == without_identical_evidence_section(head.stdout))
     assert now.stdout.endswith(b"\n") and not now.stdout.endswith(b"\n\n")
 
 

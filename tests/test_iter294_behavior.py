@@ -33,6 +33,7 @@ import tarfile
 import pytest
 
 from _surface_inventory import EXPECTED_ARGUMENTS
+from _iter401_section import without_identical_evidence_section
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 TESTS = REPO_ROOT / "tests"
@@ -505,7 +506,9 @@ def test_iter294_b8_stdout_and_exit_code_match_the_pre_change_commit(
     before = _radar(*argv, env=_env(prechange_src))
     now = _radar(*argv, env=_env(REPO_ROOT / "src"))
     assert before.returncode == now.returncode, (before.stderr, now.stderr)
-    assert before.stdout == now.stdout, argv
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    assert before.stdout == without_identical_evidence_section(now.stdout), argv
     assert now.stdout.endswith(b"\n") and not now.stdout.endswith(b"\n\n")
 
 
@@ -514,7 +517,10 @@ def test_iter294_b8_register_doc_is_untouched() -> None:
         ["git", "-C", str(REPO_ROOT), "show", f"{PRECHANGE_COMMIT}:REGISTER.md"],
         capture_output=True)
     assert before.returncode == 0, before.stderr
-    assert (REPO_ROOT / "REGISTER.md").read_bytes() == before.stdout
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    committed = (REPO_ROOT / "REGISTER.md").read_bytes()
+    assert without_identical_evidence_section(committed) == before.stdout
 
 
 def test_iter294_b8_register_doc_brake_stays_green() -> None:

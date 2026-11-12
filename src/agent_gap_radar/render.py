@@ -12,7 +12,7 @@ import json
 
 from .models import Check, Evidence, Gap, detectability
 from .scoring import (CONFIDENCE_FLOOR_DEFAULT, _aged_records,
-                      _distinct_register_sources, _records_on_shared_source,
+                      _distinct_register_sources, _source_key, _records_on_shared_source,
                       _register_anchor_date, _shared_sources, _sole_source_records,
                       below_floor, confidence, confidence_without, distinct_sources,
                       distinct_tags, priority, promotion_options, rank,
@@ -329,6 +329,73 @@ def _tag_coverage_section(gaps: list[Gap]) -> list[str]:
     return lines
 
 
+IDENTICAL_EVIDENCE_HEADING = "## Identical evidence sets"
+
+_IDENTICAL_CENSUS = ("Records whose cited document set exactly matches another record's: "
+                     "{grouped} of {total} | groups: {groups}")
+
+IDENTICAL_EVIDENCE_PURPOSE = (
+    "Each row is a group of records resting on exactly the same documents, with a "
+    "document keyed the way the scorer keys a source (fragment dropped, trailing slash "
+    "dropped, case-folded). Such a group may be one gap filed twice, or several honest "
+    "findings drawn from one source; either way it is a curation task for a person. "
+    "Nothing is merged or hidden by this section, and no count in this section reaches "
+    "priority, confidence, the ranking or the floor.")
+
+
+def _identical_evidence_groups(gaps: list[Gap]) -> list[list[Gap]]:
+    """Every maximal group of 2+ records whose DOCUMENT SETS are exactly equal.
+
+    The document key is `scoring._source_key`, never a local copy of its
+    normalisation, so "same document" here cannot disagree with the independence
+    test `confidence()` applies. Groups come back with their members in ascending id
+    order and are sorted by first id, so the rendered table is byte-stable however
+    the register's files happen to be listed.
+    """
+    by_set: dict[frozenset[str], list[Gap]] = {}
+    for gap in gaps:
+        by_set.setdefault(frozenset(_source_key(e) for e in gap.evidence),
+                          []).append(gap)
+    groups = [sorted(members, key=lambda g: g.id)
+              for members in by_set.values() if len(members) > 1]
+    return sorted(groups, key=lambda members: members[0].id)
+
+
+def _identical_evidence_section(gaps: list[Gap]) -> list[str]:
+    """The `## Identical evidence sets` block: records that may be one gap twice.
+
+    WHY IT EXISTS. A reader takes the ranked register as N independent findings, but
+    two records citing exactly the same documents may be one gap filed twice -- which
+    inflates what the field appears to know -- and no other surface shows it:
+    `## Source concentration` is per source, and promote's lookalike advisory compares
+    prose only at the ingest door.
+
+    A DISPLAY AND NOTHING MORE, like `_tag_coverage_section`: no record is merged,
+    hidden or de-ranked, the table is uncapped, and the EMPTY register renders only the
+    heading and `None found.` because "no evidence is knowable" is a different claim
+    from "no two records share a document set".
+    """
+    lines = [IDENTICAL_EVIDENCE_HEADING, ""]
+    if not gaps:
+        lines += ["None found.", ""]
+        return lines
+    groups = _identical_evidence_groups(gaps)
+    lines += [_IDENTICAL_CENSUS.format(grouped=sum(len(m) for m in groups),
+                                       total=len(gaps), groups=len(groups)), "",
+              IDENTICAL_EVIDENCE_PURPOSE, ""]
+    if groups:
+        lines += table(["IDs", "Layers", "Documents"],
+                       [[", ".join(g.id for g in members),
+                         ", ".join(layer for layer in LAYERS
+                                   if any(g.layer == layer for g in members)),
+                         str(distinct_sources(members[0]))]
+                        for members in groups])
+    else:
+        lines.append("None found.")
+    lines.append("")
+    return lines
+
+
 def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     """The ranked landscape view."""
     ranked = rank(gaps, confidence_floor)
@@ -369,6 +436,7 @@ def radar_report(gaps: list[Gap], confidence_floor: int = 2) -> str:
     lines += _evidence_age_section(gaps)
     lines += _source_concentration_section(gaps)
     lines += _tag_coverage_section(gaps)
+    lines += _identical_evidence_section(gaps)
 
     lines += ["## Below confidence floor", "",
               "Kept visible on purpose: a weakly-sourced gap is a research task, "

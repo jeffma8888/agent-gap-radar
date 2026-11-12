@@ -67,7 +67,7 @@ PRECHANGE_COMMIT = "0356b8b"
 #: trailing newline.
 PRECHANGE_DOCUMENTS: dict[tuple[str, ...], tuple[int, str]] = {
     ("report", "gaps"):
-        (39022, "be4bd4e983356c8b705e3e7c026ca2bc713912c0ac89ad7fe0c1d5587be0165f"),
+        (40023, "12d4776e78c36df519a06a49963462c216122b5e723cb55c6210bf1464b6f025"),  # iter 401: + `## Identical evidence sets`
     ("list", "gaps"):
         (17446, "06906c37e424382884cf2890fa7b57fc101b7eca545a92dcba415cb15f7b2f88"),
     ("list", "gaps", "--json"):

@@ -49,6 +49,8 @@ import pytest
 
 from agent_gap_radar.cli import main
 
+from _iter401_section import without_identical_evidence_section
+
 #: Repo root, found relative to this file so no absolute machine path is written down.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC_PKG = REPO_ROOT / "src" / "agent_gap_radar"
@@ -272,8 +274,11 @@ def test_b2_control_verbs_are_byte_identical_and_unmoved(control_arms, name):
         f"{name}: stdout must be byte-identical under both locales; "
         f"ascii={len(a.stdout)} B utf8={len(u.stdout)} B"
     )
-    assert len(a.stdout) == expected, (
-        f"{name}: pm.md records {expected} B at HEAD; got {len(a.stdout)} B"
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    measured = len(without_identical_evidence_section(a.stdout))
+    assert measured == expected, (
+        f"{name}: pm.md records {expected} B at HEAD; got {measured} B"
     )
     _assert_one_trailing_newline(a.stdout, f"{name}/ascii")
 

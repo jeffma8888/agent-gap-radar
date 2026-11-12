@@ -60,6 +60,7 @@ from agent_gap_radar import registry
 from agent_gap_radar.cli import build_parser, main
 
 from _appended_fragment import appended_item_fragment, appended_key_fragment
+from _iter401_section import without_identical_evidence_section
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -316,6 +317,9 @@ def test_b7_readable_register_stdout_is_byte_identical_to_pre_change(
     code, out, err = _run(READABLE_VERBS[name](readable), capsys)
     assert (code, err) == (0, ""), name
     pinned = _without_iteration_221_appends(name, out)
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    pinned = without_identical_evidence_section(pinned.encode("utf-8")).decode("utf-8")
     assert len(pinned.encode("utf-8")) == expected_len, (name, out)
     assert hashlib.sha256(pinned.encode("utf-8")).hexdigest() == expected_sha, (name, out)
 

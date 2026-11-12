@@ -350,6 +350,23 @@ Tags are free labels and not a closed vocabulary, and nothing here derives a pen
 | versioning | 2 | lifecycle-deploy |
 | wrong-default | 2 | cost-governance, observability |
 
+## Identical evidence sets
+
+Records whose cited document set exactly matches another record's: 17 of 120 | groups: 8
+
+Each row is a group of records resting on exactly the same documents, with a document keyed the way the scorer keys a source (fragment dropped, trailing slash dropped, case-folded). Such a group may be one gap filed twice, or several honest findings drawn from one source; either way it is a curation task for a person. Nothing is merged or hidden by this section, and no count in this section reaches priority, confidence, the ranking or the floor.
+
+| IDs | Layers | Documents |
+| --- | --- | --- |
+| GAP-004, GAP-005 | context-memory | 2 |
+| GAP-015, GAP-067 | model-runtime, eval-verification | 1 |
+| GAP-030, GAP-089 | context-memory | 3 |
+| GAP-036, GAP-091 | context-memory | 2 |
+| GAP-046, GAP-061 | context-memory | 3 |
+| GAP-049, GAP-071, GAP-072 | context-memory | 3 |
+| GAP-075, GAP-120 | model-runtime, eval-verification | 2 |
+| GAP-099, GAP-100 | cost-governance | 2 |
+
 ## Below confidence floor
 
 Kept visible on purpose: a weakly-sourced gap is a research task, not a deletion.

@@ -49,6 +49,9 @@ from agent_gap_radar import render, registry
 from agent_gap_radar import scoring
 from agent_gap_radar.cli import main
 
+from _iter401_section import (has_identical_evidence_section,
+                             without_identical_evidence_section)
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------------------
@@ -181,6 +184,10 @@ def test_b1_report_is_byte_identical_to_the_pre_change_document(capsys, monkeypa
     code, out, err = _run(argv, capsys, monkeypatch)
     assert code == 0
     assert err == ""
+    # iter 401 inserted `## Identical evidence sets`; the pre-change golden is kept and
+    # that one block is subtracted as a measured term (see `tests/_iter401_section.py`).
+    assert has_identical_evidence_section(out)
+    out = without_identical_evidence_section(out)
     assert len(out) == expected_len
     assert hashlib.sha256(out).hexdigest() == expected_sha
 
@@ -438,7 +445,9 @@ def test_b1_report_is_deterministic_across_repeated_runs(capsys, monkeypatch):
     assert (first_code, second_code) == (0, 0)
     assert first_err == "" and second_err == ""
     assert first == second
-    assert len(first) == PRECHANGE_DOCUMENTS[("report", "gaps")][0]
+    # iter 401: the pre-change length holds once its appended section is subtracted.
+    assert (len(without_identical_evidence_section(first))
+            == PRECHANGE_DOCUMENTS[("report", "gaps")][0])
 
 
 @pytest.mark.parametrize("name", PRIVATISED)
@@ -465,6 +474,9 @@ def test_b9_render_borrows_the_private_spellings_for_the_report_census():
     assert reached == {
         "_distinct_register_sources", "_shared_sources", "_records_on_shared_source",
         "_sole_source_records", "_register_anchor_date", "_aged_records",
+        # iter 401: `## Identical evidence sets` keys documents with the scorer's own
+        # `_source_key`, so "same document" there cannot drift from `confidence()`.
+        "_source_key",
     }
     for name in ("newest_citation_date", "evidence_age_days"):
         assert f"_{name}" not in borrowed  # no caller, per the spec's own census

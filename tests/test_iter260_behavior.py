@@ -53,6 +53,9 @@ import pytest
 
 from agent_gap_radar.cli import main
 
+from _iter401_section import (has_identical_evidence_section,
+                             without_identical_evidence_section)
+
 #: Repo root, found relative to this file so no absolute machine path is written down.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -444,6 +447,10 @@ def test_b1_the_artifact_agrees_with_the_report_golden_pinned_before_iteration_2
     import _iter218_report_golden as report_golden
 
     expected_len, expected_sha = report_golden.PRECHANGE_DOCUMENTS[("report", "gaps")]
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    assert has_identical_evidence_section(committed_bytes)
+    committed_bytes = without_identical_evidence_section(committed_bytes)
     assert len(committed_bytes) == expected_len, (
         f"REGISTER.md is {len(committed_bytes)} B but the pinned report golden is "
         f"{expected_len} B"

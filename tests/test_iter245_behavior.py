@@ -47,6 +47,8 @@ from agent_gap_radar import checks
 from agent_gap_radar.checks import Verdict, run_check
 from agent_gap_radar.cli import main
 
+from _iter401_section import without_identical_evidence_section
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 GAPS = REPO / "gaps"
 
@@ -246,6 +248,14 @@ DIGEST_PIN = "tests/test_iter219_behavior.py"
 #: tokens are the ONLY bytes of `DIGEST_PIN` a later iteration may move.
 OLD_JSON_PIN_TOKENS = (b"129742", b"36cb0e85", b"50218", b"0a6abac4")
 
+#: The `report gaps` pin, freed by iteration 401, which INSERTED one report section
+#: (`## Identical evidence sets`) and so re-baselined that document by declaration.  The
+#: same four clauses apply: its line may move in place, and its old tokens must be gone.
+OLD_REPORT_PIN_TOKENS = (b"39022", b"be4bd4e9")
+
+#: Every token whose line a later iteration may move, by declaration.
+FREED_PIN_TOKENS = OLD_JSON_PIN_TOKENS + OLD_REPORT_PIN_TOKENS
+
 #: The markdown document's pin, which no iteration since has had cause to move.
 MD_PIN_TOKENS = (b"25116", b"7dc7c366")
 
@@ -288,7 +298,8 @@ def test_b7_the_committed_pins_this_iteration_leans_on_are_unedited(rel: str):
 
 
 def test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin():
-    """`DIGEST_PIN` may re-baseline its `--json` pin and NOTHING else, ever.
+    """`DIGEST_PIN` may re-baseline its `--json` pin (and, from iteration 401, its
+    `report gaps` pin) and NOTHING else, ever.
 
     The guarantee whole-file equality bought -- an invisible re-baseline reds the
     suite -- is kept, narrowed to the one expectation that is allowed to move, so
@@ -317,12 +328,12 @@ def test_b7_the_scan_digest_pin_module_moved_at_most_its_json_pin():
 
     moved = [i for i, (was, now) in enumerate(zip(before, after)) if was != now]
     for i in moved:
-        assert any(token in before[i] for token in OLD_JSON_PIN_TOKENS), (
+        assert any(token in before[i] for token in FREED_PIN_TOKENS), (
             f"{DIGEST_PIN}:{i + 1} moved and does not spell the `--json` pin, so it "
             f"is an undeclared re-baseline: {before[i]!r} -> {after[i]!r}")
 
     whole = b"".join(after)
-    for token in OLD_JSON_PIN_TOKENS:
+    for token in FREED_PIN_TOKENS:
         assert token not in whole, (
             f"{DIGEST_PIN} still spells the pre-change `--json` pin {token!r} "
             "somewhere, so the re-baseline is incomplete and the module now states "
@@ -704,6 +715,9 @@ def test_b7_scan_free_surfaces_are_byte_identical_old_vs_new(argv, prechange_src
     assert str(prechange_src) in old_from, old_from
     assert old_code == new_code, (
         f"{argv} exit code moved: {old_code} -> {new_code}")
+    # iter 401 inserted `## Identical evidence sets`; it is subtracted as a measured term
+    # so every other byte is still compared (see `tests/_iter401_section.py`).
+    new_out = without_identical_evidence_section(new_out)
     assert old_out == new_out, (
         f"{argv} stdout moved: {len(old_out)} -> {len(new_out)} bytes")
 

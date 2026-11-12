@@ -339,3 +339,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 398 baseline-portable: `scan --name NAME` pins target_name, so a baseline gates a differently named checkout
 - iter 399 scan-speed: the literal prefilter proves through one mandatory group alternation; byte-identical verdicts
 - iter 400 suite-speed: each self-scan determinism test compares ONE fresh scan with the cross-worker cached copy
+- iter 401 duplicate-visible: `report` lists records whose cited document set is identical to another record's

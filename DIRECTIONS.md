@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-401
+    lenses: narrative-and-docs (HEAD `f9e8357`), new-capability (HEAD `f9e8357`)
+    - Candidate A1 -- PRODUCT.md marks rows 81 and 144 `open` although their own ledger rows record them shipped, and `roadmap_integrity` cannot see it; flip both and add an `open-but-shipped` brake
+    - Candidate A2 -- CONSUMER_CONTRACT defines `target_name` as "the resolved directory's base name", false since iter 398's `--name`; correct it and pin the definition, not just the phrase (re-proposal of iter-400 B1, folding iter-394 B2's "there are ten")
+    - Candidate A3 -- README:91 says scanning "is restricted to what `git ls-files` reports", but off-git the scan walks the tree minus a 12-name `SKIP_DIRS` set that no doc publishes (re-proposal of iter-394 B1 / iter-395 A2)
+    - Candidate B1 -- `radar overlaps`: list the record pairs whose cited documents are identical or nested, so a gap filed twice becomes visible (re-proposal of iter-395 B1 / iter-396 A3, now measured)
+    - Candidate B2 -- A scan's ABSENT finding quotes the line that matched, so the reader sees what the "mitigation" actually is (re-proposal of iter-395 B2 / iter-396 A2, now measured)
+    - Candidate B3 -- `radar report` publishes the layer × gap-type matrix, so the register shows where the taxonomy is thin or doesn't fit (re-proposal of iter-96 A3 / iter-119 B3 / iter-372 A3; still not at HEAD)
+    winner: B1
+    ship: pending (not yet decided)
   iter-400
     lenses: unknown
     - Candidate A1 -- Determinism nodes pay ONE fresh self-scan and compare it with the cross-worker cached document, not two fresh scans (re-proposal of iter-388 A2; preship now overruns)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The contract claims the test-path exclusion was "FIXED structurally ... a future research candidate cannot reintroduce it", but 103 of 114 `present_when` rules carry an absence-shaped leaf that still reads test files, and the test-path set itself is published nowhere (re-proposal of iter-395 A1 / iter-396 B3, re-measured)
     - Candidate B3 -- Three literal figures in the docs are stale or vaguer than the code: "there are ten" defaults (the parser has 11), lockfiles "and the like" (the code holds exactly 11), and README's "restricted to what `git ls-files` reports" (re-proposal merging iter-394 B1/B2/B3 and iter-395 A2/A3; still unfixed 6 iterations later)
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED f9e8357
   iter-399
     lenses: simplification-and-deletion (HEAD `110d1d5`)
     - Candidate A1 -- One closed-vocabulary validator instead of four copy-pasted membership checks in `models.py`
@@ -2016,4 +2026,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-202 scouted iterations
+203 scouted iterations
