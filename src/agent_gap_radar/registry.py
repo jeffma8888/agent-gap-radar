@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import pathlib
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import ValidationError
@@ -15,6 +17,46 @@ from .models import Gap
 
 class RegistryError(Exception):
     """Raised when the register on disk is not loadable or not self-consistent."""
+
+
+#: The CLOSED set of `Problem.kind` values, in the order their clauses can appear.
+#: Published by `radar validate --json` and enumerated in `docs/CONSUMER_CONTRACT.md`,
+#: so a new failure shape is a deliberate contract change rather than a stray string.
+PROBLEM_KINDS = ("near-miss", "invalid-json", "duplicate-key", "schema", "duplicate-id")
+
+
+@dataclass(frozen=True)
+class Problem:
+    """ONE thing wrong with an examined register, before any sentence is spelled.
+
+    The structured form exists because the text form cannot be split back into it:
+    pydantic messages and echoed input values may contain every separator the
+    `Error:` line uses (` | `, `; `, `: `). So the list is built FIRST and the line
+    is RENDERED from it by `render_problems` -- one construction, two dialects, and
+    the machine one can never disagree with the human one about what was found.
+
+    `file` is a basename (never a path) or None for a register-level problem; `loc`
+    is a dotted field path, or None when the problem has no field to point at.
+    """
+
+    kind: str
+    file: str | None
+    loc: str | None
+    msg: str
+
+
+class RegisterInvalid(RegistryError):
+    """An EXAMINED register refused: carries the structured problems and the count.
+
+    A subclass, so every existing `except RegistryError` keeps publishing the same
+    `Error:` line, while `validate --json` can tell "examined, invalid" (this) apart
+    from "could not be examined at all" (a plain `RegistryError`) without parsing.
+    """
+
+    def __init__(self, problems: list[Problem], records: int) -> None:
+        self.problems = tuple(problems)
+        self.records = records
+        super().__init__(render_problems(self.problems))
 
 
 def gaps_dir(root: pathlib.Path | str) -> pathlib.Path:
@@ -87,9 +129,10 @@ def _is_near_miss(name: str) -> bool:
     return folded.startswith("gap-") and ".json" in folded and not name.endswith(".json")
 
 
-def _near_miss_problem(name: str) -> str:
+def _near_miss_problem(name: str) -> Problem:
     """The ONE spelling of the near-miss clause, `<name>: ...` like every file clause."""
-    return f"{name}: looks like a gap record but is not named *.json, so it was not loaded"
+    return Problem("near-miss", name, None,
+                   "looks like a gap record but is not named *.json, so it was not loaded")
 
 
 #: Rendered in place of an EMPTY error `loc`. pydantic reports a RECORD-level failure
@@ -132,10 +175,11 @@ def _counted_items(kind: str, items: list[str]) -> str:
     return f"{len(items)} {kind}: {_ITEM_JOIN.join(items)}"
 
 
-def _schema_problem(exc: ValidationError) -> str:
+def _schema_problems(name: str, exc: ValidationError) -> list[Problem]:
     """EVERY error in a refused record, each named with the FIELD it occurred at.
 
-    The ONE construction site of this product's schema-refusal sentence -- deliberately
+    One `Problem` per pydantic error; `render_problems` is the ONE construction site
+    of this product's schema-refusal sentence built from them -- deliberately
     the only place its words are spelled, so a census over `src/` finds it once and a fix
     cannot become a second private copy. It exists because the obvious spelling --
     `error_count()` plus `errors()[0]["msg"]` -- was FAIL-QUIET at the door the register
@@ -147,15 +191,35 @@ def _schema_problem(exc: ValidationError) -> str:
     research passes run, and neither can ask a follow-up question, so a fixer had to
     re-run the door once per error to discover errors two and three.
 
-    The count is derived from `items` by `_counted_items` rather than from
-    `exc.error_count()` on purpose: head and body come from the SAME list, so the
+    The count is derived by `_counted_items` from the problems themselves rather than
+    from `exc.error_count()` on purpose: head and body come from the SAME list, so the
     number can never again disagree with what follows it. Messages are pydantic's
     own, verbatim -- this renderer adds the locator and nothing else, because
     paraphrasing a validator's words is how the two dialects (`tools/promote.py`
     prints the full multi-error string) drifted apart in the first place.
     """
-    items = [f"{_dotted_loc(err['loc'])}: {err.get('msg', '?')}" for err in exc.errors()]
-    return _counted_items("schema error(s)", items)
+    return [Problem("schema", name, _dotted_loc(err["loc"]), err.get("msg", "?"))
+            for err in exc.errors()]
+
+
+def render_problems(problems: Iterable[Problem]) -> str:
+    """The text dialect's ONE line, derived from the structured problems.
+
+    A record's schema problems collapse into one counted clause, as they always have,
+    so a fixer still reads one clause per file. Duplicate ids collapse into the one
+    register-level clause. Every other problem is already one whole clause.
+    """
+    clauses: list[str] = []
+    for (kind, name), group in itertools.groupby(problems, key=lambda p: (p.kind, p.file)):
+        items = list(group)
+        if kind == "schema":
+            body = _counted_items("schema error(s)", [f"{p.loc}: {p.msg}" for p in items])
+            clauses.append(f"{name}: {body}")
+        elif kind == "duplicate-id":
+            clauses.append(f"duplicate gap id(s): {', '.join(p.msg for p in items)}")
+        else:
+            clauses.extend(f"{p.file}: {p.msg}" for p in items)
+    return "; ".join(clauses)
 
 
 def parse_record(text: str) -> Any:
@@ -271,7 +335,8 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
         try:
             raw = parse_record(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            problems.append(f"{path.name}: unreadable/invalid JSON: {exc}")
+            problems.append(Problem("invalid-json", path.name, None,
+                                    f"unreadable/invalid JSON: {exc}"))
             continue
         except RegistryError as exc:
             # A SECOND branch rather than the free routing: the clause above would
@@ -280,20 +345,19 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
             # would name the wrong defect and tell a fixer nothing about which key to
             # delete. The record is not validated: a file that answers twice yields no
             # record to validate, so this file contributes exactly one clause.
-            problems.append(f"{path.name}: {exc}")
+            problems.append(Problem("duplicate-key", path.name, None, str(exc)))
             continue
         try:
             gaps.append(Gap.model_validate(raw))
         except ValidationError as exc:
-            problems.append(f"{path.name}: {_schema_problem(exc)}")
+            problems.extend(_schema_problems(path.name, exc))
 
     ids = [g.id for g in gaps]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
-    if dupes:
-        problems.append(f"duplicate gap id(s): {', '.join(dupes)}")
+    problems.extend(Problem("duplicate-id", None, "id", dupe) for dupe in dupes)
 
     if problems:
-        raise RegistryError("; ".join(problems))
+        raise RegisterInvalid(problems, len(gaps))
     return gaps
 
 

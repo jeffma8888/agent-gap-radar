@@ -225,7 +225,9 @@ def test_b6_pre_existing_quickstart_lines_are_unchanged_and_in_order():
 
 def test_b6_validate_and_taxonomy_lines_were_not_multiplied():
     lines = quickstart_lines(readme_text())
-    assert sum(ln.startswith("uv run radar validate") for ln in lines) == 1
+    # Iteration 407 added `validate --json`, so validate now has the plain + `--json`
+    # pair that taxonomy has.
+    assert sum(ln.startswith("uv run radar validate") for ln in lines) == 2
     assert sum(ln.startswith("uv run radar taxonomy") for ln in lines) == 2
 
 

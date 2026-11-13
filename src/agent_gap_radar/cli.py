@@ -45,7 +45,10 @@ if TYPE_CHECKING:
     # every `Gap` annotation below stays a string at runtime and needs no
     # quoting -- the one exception is the `ListRow` assignment, which is an
     # expression rather than an annotation and quotes the name itself.
+    from collections.abc import Sequence
+
     from .models import Gap
+    from .registry import Problem
 
 
 def _status_list(statuses: tuple[str, ...]) -> str:
@@ -224,6 +227,25 @@ def _needs(gap: Gap, is_below: bool, confidence_floor: int) -> list[str] | None:
     from .scoring import promotion_options
 
     return list(promotion_options(gap, confidence_floor)) if is_below else None
+
+
+def _validate_json(records: int, problems: Sequence[Problem]) -> str:
+    """`radar validate --json`: the verdict, the validated count, one object per problem.
+
+    `valid` is derived from `problems` rather than passed in, so the document cannot
+    claim a clean register while listing errors. The problems come from the SAME
+    `registry.Problem` list the `Error:` line is rendered from, so the two dialects
+    report one finding set. `file` is a basename or None, so the same register at two
+    locations yields byte-identical documents.
+    """
+    from .render import json_document
+
+    return json_document({
+        "valid": not problems,
+        "records": records,
+        "errors": [{"kind": p.kind, "file": p.file, "loc": p.loc, "msg": p.msg}
+                   for p in problems],
+    })
 
 
 def _list_json(rows: list[ListRow], confidence_floor: int, layer: str | None,
@@ -596,6 +618,10 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--json", action="store_true",
                            help="emit a stable record list for a machine "
                                 "consumer")
+        if name == "validate":
+            p.add_argument("--json", action="store_true",
+                           help="emit the verdict and one object per problem "
+                                "for a machine consumer")
         if name in ("list", "report"):
             p.add_argument("--layer", default=None, metavar="L",
                            help="layer to narrow the listing to; one value "
@@ -956,7 +982,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .diff import (diff_json, diff_registers, regression_verdict,
                        render_diff)
     from .prd import prd_for, render_prd
-    from .registry import RegistryError, load_all, load_one
+    from .registry import RegisterInvalid, RegistryError, load_all, load_one
     from .render import document, gap_brief, json_document, radar_report
     from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
                        new_since_baseline, no_longer_present,
@@ -1278,7 +1304,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
             # where the reader can see it, so only the verdict verb needs this.
             if not gaps:
                 return _fail(f"no gap records found in {directory}")
-            sys.stdout.write(f"OK: {len(gaps)} gap record(s) valid.\n")
+            sys.stdout.write(_validate_json(len(gaps), ()) if args.json
+                             else f"OK: {len(gaps)} gap record(s) valid.\n")
             return EXIT_OK
 
         if args.command == "list":
@@ -1343,6 +1370,15 @@ def _dispatch(argv: list[str] | None = None) -> int:
                                         with_fixtures=args.with_fixtures))
             return EXIT_OK
 
+    except RegisterInvalid as exc:
+        # An EXAMINED register: under `validate --json` its problems are published
+        # as a document BEFORE the unchanged `Error:` line. A plain `RegistryError`
+        # (not a directory, unreadable, nothing found) falls through to the clause
+        # below and writes no document, so an empty stdout at exit 2 means "not
+        # examined" and a document at exit 2 means "examined, invalid".
+        if args.command == "validate" and args.json:
+            sys.stdout.write(_validate_json(exc.records, exc.problems))
+        return _fail(str(exc))
     except RegistryError as exc:
         return _fail(str(exc))
 

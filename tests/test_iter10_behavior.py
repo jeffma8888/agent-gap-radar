@@ -366,7 +366,9 @@ def test_b0_the_introspected_surface_exercises_every_comparison() -> None:
     assert len(SURFACE) > 1, sorted(SURFACE)
     assert any(spec.positionals > 1 for spec in SURFACE.values()), SURFACE
     assert any(spec.positionals == 0 for spec in SURFACE.values()), SURFACE
-    assert any(not spec.options for spec in SURFACE.values()), SURFACE
+    # Iteration 407 gave `validate` -- the last option-less verb -- `--json`, so the
+    # smallest real option set is now one flag; behavior 6 plants on that verb.
+    assert min(len(spec.options) for spec in SURFACE.values()) == 1, SURFACE
     assert any(len(spec.options) > 1 for spec in SURFACE.values()), SURFACE
     arities = [
         takes for spec in SURFACE.values() for takes in spec.takes_value.values()
@@ -603,7 +605,7 @@ def test_b6_four_known_bads_fail_and_the_real_document_passes_in_one_run() -> No
         _rewrite_first_cell(CONTRACT_TEXT, flag_verb, _without_flag(flag_verb, flag)))
     assert f"{flag_verb}: option strings missing ['{flag}']" in removed, removed
 
-    bare_verb = sorted(v for v, spec in SURFACE.items() if not spec.options)[0]
+    bare_verb = min(sorted(SURFACE.items()), key=lambda item: len(item[1].options))[0]
     invented = _refused(
         _rewrite_first_cell(CONTRACT_TEXT, bare_verb, _with_invented_flag))
     assert f"{bare_verb}: option strings missing [], unexpected " in invented, invented

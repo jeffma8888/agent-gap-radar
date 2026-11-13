@@ -78,7 +78,7 @@ REQUIRED_BY_VERB = {
 #: order the stable-surface table lists them. The first, fourth and fifth are the three
 #: cells this iteration corrects; the other five are the untouched rows.
 EXPECTED_CELLS = [
-    "`radar validate [<repo>]`",
+    "`radar validate [<repo>] [--json]`",
     "`radar list [<repo>] [--json] [--floor N] [--layer L] [--match TEXT]`",
     "`radar show <ID> [<repo>] [--json]`",
     "`radar report [<repo>] [--floor N] [--layer L] [--match TEXT]`",
@@ -91,7 +91,7 @@ EXPECTED_CELLS = [
 #: Behavior 3 -- the drifted spellings, quoted from `pm.md`'s measurement table. Each
 #: demanded a token the parser makes optional; none may survive anywhere in the document.
 DRIFTED_SPELLINGS = [
-    "`radar validate <repo>`",
+    "`radar validate <repo> [--json]`",
     "`radar report <repo> [--floor N]`",
     "`radar prd <repo> --gap <ID> [--project NAME]`",
 ]
@@ -294,7 +294,7 @@ def test_b3_two_untouched_cells_match_pins_committed_by_earlier_iterations():
 # --- behavior 4: direction A -- optional documented as REQUIRED is refused -------
 
 @pytest.mark.parametrize("verb, old, new", [
-    ("validate", "`radar validate [<repo>]`", "`radar validate <repo>`"),
+    ("validate", "`radar validate [<repo>] [--json]`", "`radar validate <repo> [--json]`"),
     ("report", "`radar report [<repo>] [--floor N] [--layer L] [--match TEXT]`",
      "`radar report <repo> [--floor N] [--layer L] [--match TEXT]`"),
     ("prd", "`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures] [--layer L] [--match TEXT]`",
@@ -442,7 +442,7 @@ def test_b6_an_unknown_verb_is_left_to_the_verb_set_rule():
 def test_b7_every_planted_known_bad_differs_from_the_committed_document():
     committed = contract_text()
     plants = [
-        ("`radar validate [<repo>]`", "`radar validate <repo>`"),
+        ("`radar validate [<repo>] [--json]`", "`radar validate <repo> [--json]`"),
         ("`radar report [<repo>] [--floor N] [--layer L] [--match TEXT]`", "`radar report <repo> [--floor N] [--layer L] [--match TEXT]`"),
         ("`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] [--with-fixtures] [--layer L] [--match TEXT]`",
          "`radar prd [<repo>] --gap <ID> [--floor N] [--project NAME] [--with-fixtures] [--layer L] [--match TEXT]`"),
@@ -478,7 +478,7 @@ def test_b7_the_mutation_guard_refuses_a_stale_anchor():
     exactly how a "known-bad" silently becomes a second copy of the known-good.
     """
     with pytest.raises(AssertionError) as exc:
-        _replace_once(contract_text(), "`radar validate <repo>`", "anything")
+        _replace_once(contract_text(), "`radar validate <repo> [--json]`", "anything")
     assert "occurs 0 time(s)" in str(exc.value)
     with pytest.raises(AssertionError) as exc:
         _replace_once("aa", "a", "b")

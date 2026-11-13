@@ -228,13 +228,14 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
     assert set(before) == {"EXPECTED_SURFACE", "EXPECTED_ARGUMENTS"}, sorted(before)
     # Iteration 366 added `list --match`, so `list` joins the verbs that moved;
     # iteration 378 added `prd --layer/--match`, so `prd` joins them too.
-    changed_surface = {"list", "prd", "report", "scan", "show"}
+    # Iteration 407 added `validate --json`, so `validate` joins them as well.
+    changed_surface = {"list", "prd", "report", "scan", "show", "validate"}
     for verb in before["EXPECTED_SURFACE"]:
         if verb not in changed_surface:
             assert EXPECTED_SURFACE[verb] == before["EXPECTED_SURFACE"][verb], (
                 f"EXPECTED_SURFACE[{verb!r}] moved with a change; "
                 "it must be the pre-change literal verbatim")
-    changed_arguments = {"list", "prd", "report", "scan", "show"}
+    changed_arguments = {"list", "prd", "report", "scan", "show", "validate"}
     for verb in before["EXPECTED_ARGUMENTS"]:
         if verb not in changed_arguments:
             assert EXPECTED_ARGUMENTS[verb] == before["EXPECTED_ARGUMENTS"][verb], (
@@ -273,7 +274,7 @@ def test_b2_long_flags_and_verbs_without_are_read_off_the_inventory():
         flags = long_flags(verb)
         assert flags == sorted(flags) and all(f.startswith("--") for f in flags), (verb, flags)
         assert set(flags) == {o for o in EXPECTED_SURFACE[verb][0] if o.startswith("--")}, verb
-    assert verbs_without("--json") == ["prd", "report", "validate"], (
+    assert verbs_without("--json") == ["prd", "report"], (
         verbs_without("--json"))
     assert verbs_without("--floor") == ["diff", "show", "taxonomy", "validate"], (
         verbs_without("--floor"))
@@ -362,7 +363,7 @@ def test_b5_test_iter77_parametrizes_the_json_refusers_from_the_inventory(head_t
     head_list = ast.literal_eval(
         _parametrize_source(_function(before, "test_no_other_verb_gained_a_json_flag"), "verb"))
     assert set(head_list) == {"prd", "report", "show", "validate"}
-    assert verbs_without("--json") == ["prd", "report", "validate"], "ids, in order"
+    assert verbs_without("--json") == ["prd", "report"], "ids, in order"
     published = "test_the_verbs_that_already_published_json_still_do"
     assert ast.literal_eval(
         _parametrize_source(_function(before, published), "verb")) == ["list", "diff", "taxonomy"]
@@ -455,7 +456,8 @@ def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head
     iter404_new = {"test_iter404_tester_behavior.py"}
     iter405_new = {"test_iter405_behavior.py"}
     iter406_new = {"test_iter406_tester_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new | iter389_new | iter390_new | iter391_new | iter394_new | iter396_new | iter398_new | iter399_new | iter400_new | iter401_new | iter402_new | iter404_new | iter405_new | iter406_new, sorted(set(now) ^ set(before))
+    iter407_new = {"test_iter407_tester_behavior.py"}
+    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new | iter389_new | iter390_new | iter391_new | iter394_new | iter396_new | iter398_new | iter399_new | iter400_new | iter401_new | iter402_new | iter404_new | iter405_new | iter406_new | iter407_new, sorted(set(now) ^ set(before))
     assert now[me], "this module collects nothing"
     changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
                for name in before if before[name] != now[name]}

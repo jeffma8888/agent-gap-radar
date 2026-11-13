@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-407
+    lenses: narrative-and-docs (HEAD `885fad0`), new-capability (HEAD `885fad0`)
+    - Candidate A1 -- README:91's new "What a scan reads" paragraph is false for a git repo with zero tracked files: untracked files ARE read. It also says "exactly" and "directories named", though the code has size/count caps and prunes entries of any kind
+    - Candidate A2 -- CONSUMER_CONTRACT has two stale facts a gate author relies on: `target_name` is "the resolved directory's base name" (false under `--name`), and "there are ten" defaults (the table has 11 rows)
+    - Candidate A3 -- PRODUCT.md rows 81 and 144 still read `open`, though ledger rows 295/296 record them shipped (iter 307/308) and the behaviour is live. Flip both and add an open-but-shipped brake to `tools/roadmap_integrity.py`
+    - Candidate B1 -- `radar validate --json`: a refused register gets per-error `[{file, loc, msg}]` objects on stdout, exit code still 2 (roadmap row 126, `open`)
+    - Candidate B2 -- A scan's ABSENT finding shows the matched line (`evidence: [{locator, line}]`) so the reader can see what the "mitigation" is (re-proposal of iter-395 B2 / iter-396 A2 / iter-401 B2, now measured)
+    - Candidate B3 -- `radar prd --skip GAP-ID` (repeatable): the build loop asks for the top-ranked gap it has NOT already claimed (third proposal: iter-383 B3, iter-384 A3)
+    winner: B1
+    ship: pending (not yet decided)
   iter-406
     lenses: performance-and-throughput (HEAD `06c9d5a`), narrative-and-docs (HEAD `06c9d5a`)
     - Candidate A1 -- Top-level alternative dispatch: an admitted file runs only the `|` alternatives whose literal conjunction it satisfied (re-proposal of iter-405 B2)
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate A2 -- PRODUCT.md marks rows 81 and 144 `open` although their own ledger lines record them shipped. Flip both and add an "open-but-shipped" brake to `tools/roadmap_integrity.py`
     - Candidate A3 -- CONSUMER_CONTRACT.md:490 defines `target_name` as "the resolved directory's base name", false since `--name` shipped (iter 398). Correct it and pin the definition, not just the phrase
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED 885fad0
   iter-405
     lenses: simplification-and-deletion (HEAD `bd9b161`), performance-and-throughput (HEAD `bd9b161`)
     - Candidate A1 -- iter303 b6 accepts a new test module by RULE: delete the 54-set, append-only `iterNNN_new` allowlist
@@ -2077,4 +2087,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-208 scouted iterations
+209 scouted iterations

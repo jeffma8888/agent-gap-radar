@@ -57,7 +57,8 @@ EXPECTED_SURFACE = {
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
     "taxonomy": (["--json"], 0, [], []),
-    "validate": ([], 1, [], ["path"]),
+    # Iteration 407 added `--json` (the per-problem machine dialect, roadmap row 126).
+    "validate": (["--json"], 1, [], ["path"]),
 }
 
 #: Behavior 8's second half, read off the raw actions: per verb, one row per argument as
@@ -148,6 +149,8 @@ EXPECTED_ARGUMENTS = {
     "validate": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),
         ("path", [], False, ".", "?"),
+        # Iteration 407: the machine dialect, registered after the positional.
+        ("json", ["--json"], False, False, 0),
     ],
 }
 

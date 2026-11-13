@@ -139,7 +139,7 @@ class RecordModel(BaseModel):
         standard failure. `VISION.md`'s protected rule is that a record is never
         silently dropped, and a renderer that dies mid-document drops all 120.
 
-        No message shape of its own, on purpose: `registry._schema_problem` already
+        No message shape of its own, on purpose: `registry._schema_problems` already
         names the file and the dotted field path, so this contributes the clause and
         nothing else -- the same reason that formatter quotes pydantic verbatim.
 

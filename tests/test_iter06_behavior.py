@@ -315,7 +315,10 @@ def test_b6_contract_no_longer_publishes_the_false_biconditional():
 
 def test_b6_readme_quickstart_line_names_the_zero_record_failure():
     text = README_DOC.read_text(encoding="utf-8")
-    lines = [ln for ln in text.splitlines() if ln.startswith("uv run radar validate")]
+    # Iteration 407 added a `validate . --json` example line; the zero-record promise
+    # belongs to the plain verdict line, which stays exactly one.
+    lines = [ln for ln in text.splitlines()
+             if ln.startswith("uv run radar validate") and "--json" not in ln]
     assert len(lines) == 1, lines
     assert "zero record" in lines[0].lower(), lines[0]
 

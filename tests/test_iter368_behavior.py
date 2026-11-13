@@ -89,13 +89,13 @@ def test_b1_archive_exists_with_title_and_one_trailing_newline() -> None:
     assert not text.endswith("\n\n")
 
 
-def test_b2_archive_has_104_unique_well_formed_sections() -> None:
+def test_b2_archive_has_105_unique_well_formed_sections() -> None:
     sections = _archive_sections()
-    assert len(sections) == 104
+    assert len(sections) == 105
     headings = [
         ln for ln in ARCHIVE.read_text(encoding="utf-8").splitlines() if HEADING_RE.match(ln)
     ]
-    assert len(headings) == len(set(headings)) == 104
+    assert len(headings) == len(set(headings)) == 105
 
 
 def test_b3_archive_rows_equal_shipped_pointer_rows() -> None:

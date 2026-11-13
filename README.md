@@ -19,6 +19,7 @@ That distinction is the whole reason `GAP-010` is in the register: it is a widel
 ```bash
 uv sync
 uv run radar validate .          # schema-check every record; exit 2 on any problem or on zero records
+uv run radar validate . --json   # the same verdict as one object per problem (kind, file, loc, msg), for a CI gate; no document when nothing was examined
 uv run radar list .              # one line per record, below-floor rows flagged
 uv run radar list . --match memory  # only records whose title, problem, symptom, why_now, existing, build_hypothesis or tags contain the text (case-folded literal substring, not a regex); below-floor matches are still shown, flagged
 uv run radar list . --floor 3       # the same listing against a stricter confidence floor (default 2); below-floor rows are flagged, never dropped

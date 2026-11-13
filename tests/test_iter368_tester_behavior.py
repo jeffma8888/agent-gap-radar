@@ -26,7 +26,7 @@ HEADING = re.compile(r"^## Row (\d+)$")
 ITERATION = re.compile(r"Iteration \d+")
 ROW_START = re.compile(r"^\| (\d+) \| ")
 LIMIT = 200
-EXPECTED_SECTIONS = 104
+EXPECTED_SECTIONS = 105
 # Three shipped rows lost their closing " |" before this iteration, so they are
 # not ``| N | ... |`` board rows under the spec's own definition and stay
 # unarchived.  They are the ONLY permitted long-notes residue.
@@ -111,7 +111,7 @@ def test_b1_archive_is_utf8_titled_and_ends_in_exactly_one_newline() -> None:
 # --- B2 -----------------------------------------------------------------------
 
 
-def test_b2_archive_grammar_yields_exactly_104_unique_sections() -> None:
+def test_b2_archive_grammar_yields_exactly_105_unique_sections() -> None:
     sections = _sections()
     assert len(sections) == EXPECTED_SECTIONS
 
