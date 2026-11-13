@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-405
+    lenses: simplification-and-deletion (HEAD `bd9b161`), performance-and-throughput (HEAD `bd9b161`)
+    - Candidate A1 -- iter303 b6 accepts a new test module by RULE: delete the 54-set, append-only `iterNNN_new` allowlist
+    - Candidate A2 -- Collapse the twin literal provers (`_prove_literals` / `_prove_literal_sets`) and delete the unreachable "DNF fails to intersect" fallback
+    - Candidate A3 -- Retire the remaining frozen-commit control arms (`PRECHANGE_COMMIT` + `git archive`) in 11 test modules
+    - Candidate B1 -- Per-scan `(pattern, path)` first-match memo: the 639 regex passes that repeat an identical (pattern, text) pair go away
+    - Candidate B2 -- Top-level alternative dispatch: run only the alternatives whose literal conjunction the file satisfies
+    - Candidate B3 -- Self-scan budget brake: pin the measured pass census so a register or code change cannot silently double scan cost
+    winner: B1
+    ship: pending (not yet decided)
   iter-404
     lenses: simplification-and-deletion (HEAD `cf6e10f`)
     - Candidate A1 -- OPERATOR PIN: re-land iteration 402 from state/iter-402/PRE_INTERRUPT_FULL.patch at cf6e10f
@@ -11,7 +21,7 @@ foundry directions -- agent-gap-radar
     - Candidate B1 -- Collapse the twin literal provers into ONE walk and delete the unreachable "DNF fails to intersect" fallback (in both `required_literal_sets` and `_required_literal_sets_ascii`)
     - Candidate C1 -- One `tests/conftest.py` socket tripwire replaces six hand-copied per-module tripwires
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED bd9b161
   iter-403
     lenses: hardening/DX (HEAD `cf6e10f`)
     - Candidate A1 -- OPERATOR PIN: land state/iter-402/PRE_INTERRUPT_FULL.patch (tests-only, reviewer already APPROVED)
@@ -2057,4 +2067,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-206 scouted iterations
+207 scouted iterations

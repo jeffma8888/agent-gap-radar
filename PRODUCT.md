@@ -342,3 +342,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 401 duplicate-visible: `report` lists records whose cited document set is identical to another record's
 - iter 402 suite-speed: reviewer-approved, INTERRUPTED by a power loss; tree kept as iter-402 PRE_INTERRUPT_FULL.patch
 - iter 404 re-land of 402: the frozen-corpus span differential runs once; iter370 b7 skips texts it already proved
+- iter 405 scan-speed: a scan answers each (pattern, file) first match once; repeats are memoised, byte-identical

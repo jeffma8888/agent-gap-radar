@@ -740,6 +740,15 @@ _UNREADABLE_STACK: list[set[pathlib.Path]] = []
 #: and therefore one fold. Pushed and popped beside the other frames.
 _LITERAL_HIT_STACK: list[dict[pathlib.Path, dict[str, bool]]] = []
 
+#: First-match answers, innermost frame last: `(pattern, path)` maps to the line
+#: of that pattern's first match in that path's text, or None for "no match".
+#: Twin rules (a mitigation and its `content_absent` twin over the same globs)
+#: and shared patterns ask the same question of the same file -- measured at
+#: iter 405 on this repo, 639 repeated passes per `scan .`. Exact for the reason
+#: `_folded` is: the SAME scope memoises the read, so a path has one text here,
+#: and every arm `evaluate` may take is a pure function of (pattern, text).
+_FIRST_MATCH_STACK: list[dict[tuple[str, pathlib.Path], int | None]] = []
+
 
 @contextlib.contextmanager
 def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
@@ -764,6 +773,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
     _FOLD_CACHE_STACK.append({})
     _UNREADABLE_STACK.append(set())
     _LITERAL_HIT_STACK.append({})
+    _FIRST_MATCH_STACK.append({})
     try:
         yield frame
     finally:
@@ -779,6 +789,7 @@ def read_cache_scope() -> Iterator[dict[pathlib.Path, str | None]]:
         _FOLD_CACHE_STACK.pop()
         _UNREADABLE_STACK.pop()
         _LITERAL_HIT_STACK.pop()
+        _FIRST_MATCH_STACK.pop()
 
 
 def _decode(path: pathlib.Path) -> str | None:
@@ -885,6 +896,17 @@ def _literal_hits(path: pathlib.Path) -> dict[str, bool] | None:
     if not _LITERAL_HIT_STACK:
         return None
     return _LITERAL_HIT_STACK[-1].setdefault(path, {})
+
+
+def _first_matches() -> dict[tuple[str, pathlib.Path], int | None] | None:
+    """The open scan's first-match memo, or None outside any scan.
+
+    None means "do not memoise", for the reason `_literal_hits` gives: with no
+    read memo a path key could pair one answer with a later, different text.
+    """
+    if not _FIRST_MATCH_STACK:
+        return None
+    return _FIRST_MATCH_STACK[-1]
 
 
 def _contains(folded: str, literal: str, hits: dict[str, bool] | None) -> bool:
@@ -1159,6 +1181,7 @@ def evaluate(rule: dict, target: pathlib.Path,
         stop_at_first_hit = kind == "content_absent" or boolean_only
         skipped = 0
         unreadable = 0
+        memo = _first_matches()
         with _unreadable_frame() as unreadable_paths:
             for path in files[:MAX_SCAN_FILES]:
                 text = _read(path)
@@ -1166,6 +1189,22 @@ def evaluate(rule: dict, target: pathlib.Path,
                     skipped += 1
                     unreadable += path in unreadable_paths
                     continue
+                # Looked up AFTER the skip accounting, so `skipped`/`unreadable`
+                # count exactly as before. A miss stores None up front: every
+                # prefilter `continue` below means "no match", and a match
+                # overwrites it with its line.
+                key = (rule["pattern"], path)
+                if memo is not None and key in memo:
+                    cached = memo[key]
+                    if cached is not None:
+                        rel = _relative_posix(target, path)
+                        is_test = bool(TEST_PATH_RE.search(rel))
+                        (test_hits if is_test else code_hits).append(f"{rel}:{cached}")
+                        if stop_at_first_hit:
+                            break
+                    continue
+                if memo is not None:
+                    memo[key] = None
                 # Read once per file and reused by the fast-path gate below: it is the
                 # ONE fact that makes the unfolded DNF sound for this text.
                 is_ascii = text.isascii()
@@ -1249,6 +1288,8 @@ def evaluate(rule: dict, target: pathlib.Path,
                     # substring test, and this tool scans ITSELF, so naming the banned
                     # shape here would red that check from inside a comment.
                     line_no = text.count("\n", 0, m.start()) + 1
+                    if memo is not None:
+                        memo[key] = line_no
                     # One derivation serves both the locator and the verdict.
                     rel = _relative_posix(target, path)
                     is_test = bool(TEST_PATH_RE.search(rel))
