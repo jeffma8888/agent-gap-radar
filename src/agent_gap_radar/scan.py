@@ -9,7 +9,7 @@ answer where static analysis honestly cannot decide.
 from __future__ import annotations
 
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,6 +19,7 @@ from .models import Gap
 from .registry import RegistryError, parse_record
 from .render import document, json_document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
+from .taxonomy import terminal_statuses
 
 #: What an all-zero verdict census means when the register itself was empty.
 #: Deliberately names NO path: `scan()` receives a list of gaps and never learns
@@ -151,10 +152,16 @@ class PrdSelection:
     a selection that quietly stepped past one would re-create that drop on the
     single surface deciding what actually gets built. Empty when the floor
     changed nothing, which is the common case.
+
+    `terminal_skipped` is the same audit trail for the OTHER reason a finding is
+    stepped past: its gap carries a terminal status, so the work is already done
+    and building against it would re-dispatch a loop at finished work. Filled only
+    when the caller asked for that skip, so the gate's walk never sees it.
     """
 
     selected: Finding | None
     passed_over: list[Finding]
+    terminal_skipped: list[Finding] = field(default_factory=list)
 
 
 def clears_floor(finding: Finding, confidence_floor: int) -> bool:
@@ -173,8 +180,8 @@ def clears_floor(finding: Finding, confidence_floor: int) -> bool:
 
 
 def select_for_prd(result: ScanResult,
-                   confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT
-                   ) -> PrdSelection:
+                   confidence_floor: int = CONFIDENCE_FLOOR_DEFAULT,
+                   *, skip_terminal: bool = False) -> PrdSelection:
     """The worst PRESENT finding whose EVIDENCE clears `confidence_floor`.
 
     Walks `actionable` in its own `(-priority, id)` order, so the floor changes
@@ -190,13 +197,25 @@ def select_for_prd(result: ScanResult,
     auto-select below the floor, and this is the same automatic path. An
     explicitly named `radar prd --gap X` still bypasses it, because a human
     named it.
+
+    `skip_terminal` is OFF by default because `gate_verdict` derives from this walk
+    and must keep counting terminal findings: a target that exhibits the pattern is
+    not made healthy by a register edit (fail-closed). `scan --prd` turns it ON,
+    since it is a SELECTION door and the contract acts on terminal status there,
+    exactly as `radar prd` does. The status set comes from `terminal_statuses()`
+    so the vocabulary is never re-spelled here.
     """
+    terminal = terminal_statuses() if skip_terminal else ()
     passed_over: list[Finding] = []
+    terminal_skipped: list[Finding] = []
     for finding in result.actionable:
-        if clears_floor(finding, confidence_floor):
-            return PrdSelection(selected=finding, passed_over=passed_over)
-        passed_over.append(finding)
-    return PrdSelection(selected=None, passed_over=passed_over)
+        if finding.gap.status in terminal:
+            terminal_skipped.append(finding)
+        elif clears_floor(finding, confidence_floor):
+            return PrdSelection(finding, passed_over, terminal_skipped)
+        else:
+            passed_over.append(finding)
+    return PrdSelection(None, passed_over, terminal_skipped)
 
 
 def gate_verdict(result: ScanResult,

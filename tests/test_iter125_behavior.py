@@ -453,7 +453,9 @@ def test_b8_a_terminal_status_moves_nothing_but_the_status_on_the_display_surfac
 # Behavior 9 -- `scan` is unchanged on every surface: status must not gate it.
 # ---------------------------------------------------------------------------
 
-SCAN_TAILS = [[], ["--json"], ["--prd"], ["--exit-code"]]
+# `--prd` left this list in iteration 408: it became a SELECTION door that skips a
+# terminal record, pinned by `test_b9_scan_prd_skips_a_terminal_record_at_selection`.
+SCAN_TAILS = [[], ["--json"], ["--exit-code"]]
 
 
 @pytest.mark.parametrize("tail", SCAN_TAILS)
@@ -475,15 +477,20 @@ def test_b9_status_changes_no_scan_surface(tmp_path, target, capsys, tail):
     assert substituted == out_o, f"scan{tail} moved bytes over a status change"
 
 
-def test_b9_scan_prd_still_selects_a_terminal_record_when_the_evidence_says_present(
-        tmp_path, target, capsys):
-    """DECIDED, not deferred: `scan --prd` reads measured target evidence, not belief."""
+def test_b9_scan_prd_skips_a_terminal_record_at_selection(tmp_path, target, capsys):
+    """Re-decided in iteration 408: `scan --prd` is a selection door, like `radar prd`.
+
+    Building against finished work would re-dispatch a loop at it, so the terminal top
+    record is named on stderr and the next PRESENT record is built instead; `--exit-code`
+    (still in `SCAN_TAILS` above) keeps counting it, so the gate stays fail-closed.
+    """
     reg = _reg(tmp_path, [_with_status(TOP, "addressed"), MID, LOW])
     rc, out, err = _run(["scan", str(target), "--gaps", str(reg), "--prd"], capsys)
     assert rc == 0, err
     doc = json.loads(out)
-    assert doc["sourceGap"]["id"] == TOP_ID, "status must not gate scan --prd"
-    assert doc["sourceGap"]["status"] == "addressed"
+    assert doc["sourceGap"]["id"] != TOP_ID, "a terminal record must not be built"
+    assert err.startswith(f"Note: skipped {TOP_ID} "), err
+    assert "status addressed) -- a terminal status" in err, err
 
 
 def test_b9_scan_json_still_reports_the_terminal_record_as_a_finding(

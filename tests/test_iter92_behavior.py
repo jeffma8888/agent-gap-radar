@@ -431,16 +431,15 @@ def test_b4_prd_gap_publishes_the_stored_status_verbatim(status, tmp_path, capsy
     assert doc["sourceGap"]["status"] == status, doc["sourceGap"]["status"]
 
 
-@pytest.mark.parametrize("status", STATUSES)
+@pytest.mark.parametrize("status", CITABLE_STATUSES)
 def test_b4_scan_prd_publishes_every_stored_status_verbatim(status, tmp_path, target,
                                                             capsys):
-    """The all-four-statuses pass-through claim, re-homed on the door that still holds it.
+    """The pass-through claim on the `scan --prd` door, over every status it can build.
 
-    `scan --prd` selects on the TARGET's measured findings rather than on the register's
-    belief, so iteration 125 left it ungated on purpose -- which makes it the door that can
-    still carry the `addressed` and `retired` cases the narrowed table above cannot reach.
-    Same publish-verbatim assertion, and the id assertion keeps the premise honest: the
-    varying record must be the one selected, or nothing is being measured.
+    Iteration 125 left `scan --prd` ungated; iteration 408 made it a SELECTION door like
+    `radar prd`, so a terminal record is skipped there too and only the CITABLE statuses
+    can reach this assertion. Same publish-verbatim check, and the id assertion keeps the
+    premise honest: the varying record must be the one selected, or nothing is measured.
     """
     reg = _reg(tmp_path, f"b4scan-{status}", [_with_status(TOP, status)])
     _raw, doc, rc, err = _cli_prd(

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-408
+    lenses: new-capability (HEAD `9488358`), hardening/DX (HEAD `9488358`)
+    - Candidate A1 -- `radar report` shows each record's status, so its rank 1 is the gap `radar prd` actually builds
+    - Candidate A2 -- A terminal status must carry a closing citation (`Gap.resolution`): re-land iteration 263's design, whose src patch applies clean at HEAD
+    - Candidate A3 -- The ingest door accepts an evidence amendment to an existing record, so "promoting below-floor records" has a gated path
+    - Candidate B1 -- `scan --prd` applies the same terminal-status exclusion as `radar prd`, so the two PRD doors cannot build different gaps from one register
+    - Candidate B2 -- `validate --json` never writes a machine path on stdout: an unreadable record gets its own `unreadable` kind and a path-free `msg`
+    - Candidate B3 -- `validate` refuses a check pattern whose unbounded repeat holds an ambiguous alternation (empty or overlapping branches), because one such pattern makes `scan` hang on a 50-character line
+    winner: B1
+    ship: pending (not yet decided)
   iter-407
     lenses: narrative-and-docs (HEAD `885fad0`), new-capability (HEAD `885fad0`)
     - Candidate A1 -- README:91's new "What a scan reads" paragraph is false for a git repo with zero tracked files: untracked files ARE read. It also says "exactly" and "directories named", though the code has size/count caps and prunes entries of any kind
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- A scan's ABSENT finding shows the matched line (`evidence: [{locator, line}]`) so the reader can see what the "mitigation" is (re-proposal of iter-395 B2 / iter-396 A2 / iter-401 B2, now measured)
     - Candidate B3 -- `radar prd --skip GAP-ID` (repeatable): the build loop asks for the top-ranked gap it has NOT already claimed (third proposal: iter-383 B3, iter-384 A3)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 9488358
   iter-406
     lenses: performance-and-throughput (HEAD `06c9d5a`), narrative-and-docs (HEAD `06c9d5a`)
     - Candidate A1 -- Top-level alternative dispatch: an admitted file runs only the `|` alternatives whose literal conjunction it satisfied (re-proposal of iter-405 B2)
@@ -2087,4 +2097,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-209 scouted iterations
+210 scouted iterations

@@ -1107,7 +1107,37 @@ def _dispatch(argv: list[str] | None = None) -> int:
             if not result.actionable:
                 return _fail("no PRESENT finding to build against; "
                              "run without --prd to see MANUAL questions")
-            selection = select_for_prd(result, floor)
+            selection = select_for_prd(result, floor, skip_terminal=True)
+            if selection.selected is None and not selection.passed_over:
+                # Every PRESENT finding is finished work. Naming `prd --gap`
+                # here would send the caller to a door that refuses it too.
+                listed = ", ".join(
+                    f"{f.gap.id} (status {f.gap.status})"
+                    for f in selection.terminal_skipped)
+                return _fail(
+                    f"every PRESENT finding carries a terminal status: "
+                    f"{listed}; the work is already done, so no prd is "
+                    f"emitted.")
+            # Announced, one line each, BEFORE the document or the refusal, in
+            # the walk's own rank order: a build loop reading stdout is
+            # unaffected, and a human reading stderr sees every finding the
+            # selection stepped past and why, rather than a silent substitution.
+            terminal_ids = {f.gap.id for f in selection.terminal_skipped}
+            floor_ids = ({f.gap.id for f in selection.passed_over}
+                         if selection.selected is not None else set())
+            for finding in result.actionable:
+                if finding.gap.id in terminal_ids:
+                    sys.stderr.write(
+                        f"Note: skipped {finding.gap.id} "
+                        f"(priority {finding.priority:.1f}, "
+                        f"status {finding.gap.status}) -- a terminal status; "
+                        f"the work is already done.\n")
+                elif finding.gap.id in floor_ids:
+                    sys.stderr.write(
+                        f"Note: skipped {finding.gap.id} "
+                        f"(priority {finding.priority:.1f}, "
+                        f"confidence {finding.confidence}) -- below the "
+                        f"confidence floor {floor}.\n")
             if selection.selected is None:
                 listed = ", ".join(
                     f"{f.gap.id} (confidence {f.confidence})"
@@ -1117,15 +1147,6 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     f"no PRESENT finding clears the confidence floor "
                     f"{floor}: {listed}. Strengthen the evidence, or name "
                     f"it explicitly with 'radar prd --gap {named}'.")
-            # Announced, one line each, BEFORE the document: a build loop
-            # reading stdout is unaffected, and a human reading stderr sees
-            # what the floor cost rather than a silent substitution.
-            for finding in selection.passed_over:
-                sys.stderr.write(
-                    f"Note: skipped {finding.gap.id} "
-                    f"(priority {finding.priority:.1f}, "
-                    f"confidence {finding.confidence}) -- below the "
-                    f"confidence floor {floor}.\n")
             sys.stdout.write(json_document(
                 _prd_with_finding(prd_for(selection.selected.gap,
                                           project=result.target_name),

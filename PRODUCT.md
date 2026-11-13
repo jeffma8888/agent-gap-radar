@@ -345,3 +345,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 405 scan-speed: a scan answers each (pattern, file) first match once; repeats are memoised, byte-identical
 - iter 406 docs-honesty: README states what a scan reads per mode; off-git skip names pinned to SKIP_DIRS
 - iter 407 row 126: `validate --json` prints {valid, records, errors:[{file, loc, msg}]}; refusal still exits 2
+- iter 408 closure-path: `scan --prd` skips terminal-status findings as `radar prd` does; the gate still counts them
