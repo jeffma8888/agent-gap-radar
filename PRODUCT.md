@@ -343,3 +343,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 402 suite-speed: reviewer-approved, INTERRUPTED by a power loss; tree kept as iter-402 PRE_INTERRUPT_FULL.patch
 - iter 404 re-land of 402: the frozen-corpus span differential runs once; iter370 b7 skips texts it already proved
 - iter 405 scan-speed: a scan answers each (pattern, file) first match once; repeats are memoised, byte-identical
+- iter 406 docs-honesty: README states what a scan reads per mode; off-git skip names pinned to SKIP_DIRS

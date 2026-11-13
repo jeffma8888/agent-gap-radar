@@ -88,7 +88,7 @@ Three invariants make the output trustworthy rather than merely confident:
 
 **A mitigation named only by a test is not a mitigation.** `mitigated_when` is evaluated with test paths excluded. This was a real, proven false negative before it was a rule: a target that exhibits a gap continuously came back `ABSENT` because a test file merely *spelled* the mitigation. Credited from test text, a thorough suite reads as healthier than untested code, which inverts the signal.
 
-Scanning is restricted to what `git ls-files` reports, so vendored dependencies and gitignored scratch cannot manufacture findings. Locators are ranked code-first and capped, with the suppressed remainder named; they are evidence that a signature exists, not a list of places to fix.
+**What a scan reads.** In a git repository a scan reads exactly the files `git ls-files` lists, so untracked and gitignored files are never read, but committed vendored code is scanned like any other tracked file. Outside git, a scan walks the whole tree and prunes only directories named `.git`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `dist`, `build`, `.mypy_cache`, `.ruff_cache`, `.tox` or `target`, so a vendored package is scanned there too. A locator inside vendored code is real evidence about the code you ship, not noise to discount. Locators are ranked code-first and capped, with the suppressed remainder named; they are evidence that a signature exists, not a list of places to fix.
 
 `MANUAL` is a first-class result and usually the majority verdict. A tool that answered every question would be guessing at most of them.
 

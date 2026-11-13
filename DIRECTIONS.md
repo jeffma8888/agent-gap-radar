@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-406
+    lenses: performance-and-throughput (HEAD `06c9d5a`), narrative-and-docs (HEAD `06c9d5a`)
+    - Candidate A1 -- Top-level alternative dispatch: an admitted file runs only the `|` alternatives whose literal conjunction it satisfied (re-proposal of iter-405 B2)
+    - Candidate A2 -- Self-scan cost brake: pin the pass census (regex passes AND prefilter substring tests) of `scan` over a frozen tree, so a register promotion or refactor cannot silently double scan cost (re-proposal of iter-405 B3, widened)
+    - Candidate A3 -- One self-scan computation serves both `scan .` and `scan . --json` in the cross-worker cache (`tests/_selfscan.py`)
+    - Candidate A1 -- README:91's safety claim is false in BOTH scan modes: committed or walked vendored code DOES manufacture findings. Restate the rule exactly, and derive the published skip names from `SKIP_DIRS`
+    - Candidate A2 -- PRODUCT.md marks rows 81 and 144 `open` although their own ledger lines record them shipped. Flip both and add an "open-but-shipped" brake to `tools/roadmap_integrity.py`
+    - Candidate A3 -- CONSUMER_CONTRACT.md:490 defines `target_name` as "the resolved directory's base name", false since `--name` shipped (iter 398). Correct it and pin the definition, not just the phrase
+    winner: A1
+    ship: pending (not yet decided)
   iter-405
     lenses: simplification-and-deletion (HEAD `bd9b161`), performance-and-throughput (HEAD `bd9b161`)
     - Candidate A1 -- iter303 b6 accepts a new test module by RULE: delete the 54-set, append-only `iterNNN_new` allowlist
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Top-level alternative dispatch: run only the alternatives whose literal conjunction the file satisfies
     - Candidate B3 -- Self-scan budget brake: pin the measured pass census so a register or code change cannot silently double scan cost
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 06c9d5a
   iter-404
     lenses: simplification-and-deletion (HEAD `cf6e10f`)
     - Candidate A1 -- OPERATOR PIN: re-land iteration 402 from state/iter-402/PRE_INTERRUPT_FULL.patch at cf6e10f
@@ -2067,4 +2077,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-207 scouted iterations
+208 scouted iterations
