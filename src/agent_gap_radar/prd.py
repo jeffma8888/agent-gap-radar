@@ -8,7 +8,10 @@ handoff from "we found the gap" to "a loop is building against it" is one comman
 
 from __future__ import annotations
 
+import pathlib
+
 from .models import Check, Gap, detectability
+from .registry import RegistryError, parse_record
 from .render import json_document
 from .scoring import confidence, priority
 
@@ -338,3 +341,47 @@ def prd_for(gap: Gap, project: str = "agent-gap-radar", *,
 def render_prd(gap: Gap, project: str = "agent-gap-radar", *,
                with_fixtures: bool = False) -> str:
     return json_document(prd_for(gap, project, with_fixtures=with_fixtures))
+
+
+class HandoffInvalid(ValueError):
+    """A `prd --after` FILE that is not a prd document; the message has no prefix."""
+
+
+def read_handoff(spelling: str) -> tuple[str, list[tuple[str, bool]]]:
+    """Read back a prd document a build loop finished: `(sourceGap.id, stories)`.
+
+    The INPUT side of the document `render_prd` writes, kept beside it so the keys read
+    here are the keys written above. Only `sourceGap.id` and each story's `id`/`passes`
+    are read -- the only keys the selection acts on -- so a loop may reformat or
+    annotate everything else. `passes` must be a JSON BOOLEAN: `1` or `"true"` is a
+    consumer that did not follow the contract, and reading it as done would skip a gap
+    on a claim nobody made. Parsed through `registry.parse_record`, as the scan
+    baseline is, so a story whose `passes` appears twice is refused rather than
+    silently answered by whichever copy came last.
+    """
+    try:
+        doc = parse_record(pathlib.Path(spelling).read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise HandoffInvalid(f"cannot read the file ({exc.strerror or exc})") from exc
+    except (ValueError, RegistryError) as exc:
+        raise HandoffInvalid(f"not valid JSON ({exc})") from exc
+    if not isinstance(doc, dict):
+        raise HandoffInvalid("the top level is not a JSON object")
+    source = doc.get("sourceGap")
+    if not isinstance(source, dict):
+        raise HandoffInvalid("sourceGap is missing or not an object")
+    if not isinstance(source.get("id"), str):
+        raise HandoffInvalid("sourceGap.id is not a string")
+    stories = doc.get("stories")
+    if not isinstance(stories, list) or not stories:
+        raise HandoffInvalid("stories is missing, not a list, or empty")
+    read: list[tuple[str, bool]] = []
+    for index, story in enumerate(stories):
+        if not isinstance(story, dict):
+            raise HandoffInvalid(f"stories[{index}] is not an object")
+        if not isinstance(story.get("id"), str):
+            raise HandoffInvalid(f"stories[{index}].id is not a string")
+        if not isinstance(story.get("passes"), bool):
+            raise HandoffInvalid(f"stories[{index}].passes is not a JSON boolean")
+        read.append((story["id"], story["passes"]))
+    return source["id"], read

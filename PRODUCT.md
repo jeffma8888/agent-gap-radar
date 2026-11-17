@@ -346,3 +346,5 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 406 docs-honesty: README states what a scan reads per mode; off-git skip names pinned to SKIP_DIRS
 - iter 407 row 126: `validate --json` prints {valid, records, errors:[{file, loc, msg}]}; refusal still exits 2
 - iter 408 closure-path: `scan --prd` skips terminal-status findings as `radar prd` does; the gate still counts them
+- iter 410 hand-off-return: approved and tested, INTERRUPTED at the final gate by an auth outage; tree kept as patch
+- iter 412 re-land of 410: `prd --after DONE.json` reads a finished prd back and selects the next gap

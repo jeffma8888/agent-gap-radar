@@ -676,6 +676,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_prd.add_argument("--match", default=None, metavar="TEXT",
                        help="select the top-ranked gap among records whose prose "
                             "contains TEXT, as `list --match` (not with --gap)")
+    # Registered after `--match` so `EXPECTED_ARGUMENTS["prd"]` is extended, not
+    # reshuffled. The INPUT side of the hand-off: `docs/CONSUMER_CONTRACT.md` says the
+    # consuming loop writes `passes` back into this verb's document, and until this
+    # flag nothing read it, so a finished loop was handed the same gap again. It
+    # changes SELECTION only -- closure stays an evidence act on the record.
+    p_prd.add_argument("--after", default=None, metavar="FILE",
+                       help="a prd.json the build loop finished (every story "
+                            "passes): skip its source gap and select the next "
+                            "(not with --gap)")
 
     p_scan = sub.add_parser(
         "scan", help="Apply the register's checks to a target repo or service.",
@@ -981,7 +990,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # function and must not depend on it having run.
     from .diff import (diff_json, diff_registers, regression_verdict,
                        render_diff)
-    from .prd import prd_for, render_prd
+    from .prd import HandoffInvalid, prd_for, read_handoff, render_prd
     from .registry import RegisterInvalid, RegistryError, load_all, load_one
     from .render import document, gap_brief, json_document, radar_report
     from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
@@ -1279,6 +1288,12 @@ def _dispatch(argv: list[str] | None = None) -> int:
     # the wrong thing. Read off `args` only under the verb that declares the option
     # rather than through a `getattr` default -- a default would silently pass a
     # renamed `dest` as "no layer given", turning this whole branch dead.
+    # `--after` first, and before the file is read: the conflict is in the argv, so it
+    # is reported whatever FILE holds. Its own sentence, so the `--layer`/`--match`
+    # refusal below stays byte-identical for every invocation without `--after`.
+    if args.command == "prd" and args.gap_id and args.after is not None:
+        return _fail("--gap names the record, so it cannot be combined with "
+                     "--after")
     if args.command == "prd" and args.gap_id and (
             args.layer is not None or args.match is not None):
         return _fail("--gap names the record, so it cannot be combined with "
@@ -1298,6 +1313,19 @@ def _dispatch(argv: list[str] | None = None) -> int:
     if args.command == "prd" and args.match is not None and not args.match.strip():
         return _fail("--match needs non-blank TEXT; omit the flag to select "
                      "from every record")
+    # The hand-off is read BEFORE the register, like an argument typo: a malformed or
+    # unfinished FILE is the caller's input, diagnosable without a healthy register.
+    after: tuple[str, int] | None = None
+    if args.command == "prd" and args.after is not None:
+        try:
+            after_id, stories = read_handoff(args.after)
+        except HandoffInvalid as exc:
+            return _fail(f"--after {args.after}: {exc}")
+        pending = [story_id for story_id, passes in stories if not passes]
+        if pending:
+            return _fail(f"hand-off not finished: {len(stories) - len(pending)}/"
+                         f"{len(stories)} stories pass (pending: {', '.join(pending)})")
+        after = (after_id, len(stories))
 
     try:
         # Inside the guard for the same reason as `scan`'s: `_resolve` refuses an
@@ -1355,6 +1383,21 @@ def _dispatch(argv: list[str] | None = None) -> int:
                         f"{gap.id} carries the terminal status {gap.status!r}; "
                         "the work is already done, so no prd is emitted for it")
             else:
+                skip: str | None = None
+                if after is not None:
+                    skip, total = after
+                    # Looked up on the WHOLE register, before narrowing: the status the
+                    # Note reports is the record's, whatever `--layer`/`--match` keep.
+                    status = next((g.status for g in gaps if g.id == skip), None)
+                    if status is None:
+                        return _fail(f"--after {args.after}: sourceGap.id {skip} "
+                                     "is not in the register")
+                    # Said on stderr because the register still DISPLAYS the gap as
+                    # `status`: the skip is a selection fact, never a closure.
+                    sys.stderr.write(
+                        f"Note: skipped {skip} -- {args.after} reports "
+                        f"{total}/{total} stories pass; the register still "
+                        f"records it as {status}\n")
                 narrowing = " ".join(
                     [f"--layer {args.layer}"] * (args.layer is not None)
                     + [f"--match {args.match}"] * (args.match is not None))
@@ -1379,7 +1422,9 @@ def _dispatch(argv: list[str] | None = None) -> int:
                     return _fail(
                         "every gap record carries a terminal status; the citable "
                         f"statuses are: {', '.join(citable_statuses())}")
-                ranked = rank(citable, args.floor)
+                # AFTER narrowing and the citable filter, so the result is the
+                # selection over a register without that record's file.
+                ranked = rank([g for g in citable if g.id != skip], args.floor)
                 # The refusal names the floor it APPLIED, so a consumer can tell a
                 # raised floor from an under-evidenced register: `scan --prd` has
                 # published its floor in the same sentence since iteration 255.

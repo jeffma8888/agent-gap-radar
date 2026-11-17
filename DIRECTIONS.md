@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-412
+    lenses: narrative-and-docs (HEAD `daacbea`)
+    - Candidate A0 -- OPERATOR PIN: land iter-410 `radar prd --after DONE.json` from ABORTED_IMPLEMENTATION.patch
+    - Candidate A1 -- The remaining plain-reader self-scan nodes read the cross-worker `selfscan` cache instead of scanning fresh
+    - Candidate A2 -- The literal prefilter stops paying a Python call per literal: 423k `_contains` calls become a per-file inline loop
+    - Candidate B1 -- OPERATOR PIN: land iter-410 `radar prd --after DONE.json` from ABORTED_IMPLEMENTATION.patch
+    - Candidate B2 -- Publish the exact test-path and lockfile rules the mitigation exclusion uses, with a table a test re-derives from the code
+    - Candidate B3 -- The contract's two remembered facts are wrong: "there are ten" defaults (the parser has 11) and `target_name` = "the directory's base name" (false since `--name`)
+    winner: A0
+    ship: pending (not yet decided)
+  iter-410
+    lenses: unknown
+    - Candidate A1 -- `radar prd --after DONE.json`: the build loop hands back its finished prd.json and gets the NEXT gap, not the one it just built
+    - Candidate A2 -- `radar scan .` inside a consumer's own repo blames their `package.json`: a directory with no `GAP-*` file gets "no gap register here", not a schema dump
+    - Candidate A3 -- `radar show GAP-X --practices DIR`: the radar side of the ECOSYSTEM `gap:GAP-NNN` link answers its own question
+    - Candidate B1 -- One scan frame on one stack replaces checks.py's eight lockstep module stacks
+    - Candidate B2 -- Delete the 11 hand-copied "this module has no machine path" self-checks that the repo-wide gate already covers
+    - Candidate B3 -- One scan-memo helper replaces the three copies of the "frame or uncached" memo body in checks.py (`_read`, `_folded`, first-match)
+    winner: A1
+    ship: unknown
   iter-408
     lenses: new-capability (HEAD `9488358`), hardening/DX (HEAD `9488358`)
     - Candidate A1 -- `radar report` shows each record's status, so its rank 1 is the gap `radar prd` actually builds
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `validate --json` never writes a machine path on stdout: an unreadable record gets its own `unreadable` kind and a path-free `msg`
     - Candidate B3 -- `validate` refuses a check pattern whose unbounded repeat holds an ambiguous alternation (empty or overlapping branches), because one such pattern makes `scan` hang on a 50-character line
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED daacbea
   iter-407
     lenses: narrative-and-docs (HEAD `885fad0`), new-capability (HEAD `885fad0`)
     - Candidate A1 -- README:91's new "What a scan reads" paragraph is false for a git repo with zero tracked files: untracked files ARE read. It also says "exactly" and "directories named", though the code has size/count caps and prunes entries of any kind
@@ -2097,4 +2117,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-210 scouted iterations
+212 scouted iterations

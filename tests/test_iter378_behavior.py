@@ -143,7 +143,7 @@ def test_blank_match_is_refused(tmp_path, capsys, needle):
 def test_the_contract_row_and_readme_show_the_new_flags():
     contract = (REPO / "docs" / "CONSUMER_CONTRACT.md").read_text(encoding="utf-8")
     assert ("`radar prd [<repo>] [--gap <ID>] [--floor N] [--project NAME] "
-            "[--with-fixtures] [--layer L] [--match TEXT]`") in contract
+            "[--with-fixtures] [--layer L] [--match TEXT] [--after FILE]`") in contract
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     assert any("radar prd" in line and "--layer" in line and "--match" in line
                for line in readme.splitlines())
