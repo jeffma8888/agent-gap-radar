@@ -359,8 +359,21 @@ def read_handoff(spelling: str) -> tuple[str, list[tuple[str, bool]]]:
     baseline is, so a story whose `passes` appears twice is refused rather than
     silently answered by whichever copy came last.
     """
+    path = pathlib.Path(spelling)
     try:
-        doc = parse_record(pathlib.Path(spelling).read_text(encoding="utf-8"))
+        irregular = path.exists() and not path.is_file()
+    except OSError as exc:
+        # The stat itself can fail (EACCES, ENAMETOOLONG): same `Error:` text the read gives.
+        raise HandoffInvalid(f"cannot read the file ({exc.strerror or exc})") from exc
+    if irregular:
+        # Refused before the read, as `scan --baseline` is: a FIFO blocks the read
+        # forever and `/dev/zero` never ends, so a loop would get no `Error:` at all.
+        # A MISSING path falls through, keeping the OS's own "No such file" text.
+        # Raised OUTSIDE the `try` below: HandoffInvalid is a ValueError, and that
+        # clause would rewrap it as "not valid JSON (...)".
+        raise HandoffInvalid("cannot read the file (not a regular file)")
+    try:
+        doc = parse_record(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise HandoffInvalid(f"cannot read the file ({exc.strerror or exc})") from exc
     except (ValueError, RegistryError) as exc:

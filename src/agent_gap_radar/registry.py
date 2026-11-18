@@ -333,6 +333,13 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     problems = [_near_miss_problem(name) for name in near_misses]
     for path in record_paths:
         try:
+            if not path.is_file():
+                # Checked BEFORE the read: a FIFO named like a record blocks `read_text`
+                # forever and `/dev/zero` never ends, so there is no exception to convert.
+                # Inside the `try` so a stat failure (EACCES, ENAMETOOLONG) still becomes
+                # a Problem, not a traceback. `is_file()` follows symlinks, so a link to a
+                # regular record is still read; the rule is about what the name resolves to.
+                raise ValueError("not a regular file")
             raw = parse_record(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             problems.append(Problem("invalid-json", path.name, None,

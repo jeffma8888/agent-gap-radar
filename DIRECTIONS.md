@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-414
+    lenses: new-capability (HEAD `3922897`)
+    - Candidate A1 -- `radar close GAP-X TARGET`: a gap's status flips to `addressed` only when the radar's own scan of the built repo reads ABSENT. The verb emits that flip as a `git apply`-able patch
+    - Candidate A2 -- `radar report` and text `radar list` show each record's status, and report's rank 1 agrees with the top gap `diff` already names (re-proposal of iter-408 A1 / iter-413 B3, with a new discriminator)
+    - Candidate A3 -- `radar diff` names closures: a `Closed (N)` / `Reopened (N)` section and `closed`/`reopened` keys in `--json`, so the done-state is a reportable event
+    - Candidate B1 -- A non-regular file makes `radar validate`/`list` and `prd --after` hang forever: refuse it as `not a file` before reading
+    - Candidate B2 -- `validate --json` puts the caller's full machine path on stdout and calls a permission error "invalid JSON": give an unreadable record its own kind and a path-free `msg`
+    - Candidate B3 -- `validate` refuses a check pattern with catastrophic backtracking (nested unbounded repeat, or an empty/overlapping branch under one), so one record cannot make `scan` hang
+    winner: B1
+    ship: pending (not yet decided)
   iter-413
     lenses: narrative-and-docs (HEAD `ba99ee7`), new-capability (HEAD `ba99ee7`)
     - Candidate A1 -- README's "From gap to build" stops at emitting the prd: write the return half ("Closing the loop") and pin each sentence with a test that runs the sequence
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- A terminal status must carry closing evidence: `Gap.resolution` (an `Evidence` citation), rendered by `show`, with confidence unchanged
     - Candidate B3 -- `radar report` and text `radar list` show a record's status, so a closed gap stops reading as the register's #1 open problem (still displayed, never dropped)
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 3922897
   iter-412
     lenses: narrative-and-docs (HEAD `daacbea`)
     - Candidate A0 -- OPERATOR PIN: land iter-410 `radar prd --after DONE.json` from ABORTED_IMPLEMENTATION.patch
@@ -2127,4 +2137,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-213 scouted iterations
+214 scouted iterations
