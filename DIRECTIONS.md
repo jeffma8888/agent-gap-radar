@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-416
+    lenses: integration-and-adoption (HEAD `977830d`)
+    - Candidate A1 -- `radar validate FILE...`: the register gate accepts the record paths a pre-commit hook or an editor passes it, and validates each file's WHOLE register, instead of failing with `not a directory`
+    - Candidate A2 -- `radar scan TARGET --prd --after FILE`: the scan-driven PRD door honours the finished hand-off, so a loop that started from a scan gets the target's NEXT PRESENT gap and not a gap this target does not exhibit
+    - Candidate A3 -- `radar scan`'s markdown names the next command for each actionable finding, since 0 of its 281 lines mention a `radar` verb
+    - Candidate B1 -- Delete iter303 b6's append-only whole-suite census node, which every commit since iter 401 has had to edit
+    - Candidate B2 -- One scan frame on one stack replaces checks.py's eight lockstep module stacks
+    - Candidate B3 -- Delete 10 hand-copied "this module has no machine path" self-checks the repo-wide gate already answers
+    winner: B1
+    ship: pending (not yet decided)
   iter-415
     lenses: hardening/DX (HEAD `5dfee3a`), integration-and-adoption (HEAD `5dfee3a`)
     - Candidate A1 -- `scan --exit-code --baseline` crashes with a traceback (rc 1) on a too-long or permission-denied path: the same stat-before-try door iter 414's reviewer found, still open at the third read door
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar prd --after prd.json --output prd.json`: the loop can replace its hand-off file in place, written only on success, instead of a shell redirect that destroys the finished hand-off before radar reads it
     - Candidate B3 -- `radar scan .` in a consumer's own repo blames their `package.json` with an 11-field schema dump: a register directory holding no `GAP-*` record gets "no gap register here; pass --gaps DIR"
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 977830d
   iter-414
     lenses: new-capability (HEAD `3922897`)
     - Candidate A1 -- `radar close GAP-X TARGET`: a gap's status flips to `addressed` only when the radar's own scan of the built repo reads ABSENT. The verb emits that flip as a `git apply`-able patch
@@ -2147,4 +2157,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-215 scouted iterations
+216 scouted iterations

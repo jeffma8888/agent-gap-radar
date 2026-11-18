@@ -153,6 +153,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 145 | `radar prd --after` is single-valued, so a second `--after` silently drops the first and the loop is handed back the gap it finished two hand-offs ago | shipped | Iteration 413: `--after` repeats; every finished FILE's gap leaves the selection, one Note per FILE in argv order. |
 | 146 | A FIFO, device or directory named `GAP-*.json`, or passed as `prd --after FILE`, is READ rather than refused, so `validate`/`list`/`prd` block forever with zero output | shipped | Iteration 414: every record path and every `--after` FILE that exists but is not a regular file is refused at exit 2 before any read; `scan --baseline` already refused (`scan.py:324`). |
 | 147 | One permission-denied entry inside a scan TARGET (a symlink into a mode-000 dir when walked, a tracked file under a mode-000 dir in git mode) aborts the whole scan as `Error: cannot scan target: <root>` (rc 2), so the contract's `skipped_files` / `applies_when unreadable:` channel is unreachable for it | shipped | Iteration 415: an enumeration stat that raises `OSError` keeps the entry; its failed read is disclosed via `skipped_files` / `applies_when unreadable:`; the scan still exits 0. |
+| 148 | `test_iter303` b6 re-pins the whole suite's module census as 61 append-only `iterNNN_new` sets, so every commit that adds a test module must also edit a module about iteration 303 | shipped | Iteration 416: the node is deleted; the 303 module keeps its b1-b7 pins, and a new test module needs no census line. |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -354,3 +355,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 413 row 145: `prd --after` repeats; every finished hand-off's gap leaves the selection, not only the last
 - iter 414 row 146: a FIFO/device/dir as a record or `prd --after` FILE exits 2, never hangs
 - iter 415 row 147: an unreadable entry in a scan target is counted in `skipped_files`, never aborting the scan
+- iter 416 row 148: delete iter303 b6's append-only suite census, a re-pin tax on every new test module

@@ -74,8 +74,6 @@ PROBE_SELECTION = "behavior_8 or b1_the_derived or shipped_document_agrees"
 
 #: Behavior 6 -- the one function deleted from `test_iter300`, and the survivors.
 DELETED_300 = "test_b13_the_re_pinned_modules_spell_the_published_cell_and_the_eighteen_flags"
-# Iteration 362 retired the frozen-commit two-arm node in test_iter302_behavior.py.
-RETIRED_362_302 = "test_b6_flagless_taxonomy_is_byte_identical_to_the_prechange_commit"
 KEPT_300_TESTS = [
     "test_b13_the_two_re_pinned_modules_import_and_their_cell_pins_agree_with_the_document",
     "test_b13_the_old_scan_cell_survives_nowhere_as_text",
@@ -210,10 +208,6 @@ def _parametrize_source(fn: ast.FunctionDef, argname: str) -> ast.expr:
                 and isinstance(deco.args[0], ast.Constant) and deco.args[0].value == argname):
             return deco.args[1]
     raise AssertionError(f"`{fn.name}` has no parametrize over {argname!r}")
-
-
-def _test_files(root: pathlib.Path) -> dict[str, set[str]]:
-    return {p.name: _test_names(_read(p)) for p in sorted(root.glob("test_*.py"))}
 
 
 # ---------------------------------------------------------------------------
@@ -398,101 +392,6 @@ def test_b6_test_iter300_deletes_the_text_pin_and_keeps_the_four_tests_and_helpe
     assert set(KEPT_300_HELPERS) <= helpers, sorted(helpers)
     assert COUNT_WORDS_300.findall(now) == [], COUNT_WORDS_300.findall(now)
     assert COUNT_WORDS_300.findall(before), "control: the pre-change module pinned the count"
-
-
-def test_b6_the_whole_suite_node_set_moved_by_exactly_the_three_named_edits(head_tests):
-    before, now = _test_files(head_tests), _test_files(TESTS)
-    me = pathlib.Path(__file__).name
-    iter305_new = {"test_iter305_behavior.py", "test_baseline_partition_unit.py"}
-    iter307_new = {"test_iter307_behavior.py"}
-    iter308_new = {"test_iter308_behavior.py"}
-    iter309_new = {"test_iter309_behavior.py"}
-    iter310_new = {"test_iter310_behavior.py"}
-    iter322_new = {"test_iter322_behavior.py"}
-    iter323_new = {"test_iter323_behavior.py"}
-    iter324_new = {"test_iter324_behavior.py"}
-    iter325_new = {"test_iter325_behavior.py"}
-    iter326_new = {"test_iter326_behavior.py"}
-    iter341_new = {"test_iter341_behavior.py"}
-    iter342_new = {"test_iter342_behavior.py"}
-    iter343_new = {"test_iter343_behavior.py"}
-    iter344_new = {"test_iter344_behavior.py"}
-    iter345_new = {"test_iter345_behavior.py"}
-    iter347_new = {"test_iter347_behavior.py"}
-    iter362_new = {"test_iter362_behavior.py"}
-    iter364_new = {"test_iter364_behavior.py"}
-    iter365_new = {"test_iter365_behavior.py"}
-    iter366_new = {"test_iter366_behavior.py"}
-    iter367_new = {"test_iter367_behavior.py"}
-    iter368_new = {"test_iter368_behavior.py", "test_iter368_tester_behavior.py"}
-    iter369_new = {"test_iter369_behavior.py"}
-    iter370_new = {"test_iter370_behavior.py"}
-    iter371_new = {"test_iter371_behavior.py"}
-    iter372_new = {"test_iter372_behavior.py"}
-    iter373_new = {"test_iter373_behavior.py", "test_iter373_tester_behavior.py"}
-    iter374_new = {"test_iter374_behavior.py", "test_iter374_tester_behavior.py"}
-    iter375_new = {"test_iter375_behavior.py", "test_iter375_tester_behavior.py"}
-    iter376_new = {"test_iter376_behavior.py", "test_iter376_tester_behavior.py"}
-    iter377_new = {"test_iter377_behavior.py", "test_iter377_tester_behavior.py"}
-    iter378_new = {"test_iter378_behavior.py", "test_iter378_tester_behavior.py"}
-    iter379_new = {"test_iter379_behavior.py", "test_iter379_tester_behavior.py"}
-    iter380_new = {"test_iter380_behavior.py", "test_iter380_tester_behavior.py"}
-    iter382_new = {"test_iter382_behavior.py", "test_iter382_tester_behavior.py"}
-    iter383_new = {"test_iter383_behavior.py", "test_iter383_tester_behavior.py"}
-    iter384_new = {"test_iter384_behavior.py", "test_iter384_tester_behavior.py"}
-    iter385_new = {"test_iter385_behavior.py"}
-    iter386_new = {"test_iter386_behavior.py"}
-    iter387_new = {"test_iter387_behavior.py"}
-    iter389_new = {"test_iter389_behavior.py"}
-    iter390_new = {"test_iter390_behavior.py"}
-    iter391_new = {"test_lockfile_domain_unit.py", "test_iter391_behavior.py"}
-    iter394_new = {"test_iter394_behavior.py"}
-    iter396_new = {"test_iter396_behavior.py"}
-    iter398_new = {"test_iter398_behavior.py", "test_iter398_tester_behavior.py"}
-    iter399_new = {"test_iter399_behavior.py"}
-    iter400_new = {"test_iter400_behavior.py", "test_iter400_tester_behavior.py"}
-    iter401_new = {"test_iter401_behavior.py", "test_iter401_tester_behavior.py"}
-    iter402_new = {"test_iter402_behavior.py"}
-    iter404_new = {"test_iter404_tester_behavior.py"}
-    iter405_new = {"test_iter405_behavior.py"}
-    iter406_new = {"test_iter406_tester_behavior.py"}
-    iter407_new = {"test_iter407_tester_behavior.py"}
-    iter408_new = {"test_iter408_tester_behavior.py"}
-    iter410_new = {"test_iter410_tester_behavior.py"}
-    iter412_new = {"test_iter412_tester_behavior.py"}
-    iter413_new = {"test_iter413_tester_behavior.py"}
-    iter414_new = {"test_iter414_behavior.py"}
-    iter415_new = {"test_iter415_behavior.py"}
-    assert set(now) == set(before) | {me} | iter305_new | iter307_new | iter308_new | iter309_new | iter310_new | iter322_new | iter323_new | iter324_new | iter325_new | iter326_new | iter341_new | iter342_new | iter343_new | iter344_new | iter345_new | iter347_new | iter362_new | iter364_new | iter365_new | iter366_new | iter367_new | iter368_new | iter369_new | iter370_new | iter371_new | iter372_new | iter373_new | iter374_new | iter375_new | iter376_new | iter377_new | iter378_new | iter379_new | iter380_new | iter382_new | iter383_new | iter384_new | iter385_new | iter386_new | iter387_new | iter389_new | iter390_new | iter391_new | iter394_new | iter396_new | iter398_new | iter399_new | iter400_new | iter401_new | iter402_new | iter404_new | iter405_new | iter406_new | iter407_new | iter408_new | iter410_new | iter412_new | iter413_new | iter414_new | iter415_new, sorted(set(now) ^ set(before))
-    assert now[me], "this module collects nothing"
-    changed = {name: (sorted(before[name] - now[name]), sorted(now[name] - before[name]))
-               for name in before if before[name] != now[name]}
-    assert changed == {
-        # iter 386 extends this entry: the frozen-commit control arms left for live pins.
-        "test_iter296_behavior.py": (
-            sorted([n for n in before["test_iter296_behavior.py"]
-                    if n.startswith("test_iter296_b1_the_derived")]
-                   + RETIRED_386["test_iter296_behavior.py"][0]),
-            sorted([RENAMED_296] + RETIRED_386["test_iter296_behavior.py"][1])),
-        # iter 386: the frozen-commit control arms left these two modules for live pins.
-        "test_iter264_behavior.py": RETIRED_386["test_iter264_behavior.py"],
-        "test_iter265_behavior.py": RETIRED_386["test_iter265_behavior.py"],
-        "test_iter300_behavior.py": ([DELETED_300], []),
-        "test_iter302_behavior.py": ([RETIRED_362_302], []),
-        # iter 370: the `(?i)[A-Z]x` refusal pin flipped to an acceptance pin.
-        "test_iter245_behavior.py": ([], ["test_b1_uppercase_class_now_lowered"]),
-        # iter 399: the `[ab](foo|bar)` refusal arm became a group-descent proof pin.
-        "test_iter117_behavior.py": (
-            [], ["test_b3_a_mandatory_group_alternation_proves_its_alternatives"]),
-        # iter 385: the trailing-newline admission pin inverted to a refusal pin.
-        "test_iter121_behavior.py": (
-            ["test_behavior6x_a_trailing_newline_is_admitted_by_the_authoritative_rule"],
-            ["test_behavior6x_a_trailing_newline_is_refused_at_both_doors"]),
-        # iter 408: `scan --prd` became a selection door that skips a terminal record.
-        "test_iter125_behavior.py": (
-            ["test_b9_scan_prd_still_selects_a_terminal_record_when_the_evidence_says_present"],
-            ["test_b9_scan_prd_skips_a_terminal_record_at_selection"]),
-    }, changed
 
 
 # ---------------------------------------------------------------------------

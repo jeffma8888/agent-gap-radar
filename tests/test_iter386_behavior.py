@@ -205,4 +205,3 @@ def test_behavior8_the_tracker_lists_exactly_these_removed_and_added_names():
         removed, added = table[module]
         assert set(removed) == DELETED[module], module
         assert added == [ADDED[module]], module
-    assert "test_iter386_behavior.py" in _text("test_iter303_behavior.py")
