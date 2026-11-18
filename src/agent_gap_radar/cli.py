@@ -681,10 +681,13 @@ def build_parser() -> argparse.ArgumentParser:
     # consuming loop writes `passes` back into this verb's document, and until this
     # flag nothing read it, so a finished loop was handed the same gap again. It
     # changes SELECTION only -- closure stays an evidence act on the record.
-    p_prd.add_argument("--after", default=None, metavar="FILE",
+    # `append`, not `store`: after two finished hand-offs the register still says
+    # `open` for both, so a `store` flag silently kept only the LAST file and handed
+    # the loop the gap it finished before that. `append` keeps `nargs`/`default`.
+    p_prd.add_argument("--after", action="append", default=None, metavar="FILE",
                        help="a prd.json the build loop finished (every story "
-                            "passes): skip its source gap and select the next "
-                            "(not with --gap)")
+                            "passes): skip its source gap and select the next; "
+                            "repeat for every finished hand-off (not with --gap)")
 
     p_scan = sub.add_parser(
         "scan", help="Apply the register's checks to a target repo or service.",
@@ -1315,17 +1318,22 @@ def _dispatch(argv: list[str] | None = None) -> int:
                      "from every record")
     # The hand-off is read BEFORE the register, like an argument typo: a malformed or
     # unfinished FILE is the caller's input, diagnosable without a healthy register.
-    after: tuple[str, int] | None = None
+    # Every FILE is read, in argv order, before anything else: the first bad one
+    # refuses the whole invocation, because a selection that silently honoured only
+    # some of the finished hand-offs would rebuild work the loop already did.
+    after: list[tuple[str, str, int]] = []
     if args.command == "prd" and args.after is not None:
-        try:
-            after_id, stories = read_handoff(args.after)
-        except HandoffInvalid as exc:
-            return _fail(f"--after {args.after}: {exc}")
-        pending = [story_id for story_id, passes in stories if not passes]
-        if pending:
-            return _fail(f"hand-off not finished: {len(stories) - len(pending)}/"
-                         f"{len(stories)} stories pass (pending: {', '.join(pending)})")
-        after = (after_id, len(stories))
+        for handoff in args.after:
+            try:
+                after_id, stories = read_handoff(handoff)
+            except HandoffInvalid as exc:
+                return _fail(f"--after {handoff}: {exc}")
+            pending = [story_id for story_id, passes in stories if not passes]
+            if pending:
+                return _fail(
+                    f"hand-off not finished: {len(stories) - len(pending)}/"
+                    f"{len(stories)} stories pass (pending: {', '.join(pending)})")
+            after.append((handoff, after_id, len(stories)))
 
     try:
         # Inside the guard for the same reason as `scan`'s: `_resolve` refuses an
@@ -1383,21 +1391,23 @@ def _dispatch(argv: list[str] | None = None) -> int:
                         f"{gap.id} carries the terminal status {gap.status!r}; "
                         "the work is already done, so no prd is emitted for it")
             else:
-                skip: str | None = None
-                if after is not None:
-                    skip, total = after
-                    # Looked up on the WHOLE register, before narrowing: the status the
-                    # Note reports is the record's, whatever `--layer`/`--match` keep.
-                    status = next((g.status for g in gaps if g.id == skip), None)
-                    if status is None:
-                        return _fail(f"--after {args.after}: sourceGap.id {skip} "
+                # Looked up on the WHOLE register, before narrowing: the status the
+                # Note reports is the record's, whatever `--layer`/`--match` keep.
+                statuses = {g.id: g.status for g in gaps}
+                # Every id is checked before any Note is written, so a refusal is
+                # never preceded by a skip line for an invocation that did not run.
+                for handoff, skip, _total in after:
+                    if skip not in statuses:
+                        return _fail(f"--after {handoff}: sourceGap.id {skip} "
                                      "is not in the register")
-                    # Said on stderr because the register still DISPLAYS the gap as
-                    # `status`: the skip is a selection fact, never a closure.
+                # Said on stderr because the register still DISPLAYS the gap as
+                # `status`: the skip is a selection fact, never a closure.
+                for handoff, skip, total in after:
                     sys.stderr.write(
-                        f"Note: skipped {skip} -- {args.after} reports "
+                        f"Note: skipped {skip} -- {handoff} reports "
                         f"{total}/{total} stories pass; the register still "
-                        f"records it as {status}\n")
+                        f"records it as {statuses[skip]}\n")
+                skips = {skip for _handoff, skip, _total in after}
                 narrowing = " ".join(
                     [f"--layer {args.layer}"] * (args.layer is not None)
                     + [f"--match {args.match}"] * (args.match is not None))
@@ -1424,7 +1434,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
                         f"statuses are: {', '.join(citable_statuses())}")
                 # AFTER narrowing and the citable filter, so the result is the
                 # selection over a register without that record's file.
-                ranked = rank([g for g in citable if g.id != skip], args.floor)
+                ranked = rank([g for g in citable if g.id not in skips], args.floor)
                 # The refusal names the floor it APPLIED, so a consumer can tell a
                 # raised floor from an under-evidenced register: `scan --prd` has
                 # published its floor in the same sentence since iteration 255.

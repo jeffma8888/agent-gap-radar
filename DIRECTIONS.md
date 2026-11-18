@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-413
+    lenses: narrative-and-docs (HEAD `ba99ee7`), new-capability (HEAD `ba99ee7`)
+    - Candidate A1 -- README's "From gap to build" stops at emitting the prd: write the return half ("Closing the loop") and pin each sentence with a test that runs the sequence
+    - Candidate A2 -- validate --json's `file` is "never a path", yet `msg` for an unreadable record carries the caller's full path: make the contract tell the truth (or make the msg path-free)
+    - Candidate A3 -- CONSUMER_CONTRACT:649's "one of the register's top three records by priority is exactly that [partially-addressed]" is a register-derived fact that no test pins, and it holds only by an id tie-break
+    - Candidate B1 -- `radar prd --after` accepts the loop's WHOLE hand-off history (repeatable flag), so the second finished hand-off cannot get the first gap back
+    - Candidate B2 -- A terminal status must carry closing evidence: `Gap.resolution` (an `Evidence` citation), rendered by `show`, with confidence unchanged
+    - Candidate B3 -- `radar report` and text `radar list` show a record's status, so a closed gap stops reading as the register's #1 open problem (still displayed, never dropped)
+    winner: B1
+    ship: pending (not yet decided)
   iter-412
     lenses: narrative-and-docs (HEAD `daacbea`)
     - Candidate A0 -- OPERATOR PIN: land iter-410 `radar prd --after DONE.json` from ABORTED_IMPLEMENTATION.patch
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Publish the exact test-path and lockfile rules the mitigation exclusion uses, with a table a test re-derives from the code
     - Candidate B3 -- The contract's two remembered facts are wrong: "there are ten" defaults (the parser has 11) and `target_name` = "the directory's base name" (false since `--name`)
     winner: A0
-    ship: pending (not yet decided)
+    ship: PUSHED ba99ee7
   iter-410
     lenses: unknown
     - Candidate A1 -- `radar prd --after DONE.json`: the build loop hands back its finished prd.json and gets the NEXT gap, not the one it just built
@@ -2117,4 +2127,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-212 scouted iterations
+213 scouted iterations
