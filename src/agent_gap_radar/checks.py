@@ -344,6 +344,24 @@ def _glob_regex(pattern: str) -> re.Pattern[str]:
         return re.compile("^" + re.escape(pattern) + "$")
 
 
+def _is_file_or_unreadable(entry: os.DirEntry[str] | pathlib.Path) -> bool:
+    """Admit an entry that is a file OR that cannot be stat'ed at all.
+
+    WHY: `is_file()` follows links and raises `PermissionError` when the stat
+    itself is refused (a link into a mode-000 directory, a tracked file under
+    one). Raising here aborted the WHOLE scan as `cannot scan target: <root>`,
+    naming the wrong path and producing no document. Admitting the entry hands
+    it to `_decode`, whose own failed read records it as unread, so it surfaces
+    through `skipped_files` and `applies_when unreadable:` -- disclosed, never
+    silently dropped and never passed unearned. This wraps the existing call,
+    so the happy path costs no extra stat.
+    """
+    try:
+        return entry.is_file()
+    except OSError:
+        return True
+
+
 def _match_globs(target: pathlib.Path, relatives: list[str],
                  globs: list[str], exclude_tests: bool) -> list[pathlib.Path]:
     """Match register globs against already-enumerated target-relative paths.
@@ -394,7 +412,7 @@ def _match_globs(target: pathlib.Path, relatives: list[str],
             if not regex.match(rel):
                 continue
             path = target / rel
-            if not path.is_file():
+            if not _is_file_or_unreadable(path):
                 continue
             # A SYMLINK may not drag content in from outside the target.
             # `is_file()` follows links, so without this a tracked
@@ -520,7 +538,7 @@ def _iter_walked(target: pathlib.Path, globs: list[str],
                 # A directory SYMLINK is not descended, which is what the old
                 # `Path.glob("**/...")` walk did, and it also bounds a cycle.
                 stack.append((pathlib.Path(entry.path), rel + "/"))
-            elif entry.is_file():
+            elif _is_file_or_unreadable(entry):
                 # `is_file()` FOLLOWS links, as the old walk's did, so an entry
                 # whose target lies outside the tree is ENUMERATED here and
                 # rejected later by `_match_globs`. Containment is a rule about

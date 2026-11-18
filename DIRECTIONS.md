@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-415
+    lenses: hardening/DX (HEAD `5dfee3a`), integration-and-adoption (HEAD `5dfee3a`)
+    - Candidate A1 -- `scan --exit-code --baseline` crashes with a traceback (rc 1) on a too-long or permission-denied path: the same stat-before-try door iter 414's reviewer found, still open at the third read door
+    - Candidate A2 -- One unreadable entry inside a scan target aborts the WHOLE scan as `cannot scan target: <target>` (rc 2), so the contract's designed "unreadable file" channel cannot be reached for it
+    - Candidate A3 -- `validate --json` still puts the caller's absolute path on stdout for an unreadable record, under a kind that now covers three causes (re-proposal of iter-408 B2 / iter-413 A2 / iter-414 B2)
+    - Candidate B1 -- `radar scan --prd --after FILE`: the scan-driven PRD door honours the finished hand-off, so it stops re-handing the gap the loop just built
+    - Candidate B2 -- `radar prd --after prd.json --output prd.json`: the loop can replace its hand-off file in place, written only on success, instead of a shell redirect that destroys the finished hand-off before radar reads it
+    - Candidate B3 -- `radar scan .` in a consumer's own repo blames their `package.json` with an 11-field schema dump: a register directory holding no `GAP-*` record gets "no gap register here; pass --gaps DIR"
+    winner: A2
+    ship: pending (not yet decided)
   iter-414
     lenses: new-capability (HEAD `3922897`)
     - Candidate A1 -- `radar close GAP-X TARGET`: a gap's status flips to `addressed` only when the radar's own scan of the built repo reads ABSENT. The verb emits that flip as a `git apply`-able patch
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `validate --json` puts the caller's full machine path on stdout and calls a permission error "invalid JSON": give an unreadable record its own kind and a path-free `msg`
     - Candidate B3 -- `validate` refuses a check pattern with catastrophic backtracking (nested unbounded repeat, or an empty/overlapping branch under one), so one record cannot make `scan` hang
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 5dfee3a
   iter-413
     lenses: narrative-and-docs (HEAD `ba99ee7`), new-capability (HEAD `ba99ee7`)
     - Candidate A1 -- README's "From gap to build" stops at emitting the prd: write the return half ("Closing the loop") and pin each sentence with a test that runs the sequence
@@ -2137,4 +2147,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-214 scouted iterations
+215 scouted iterations
