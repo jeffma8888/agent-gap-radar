@@ -74,6 +74,7 @@ __all__ = (
     "priority",
     "promotion_options",
     "rank",
+    "source_documents",
     "strongest_source",
     "tag_coverage",
 )
@@ -129,13 +130,26 @@ def _source_key(citation: object) -> str:
     return _document_key(getattr(citation, "locator", ""))
 
 
+def source_documents(gap: Gap) -> tuple[str, ...]:
+    """The DISTINCT DOCUMENTS a record's citations rest on, as sorted `_source_key`s.
+
+    The set `confidence()`'s corroboration rule keys on, published so a surface can
+    compare a record's evidence BASIS rather than only its count: a pass that swaps
+    every source while keeping the class and the count moves this value and nothing
+    else. Sorted so citation ORDER in the record never reads as a difference, and
+    built from `_source_key` so a respelling of one document (`#fragment`, trailing
+    `/`, case) is one key here exactly as it is one source in the score.
+    """
+    return tuple(sorted({_source_key(e) for e in gap.evidence}))
+
+
 def distinct_sources(gap: Gap) -> int:
     """How many DISTINCT DOCUMENTS a record's citations rest on.
 
     The denominator `confidence()`'s corroboration rule already keys on, exposed
-    so a surface can print it. It CALLS `_source_key` instead of repeating that
-    normalisation, so a published count cannot disagree with the point the
-    scorer grants or withholds: two fragments of one page, or one URL entered
+    so a surface can print it. It is the size of `source_documents`, which CALLS
+    `_source_key`, instead of repeating that normalisation, so a published count
+    cannot disagree with the point the scorer grants or withholds: two fragments of one page, or one URL entered
     with and without a trailing slash, count ONCE in both places by construction.
 
     Total for the same reason `_source_key` is total -- an empty `evidence` list
@@ -145,7 +159,7 @@ def distinct_sources(gap: Gap) -> int:
     Feeds no score and enters no ordering: it is a denominator, and a source
     count read as a target is the Goodhart shape this register forbids by name.
     """
-    return len({_source_key(e) for e in gap.evidence})
+    return len(source_documents(gap))
 
 
 def confidence(gap: Gap) -> int:

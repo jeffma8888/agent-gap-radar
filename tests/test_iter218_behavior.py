@@ -64,6 +64,12 @@ PUBLIC_FUNCTIONS = [
     "tag_coverage",
 ]
 
+#: Names published AFTER this iteration, each because a consumer module now imports it
+#: (the rule this iteration set). Iteration 419: `diff.py` imports `source_documents`
+#: for its `sources` field. Kept separate so the iteration-218 delta stays pinned as
+#: measured rather than being rewritten.
+PUBLISHED_SINCE = ("source_documents",)
+
 #: Spec behaviour 6/7: the eight names that become private.
 PRIVATISED = (
     "distinct_register_sources", "shared_sources", "records_on_shared_source",
@@ -73,7 +79,7 @@ PRIVATISED = (
 
 #: Acceptance criterion: `__all__` is EXACTLY the 10 public functions plus the one
 #: constant `render.py` imports from `scoring`.
-ALL_EXPECTED = frozenset(PUBLIC_FUNCTIONS) | {"CONFIDENCE_FLOOR_DEFAULT"}
+ALL_EXPECTED = frozenset(PUBLIC_FUNCTIONS) | set(PUBLISHED_SINCE) | {"CONFIDENCE_FLOOR_DEFAULT"}
 
 #: argv tail -> (stdout byte length, sha256) captured from the PRE-CHANGE tree at
 #: HEAD `31e5864` via `git archive`.  All five exited 0 with EMPTY stderr.
@@ -262,7 +268,7 @@ def test_b4_public_callable_surface_is_exactly_the_pinned_ten_names():
         n for n, v in vars(scoring).items()
         if not n.startswith("_") and callable(v)
         and getattr(v, "__module__", None) == scoring.__name__)
-    assert found == sorted(PUBLIC_FUNCTIONS)  # nothing extra is published
+    assert found == sorted(PUBLIC_FUNCTIONS + list(PUBLISHED_SINCE))  # nothing extra is published
     for name in PUBLIC_FUNCTIONS:            # and nothing pinned went missing
         assert callable(getattr(scoring, name)), name
 
@@ -395,7 +401,8 @@ def test_b4_the_privatised_eight_are_exactly_the_pre_change_public_delta():
         n for n, v in vars(scoring).items()
         if not n.startswith("_") and callable(v)
         and getattr(v, "__module__", None) == scoring.__name__)
-    assert sorted(set(PRECHANGE_PUBLIC_FUNCTIONS) - set(PRIVATISED)) == today
+    assert sorted((set(PRECHANGE_PUBLIC_FUNCTIONS) - set(PRIVATISED))
+                  | set(PUBLISHED_SINCE)) == today
 
 
 def test_b5_a_star_import_publishes_exactly_the_dunder_all_surface():

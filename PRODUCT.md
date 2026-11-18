@@ -156,6 +156,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 148 | `test_iter303` b6 re-pins the whole suite's module census as 61 append-only `iterNNN_new` sets, so every commit that adds a test module must also edit a module about iteration 303 | shipped | Iteration 416: the node is deleted; the 303 module keeps its b1-b7 pins, and a new test module needs no census line. |
 | 149 | The suite's offline guarantee is a per-module opt-in: six modules hand-copy a socket tripwire (one already drifted, missing `getaddrinfo`) and ~224 run unguarded | shipped | Iteration 417: one autouse `tests/conftest.py` tripwire arms every test; the four socket-only module copies are deleted. |
 | 150 | A scan compiles 109 check patterns twice: record validation compiles each with flags 0, the scan again with `re.MULTILINE`, because re's cache keys on flags | shipped | Iteration 418: validation primes the scan's `(pattern, re.MULTILINE)` memo; tiny-target scan 675 -> 566 compiles, output byte-identical |
+| 151 | `radar diff` reads a record whose whole evidence basis was swapped (its only citation replaced by a different source document) as `Changed (0)`, byte-identical to no change, with `--exit-code` 0 | shipped | Iteration 419: a tenth compared field `sources` lists the distinct source documents `confidence()` counts; a re-sourced record is now a change |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -360,3 +361,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 416 row 148: delete iter303 b6's append-only suite census, a re-pin tax on every new test module
 - iter 417 row 149: one `tests/conftest.py` socket tripwire arms the whole suite offline; 4 module copies deleted
 - iter 418 row 150: record validation primes the scan's compile memo, so no check pattern compiles twice
+- iter 419 row 151: `radar diff` compares a record's distinct source documents; a re-sourced record is a change

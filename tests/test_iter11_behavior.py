@@ -54,7 +54,7 @@ from _surface_contract import (contract_text, documented_invocation, invocation_
                                parser_surface, surface_table_cells, surface_violations)
 from agent_gap_radar.cli import main
 from agent_gap_radar.registry import RegistryError, load_all
-from agent_gap_radar.scoring import confidence, priority
+from agent_gap_radar.scoring import confidence, priority, source_documents
 
 #: Repo root, found relative to this file so no absolute machine path appears here.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -66,7 +66,7 @@ SECTION_ORDER = ("Added", "Removed", "Changed")
 
 #: Behavior 5 fixes the compared fields AND the order their nested lines appear in.
 COMPARED_FIELDS = ("status", "layer", "gap_type", "severity", "frequency",
-                   "tractability", "priority", "confidence", "citations")
+                   "tractability", "priority", "confidence", "citations", "sources")
 
 #: The single body line a section with no records renders (behavior 3).
 EMPTY_BODY = "None."
@@ -256,6 +256,7 @@ def _field_values(gap) -> dict[str, object]:
         "priority": priority(gap),
         "confidence": confidence(gap),
         "citations": len(gap.evidence),
+        "sources": ", ".join(source_documents(gap)),
     }
 
 
@@ -387,14 +388,23 @@ def test_b4_rows_carry_the_records_own_title_after_two_spaces(capsys, tmp_path):
 # ---------------------------------------------------------------------------
 
 def _all_fields_pair(tmp_path):
-    """A pair whose one shared record differs on every one of the nine fields."""
+    """A pair whose one shared record differs on every one of the ten fields.
+
+    The new side's second citation is a DIFFERENT document, so `sources` moves too.
+    """
     old_record = _record("GAP-002", severity=2, frequency=2, tractability=2,
                          evidence=_evidence("secondary-summary"))
     new_record = _record("GAP-002", status="addressed", layer="multi-agent",
                          gap_type="silent-failure", severity=5, frequency=4,
                          tractability=3,
-                         evidence=_evidence("first-party-field", "peer-reviewed"))
+                         evidence=_moved_source_evidence())
     return _pair(tmp_path, [old_record], [new_record])
+
+
+def _moved_source_evidence() -> list[dict]:
+    """Two citations whose second names a document the old side never cited."""
+    first, second = _evidence("first-party-field", "peer-reviewed")
+    return [first, {**second, "locator": "https://example.invalid/peer"}]
 
 
 def test_b5_every_compared_field_is_reported_in_the_fixed_order(capsys, tmp_path):
@@ -403,7 +413,7 @@ def test_b5_every_compared_field_is_reported_in_the_fixed_order(capsys, tmp_path
     blocks = _changed_blocks(_by_name(document)["Changed"])
     assert list(blocks) == ["GAP-002"]
     expected = _expected_nested(_one(old, "GAP-002"), _one(new, "GAP-002"))
-    # Anti-vacuity: this fixture is the one that exercises ALL nine fields, so if a
+    # Anti-vacuity: this fixture is the one that exercises ALL ten fields, so if a
     # later edit weakens it the order assertion stops being about order at all.
     assert len(expected) == len(COMPARED_FIELDS), expected
     assert blocks["GAP-002"] == expected
@@ -462,9 +472,10 @@ PROSE_ID = "GAP-042"
 def _prose_only_pair(tmp_path, *, also_change_status: bool = False):
     """Two sides differing ONLY in free prose -- optionally plus one closed field.
 
-    The citation is rewritten in every text field it has (title, locator, date, quote)
-    while keeping its `source_class` and the citation COUNT, so `confidence` and
-    `citations` are identical by construction and the only differences are prose.
+    The citation is rewritten in every text field it has (title, date, quote) and its
+    locator is RESPELLED as the same document (case, trailing `/`, `#fragment`), while
+    keeping its `source_class` and the citation COUNT, so `confidence`, `citations` and
+    `sources` are identical by construction and the only differences are prose.
     """
     old_record = _record(
         PROSE_ID, title="the original wording", problem="the original problem statement",
@@ -488,7 +499,7 @@ def _prose_only_pair(tmp_path, *, also_change_status: bool = False):
                "rationale": "a reworded rationale"},
         evidence=[{**EVIDENCE, "source_class": "first-party-field",
                    "title": "the source title, renamed",
-                   "locator": "https://example.invalid/moved",
+                   "locator": "https://example.invalid/Original/#renamed-section",
                    "date": "2026-03-04", "quote": "a different verbatim line"}])
     if also_change_status:
         new_record["status"] = "addressed"

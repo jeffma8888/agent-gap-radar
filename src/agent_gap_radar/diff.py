@@ -12,9 +12,19 @@ WHY THE COMPARED FIELD SET IS CLOSED
 Every field in `COMPARED_FIELDS` is a closed-vocabulary string, a bounded integer,
 or a value DERIVED by `scoring`. That is the property that keeps this verb a change
 report rather than a prose review: free text (`title`, `problem`, `symptom`,
-`why_now`, `existing`, `build_hypothesis`, `tags`, `check`, and the text of a
-citation) is deliberately never compared, because a diff that reports rewording
-buries the one change that matters.
+`why_now`, `existing`, `build_hypothesis`, `tags`, `check`, and a citation's
+`title`, `quote` and `date` text) is deliberately never compared, because a diff
+that reports rewording buries the one change that matters.
+
+WHY A CITATION'S LOCATOR IS COMPARED (`sources`)
+A locator is the IDENTITY of a document, not prose. `confidence` and `citations`
+show the RESULT of the evidence derivation; `sources` shows its INPUT -- the
+distinct documents, normalised exactly as `confidence()` counts them
+(`scoring.source_documents`). Without it, a pass could replace every source a record
+rests on, keeping the class and the count, and this report would read as if nothing
+happened. A respelling of the SAME document (`#fragment`, trailing `/`, case) or a
+reordering of citations is still no change, because the keys are normalised and
+sorted before they are compared.
 
 WHY `severity`, `frequency` AND `tractability` ARE COMPARED SEPARATELY FROM `priority`
 `priority` is a weighted sum (3/2/1), so it can MASK a change in its own inputs: a
@@ -39,7 +49,7 @@ from dataclasses import dataclass
 
 from .models import Gap
 from .render import document, json_document
-from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank
+from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank, source_documents
 from .taxonomy import citable_statuses, terminal_statuses
 
 #: The compared fields, in the ONE order the report emits them. A single tuple
@@ -55,6 +65,7 @@ COMPARED_FIELDS: tuple[str, ...] = (
     "priority",
     "confidence",
     "citations",
+    "sources",
 )
 
 
@@ -126,6 +137,8 @@ def record_facts(gap: Gap) -> dict[str, str]:
 
     `citations` is the COUNT of a record's evidence, never its text: a dropped or
     added citation moves `confidence`, and that is the corruption worth seeing.
+    `sources` is the sorted distinct document keys joined by `", "`, so a swapped
+    evidence basis is visible even when the class and the count are unchanged.
     """
     return {
         "status": gap.status,
@@ -138,6 +151,7 @@ def record_facts(gap: Gap) -> dict[str, str]:
         "priority": f"{priority(gap):.1f}",
         "confidence": str(confidence(gap)),
         "citations": str(len(gap.evidence)),
+        "sources": ", ".join(source_documents(gap)),
     }
 
 

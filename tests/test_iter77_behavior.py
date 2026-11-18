@@ -23,7 +23,7 @@ Three deliberate design choices, each because the obvious version would be vacuo
 
 The markdown report is used as the ORACLE for order and for change values rather than being
 re-derived here, which is what makes the JSON and markdown surfaces provably the same answer
-in two encodings. The nine compared fields are ALSO pinned as a literal in this file and then
+in two encodings. The ten compared fields are ALSO pinned as a literal in this file and then
 asserted equal to the published `diff.COMPARED_FIELDS`, so a silent reorder of the published
 tuple reds this suite instead of quietly re-pointing a consumer's field list.
 
@@ -54,7 +54,8 @@ import pytest
 from agent_gap_radar.cli import main
 from agent_gap_radar.diff import COMPARED_FIELDS as PUBLISHED_COMPARED_FIELDS
 from agent_gap_radar.registry import load_all
-from agent_gap_radar.scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank
+from agent_gap_radar.scoring import (CONFIDENCE_FLOOR_DEFAULT, confidence, priority, rank,
+                                      source_documents)
 from agent_gap_radar.taxonomy import citable_statuses
 from _surface_inventory import verbs_without
 
@@ -77,7 +78,7 @@ CHANGE_KEYS = ["field", "old", "new"]
 #: the published tuple, so a reorder of either side reds rather than silently re-pointing a
 #: consumer's field list.
 COMPARED_FIELDS = ("status", "layer", "gap_type", "severity", "frequency",
-                   "tractability", "priority", "confidence", "citations")
+                   "tractability", "priority", "confidence", "citations", "sources")
 
 #: The forbidden key of behavior 6, by name.
 BLENDED_KEY = "score"
@@ -154,11 +155,17 @@ def _all_fields_old() -> dict:
 def _all_fields_new() -> dict:
     return _record("GAP-002", status="addressed", layer="multi-agent",
                    gap_type="silent-failure", severity=5, frequency=4, tractability=3,
-                   evidence=_evidence("first-party-field", "peer-reviewed"))
+                   evidence=_moved_source_evidence())
+
+
+def _moved_source_evidence() -> list[dict]:
+    """Two citations whose second names a document the old side never cited."""
+    first, second = _evidence("first-party-field", "peer-reviewed")
+    return [first, {**second, "locator": "https://example.invalid/peer"}]
 
 
 def _all_fields_pair(tmp_path):
-    """A pair whose one shared record differs on every one of the nine compared fields."""
+    """A pair whose one shared record differs on every one of the ten compared fields."""
     return _pair(tmp_path, [_all_fields_old()], [_all_fields_new()])
 
 
@@ -285,6 +292,7 @@ def _field_values(gap) -> dict[str, object]:
         "priority": priority(gap),
         "confidence": confidence(gap),
         "citations": len(gap.evidence),
+        "sources": ", ".join(source_documents(gap)),
     }
 
 
@@ -295,7 +303,7 @@ def _field_values(gap) -> dict[str, object]:
 def test_the_pinned_field_tuple_equals_the_published_one():
     """Both membership and ORDER. Either side moving reds here, not at a consumer."""
     assert tuple(PUBLISHED_COMPARED_FIELDS) == COMPARED_FIELDS
-    assert len(COMPARED_FIELDS) == 9
+    assert len(COMPARED_FIELDS) == 10
 
 
 # ---------------------------------------------------------------------------
@@ -480,7 +488,7 @@ def test_b5_all_nine_fields_appear_in_compared_fields_order(capsys, tmp_path):
     old, new = _all_fields_pair(tmp_path)
     payload = _payload(capsys, old, new)
     fields = [change["field"] for change in payload["changed"][0]["changes"]]
-    # Anti-vacuity: this fixture is the one that moves ALL nine, so if a later edit
+    # Anti-vacuity: this fixture is the one that moves ALL ten, so if a later edit
     # weakens it the order assertion stops being about order at all.
     assert len(fields) == len(COMPARED_FIELDS), fields
     assert tuple(fields) == COMPARED_FIELDS

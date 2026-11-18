@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-419
+    lenses: narrative-and-docs (HEAD `bbc2e81`, clean tree), new-capability (HEAD `bbc2e81`, clean tree)
+    - Candidate A1 -- The suite-wide offline brake says "no test in any module may open a network socket", but any test's child process opens one freely: state the brake's real reach in conftest and README and pin it
+    - Candidate A2 -- README's "From gap to build" ends at emitting the prd: write the return half, including the trap that a loop started from `scan --prd` cannot hand its finished prd back to the scan door
+    - Candidate A3 -- README says "cost claims are re-derived, never remembered", yet the newest shipped cost claim (row 150: "675 -> 566 compiles") is one the committed census cannot re-derive: make `tools/scan_cost.py` count pattern compiles, or restate the README rule's real scope
+    - Candidate B1 -- `radar diff` names WHICH sources a record gained or lost, so swapping its entire evidence basis is no longer "Changed (0)"
+    - Candidate B2 -- the per-gap brief (`show`, and `show --json`) names the source class that would lift a below-floor record to the floor
+    - Candidate B3 -- `radar diff` reports a changed CHECK, so an edit that flips a record's scan verdict on every target is no longer invisible
+    winner: B1
+    ship: pending (not yet decided)
   iter-418
     lenses: performance-and-throughput (HEAD `a81d5b2`), narrative-and-docs (HEAD `a81d5b2`)
     - Candidate A1 -- A scan compiles each check pattern once, not twice: load-time validation and the scan share one `(pattern, re.MULTILINE)` compile memo
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The refusals iter 414 added are published nowhere: `prd --after`'s refusal list omits `cannot read the file (...)`, and `validate --json`'s `invalid-json` kind silently covers a non-regular record. Publish them and pin the contract against the raise sites
     - Candidate B3 -- PRODUCT.md, the roadmap every role opens first, is 231623 chars, and 65% of it is the done ledger. Move ledger rows iter 01..399 into the `PRODUCT_ARCHIVE.md` that `tools/roadmap_integrity.py` already reads, and close rows 64/70, which have asked for this since iter 31/65
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED bbc2e81
   iter-417
     lenses: simplification-and-deletion (HEAD `e7380e8`), performance-and-throughput (HEAD `e7380e8`)
     - Candidate A1 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into the `PRODUCT_ARCHIVE.md` that `tools/roadmap_integrity.py` already reads, and repoint the ledger-reading tests at `ledger_union`
@@ -2177,4 +2187,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-218 scouted iterations
+219 scouted iterations
