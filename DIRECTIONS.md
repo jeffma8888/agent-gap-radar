@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-417
+    lenses: simplification-and-deletion (HEAD `e7380e8`), performance-and-throughput (HEAD `e7380e8`)
+    - Candidate A1 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into the `PRODUCT_ARCHIVE.md` that `tools/roadmap_integrity.py` already reads, and repoint the ledger-reading tests at `ledger_union`
+    - Candidate A2 -- One `tests/conftest.py` socket tripwire replaces six hand-copied per-module autouse tripwires
+    - Candidate A3 -- Delete the test-only `checks.is_test_path` wrapper; production already applies `TEST_PATH_RE` to the relative string
+    - Candidate B1 -- The suite's fresh self-scan nodes read the cross-worker `tests/_selfscan.py` cache, so CI pays for one `scan .` per render mode instead of one per node (re-proposal of iter-412 A1, now measured)
+    - Candidate B2 -- Prove both literal DNFs from ONE parse per pattern: `_required_literal_sets_ascii` re-derives what `required_literal_sets` already walked (0.69 s, 10% of a self-scan, paid on every scan)
+    - Candidate B3 -- Answer each file's prefilter literals in one pass instead of up to about 675 separate full-text `in` scans: 1.67 s of substring search (23% of a self-scan)
+    winner: A2
+    ship: pending (not yet decided)
   iter-416
     lenses: integration-and-adoption (HEAD `977830d`)
     - Candidate A1 -- `radar validate FILE...`: the register gate accepts the record paths a pre-commit hook or an editor passes it, and validates each file's WHOLE register, instead of failing with `not a directory`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- One scan frame on one stack replaces checks.py's eight lockstep module stacks
     - Candidate B3 -- Delete 10 hand-copied "this module has no machine path" self-checks the repo-wide gate already answers
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED e7380e8
   iter-415
     lenses: hardening/DX (HEAD `5dfee3a`), integration-and-adoption (HEAD `5dfee3a`)
     - Candidate A1 -- `scan --exit-code --baseline` crashes with a traceback (rc 1) on a too-long or permission-denied path: the same stat-before-try door iter 414's reviewer found, still open at the third read door
@@ -2157,4 +2167,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-216 scouted iterations
+217 scouted iterations

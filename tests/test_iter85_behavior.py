@@ -12,9 +12,9 @@ strings, stub callables and `tmp_path` records this file controls.
 
 Structural notes, so this file cannot lie later:
 
-* **The suite stays OFFLINE, and that is enforced rather than promised** (behavior 7). An
-  autouse fixture installs a socket tripwire for EVERY test in this module, and one test
-  proves the tripwire is armed by attempting all three patched entry points. This file
+* **The suite stays OFFLINE, and that is enforced rather than promised** (behavior 7). The
+  suite-wide autouse socket tripwire in `tests/conftest.py` covers EVERY test in this
+  module, and the iter-417 behavior module proves it is armed on all three entry points. This file
   imports no network module, and every page reaching the tool comes from a stub this file
   owns. The tripwire is installed at fixture time, i.e. AFTER this module's import, which is
   the order that matters: `ssl` builds a class out of `socket.socket` at import time.
@@ -49,7 +49,6 @@ import ast
 import inspect
 import json
 import pathlib
-import socket
 import sys
 import types
 
@@ -70,26 +69,6 @@ GOOD_PAGE = verify_quotes.page_text("<p>hello world this is the page</p>")
 GOOD_QUOTE = "hello world this is the page"
 
 NETWORK_ROOTS = {"urllib", "http", "requests", "httpx", "ssl", "socketserver", "ftplib"}
-
-
-class _NetworkAttempted(AssertionError):
-    """Raised by the tripwire when a test tries to open a socket."""
-
-
-@pytest.fixture(autouse=True)
-def _offline_tripwire(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Behavior 7: no test in this module may touch the network.
-
-    Two-sided: `test_b7_the_socket_tripwire_is_armed_and_would_fire` proves it fires, so a
-    guard that had quietly stopped being installed could not read as compliance.
-    """
-
-    def boom(*_args: object, **_kwargs: object) -> None:
-        raise _NetworkAttempted("a test in this module attempted to open a socket")
-
-    monkeypatch.setattr(socket, "socket", boom)
-    monkeypatch.setattr(socket, "create_connection", boom)
-    monkeypatch.setattr(socket, "getaddrinfo", boom)
 
 
 def _record(*citations: dict) -> dict:
@@ -546,41 +525,6 @@ def test_b6_main_is_not_short_circuiting_the_page(
 
 def _self_tree() -> ast.Module:
     return ast.parse(THIS_FILE.read_text(encoding="utf-8"))
-
-
-def test_b7_the_socket_tripwire_is_armed_and_would_fire() -> None:
-    """Anti-vacuity: a guard that cannot fail is not evidence, so prove it fires."""
-    with pytest.raises(_NetworkAttempted):
-        socket.socket()
-    with pytest.raises(_NetworkAttempted):
-        socket.create_connection(("example.invalid", 80))
-    with pytest.raises(_NetworkAttempted):
-        socket.getaddrinfo("example.invalid", 80)
-
-
-def test_b7_the_tripwire_fixture_is_autouse_and_patches_all_three_entry_points() -> None:
-    """The tripwire's INSTALLATION is audited, not just its firing.
-
-    A fixture that stopped being autouse, or that lost one of the three patches, would leave
-    the rest of this module's assertions unguarded while every test still passed.
-    """
-    names: list[str] = []
-    autouse = False
-    for node in ast.walk(_self_tree()):
-        if not isinstance(node, ast.FunctionDef) or node.name != "_offline_tripwire":
-            continue
-        for deco in node.decorator_list:
-            source = ast.dump(deco)
-            if "autouse" in source:
-                autouse = True
-        for inner in ast.walk(node):
-            if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute):
-                if inner.func.attr == "setattr" and len(inner.args) >= 2:
-                    literal = inner.args[1]
-                    if isinstance(literal, ast.Constant) and isinstance(literal.value, str):
-                        names.append(literal.value)
-    assert autouse, "the tripwire fixture must be autouse"
-    assert sorted(names) == ["create_connection", "getaddrinfo", "socket"], names
 
 
 def test_b7_this_file_imports_no_network_module() -> None:

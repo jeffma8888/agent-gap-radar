@@ -52,7 +52,6 @@ import contextlib
 import io
 import pathlib
 import re
-import socket
 
 import pytest
 
@@ -74,17 +73,6 @@ RETIRED_RULE = "severity x frequency x tractability"
 
 #: The three inputs, in the order their weights are declared.
 INPUT_NAMES = ("severity", "frequency", "tractability")
-
-
-@pytest.fixture(autouse=True)
-def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The suite is offline, and that is enforced here rather than promised."""
-
-    def _tripwire(*_a: object, **_k: object) -> None:
-        raise AssertionError("network access attempted in an offline test")
-
-    monkeypatch.setattr(socket, "socket", _tripwire)
-    monkeypatch.setattr(socket, "create_connection", _tripwire)
 
 
 def live_weights() -> tuple[int, int, int]:

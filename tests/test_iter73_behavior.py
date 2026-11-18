@@ -33,8 +33,8 @@ Structural notes, so this file cannot lie later:
   of the live register, so pinning them here would be the same landmine. What is pinned is
   what survives a research pass: exit 0, empty stderr, exactly one trailing newline, and
   byte-stability across repeated invocation.
-* **The suite stays OFFLINE and that is enforced, not promised.** An autouse fixture arms a
-  socket tripwire for every test in this module.
+* **The suite stays OFFLINE and that is enforced, not promised.** The suite-wide autouse
+  socket tripwire in `tests/conftest.py` covers every test in this module.
 * **No absolute machine path and no personal identifier appears here.** The repo root is
   derived from `__file__`.
 """
@@ -46,7 +46,6 @@ import importlib
 import io
 import pathlib
 import re
-import socket
 import sys
 import types
 
@@ -76,22 +75,6 @@ SCORERS = ("priority", "confidence", "distinct_sources", "strongest_source",
 DOC_A = "https://example.invalid/a"
 DOC_B = "https://example.invalid/b"
 PROBE_DOC = "https://example.invalid/probe-not-used-by-any-fixture"
-
-
-class _NetworkAttempted(AssertionError):
-    """Raised by the tripwire when a test tries to open a socket."""
-
-
-@pytest.fixture(autouse=True)
-def _offline_tripwire(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No test in this module may touch the network."""
-
-    def boom(*_args: object, **_kwargs: object) -> None:
-        raise _NetworkAttempted("a test in this module attempted to open a socket")
-
-    monkeypatch.setattr(socket, "socket", boom)
-    monkeypatch.setattr(socket, "create_connection", boom)
-    monkeypatch.setattr(socket, "getaddrinfo", boom)
 
 
 # ---------------------------------------------------------------------------

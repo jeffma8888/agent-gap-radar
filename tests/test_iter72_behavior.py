@@ -12,9 +12,9 @@ strings and stub callables this file controls.
 
 Structural notes, so this file cannot lie later:
 
-* **The suite stays OFFLINE, and that is enforced rather than promised.** An autouse fixture
-  installs a socket tripwire for every test in this module, so any attempt to reach the
-  network fails loudly here instead of passing on a good network day. This file imports no
+* **The suite stays OFFLINE, and that is enforced rather than promised.** The suite-wide autouse
+  socket tripwire in `tests/conftest.py` covers every test here, so any attempt to reach the
+  network fails loudly instead of passing on a good network day. This file imports no
   `urllib`, and every page reaching `verify` comes from an injected callable.
 * **The seam's default binds at definition time**, so `monkeypatch.setattr(module, "fetch",
   sentinel)` is a NO-OP for `verify` and an assertion that such a sentinel "was never called"
@@ -43,7 +43,6 @@ from __future__ import annotations
 import ast
 import inspect
 import pathlib
-import socket
 import sys
 
 import pytest
@@ -67,26 +66,6 @@ CODE_BOUNDARY_QUOTE = "outputschema: optional json schema defining expected outp
 CODE_BOUNDARY_CONTROL = "is used."
 
 EXPECTED_ZERO_WIDTH = {"code", "kbd", "samp", "var", "tt"}
-
-
-class _NetworkAttempted(AssertionError):
-    """Raised by the tripwire when a test tries to open a socket."""
-
-
-@pytest.fixture(autouse=True)
-def _offline_tripwire(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Behavior 14: no test in this module may touch the network.
-
-    This guard is two-sided: it cannot pass vacuously, because any real fetch attempt --
-    including the module-level `fetch` reached through a def-time default -- raises here.
-    """
-
-    def boom(*_args: object, **_kwargs: object) -> None:
-        raise _NetworkAttempted("a test in this module attempted to open a socket")
-
-    monkeypatch.setattr(socket, "socket", boom)
-    monkeypatch.setattr(socket, "create_connection", boom)
-    monkeypatch.setattr(socket, "getaddrinfo", boom)
 
 
 def _record(*citations: dict) -> dict:
@@ -501,16 +480,6 @@ def test_b14_this_file_imports_no_network_module() -> None:
     roots = _imported_roots(_self_tree())
     assert "urllib" not in roots, "behavior 14: the new test file imports no urllib"
     assert not (roots & NETWORK_ROOTS), sorted(roots & NETWORK_ROOTS)
-
-
-def test_b14_the_socket_tripwire_is_armed_and_would_fire() -> None:
-    """Anti-vacuity: a guard that cannot fail is not evidence, so prove it fires."""
-    with pytest.raises(_NetworkAttempted):
-        socket.socket()
-    with pytest.raises(_NetworkAttempted):
-        socket.create_connection(("example.invalid", 80))
-    with pytest.raises(_NetworkAttempted):
-        socket.getaddrinfo("example.invalid", 80)
 
 
 def test_b14_every_verify_call_here_injects_a_seam_except_the_documented_one() -> None:
