@@ -155,6 +155,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 147 | One permission-denied entry inside a scan TARGET (a symlink into a mode-000 dir when walked, a tracked file under a mode-000 dir in git mode) aborts the whole scan as `Error: cannot scan target: <root>` (rc 2), so the contract's `skipped_files` / `applies_when unreadable:` channel is unreachable for it | shipped | Iteration 415: an enumeration stat that raises `OSError` keeps the entry; its failed read is disclosed via `skipped_files` / `applies_when unreadable:`; the scan still exits 0. |
 | 148 | `test_iter303` b6 re-pins the whole suite's module census as 61 append-only `iterNNN_new` sets, so every commit that adds a test module must also edit a module about iteration 303 | shipped | Iteration 416: the node is deleted; the 303 module keeps its b1-b7 pins, and a new test module needs no census line. |
 | 149 | The suite's offline guarantee is a per-module opt-in: six modules hand-copy a socket tripwire (one already drifted, missing `getaddrinfo`) and ~224 run unguarded | shipped | Iteration 417: one autouse `tests/conftest.py` tripwire arms every test; the four socket-only module copies are deleted. |
+| 150 | A scan compiles 109 check patterns twice: record validation compiles each with flags 0, the scan again with `re.MULTILINE`, because re's cache keys on flags | shipped | Iteration 418: validation primes the scan's `(pattern, re.MULTILINE)` memo; tiny-target scan 675 -> 566 compiles, output byte-identical |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -358,3 +359,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 415 row 147: an unreadable entry in a scan target is counted in `skipped_files`, never aborting the scan
 - iter 416 row 148: delete iter303 b6's append-only suite census, a re-pin tax on every new test module
 - iter 417 row 149: one `tests/conftest.py` socket tripwire arms the whole suite offline; 4 module copies deleted
+- iter 418 row 150: record validation primes the scan's compile memo, so no check pattern compiles twice

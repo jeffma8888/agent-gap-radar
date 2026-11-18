@@ -467,8 +467,14 @@ def _validate_rule(rule: dict, depth: int = 0) -> None:
         # unchanged, so `""` keeps the refusal it already had.
         if not isinstance(pattern, str) or not pattern.strip():
             raise ValueError(f"{kind} requires a 'pattern' string")
+        # Compile under the scan's own flags, straight into its memo: flags never
+        # change whether a pattern parses, so the refusal set is unchanged, and
+        # the scan then reuses this object instead of compiling it a second
+        # time. Lazy import: `checks` is pydantic-free and `models` must not
+        # pull it in at import time.
+        from . import checks
         try:
-            re.compile(pattern)
+            checks._memo_compile(pattern, re.MULTILINE)
         except re.error as exc:
             raise ValueError(f"invalid regex {pattern!r}: {exc}") from exc
 

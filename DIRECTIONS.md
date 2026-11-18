@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-418
+    lenses: performance-and-throughput (HEAD `a81d5b2`), narrative-and-docs (HEAD `a81d5b2`)
+    - Candidate A1 -- A scan compiles each check pattern once, not twice: load-time validation and the scan share one `(pattern, re.MULTILINE)` compile memo
+    - Candidate A2 -- The suite's ~1000 `radar` subprocess spawns pay about 0.1 s of interpreter startup each: route plain argv-to-(rc, out, err) `_run` helpers through one in-process runner
+    - Candidate A3 -- Parse each check pattern ONCE for all three literal derivations (`required_literals`, `required_literal_sets`, `_required_literal_sets_ascii`)
+    - Candidate B1 -- The suite-wide offline brake shipped in iter 417 claims "no test in any module may open a network socket", but a test's child process opens one freely: state the brake's real reach in conftest and README and pin it
+    - Candidate B2 -- The refusals iter 414 added are published nowhere: `prd --after`'s refusal list omits `cannot read the file (...)`, and `validate --json`'s `invalid-json` kind silently covers a non-regular record. Publish them and pin the contract against the raise sites
+    - Candidate B3 -- PRODUCT.md, the roadmap every role opens first, is 231623 chars, and 65% of it is the done ledger. Move ledger rows iter 01..399 into the `PRODUCT_ARCHIVE.md` that `tools/roadmap_integrity.py` already reads, and close rows 64/70, which have asked for this since iter 31/65
+    winner: A1
+    ship: pending (not yet decided)
   iter-417
     lenses: simplification-and-deletion (HEAD `e7380e8`), performance-and-throughput (HEAD `e7380e8`)
     - Candidate A1 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into the `PRODUCT_ARCHIVE.md` that `tools/roadmap_integrity.py` already reads, and repoint the ledger-reading tests at `ledger_union`
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Prove both literal DNFs from ONE parse per pattern: `_required_literal_sets_ascii` re-derives what `required_literal_sets` already walked (0.69 s, 10% of a self-scan, paid on every scan)
     - Candidate B3 -- Answer each file's prefilter literals in one pass instead of up to about 675 separate full-text `in` scans: 1.67 s of substring search (23% of a self-scan)
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED a81d5b2
   iter-416
     lenses: integration-and-adoption (HEAD `977830d`)
     - Candidate A1 -- `radar validate FILE...`: the register gate accepts the record paths a pre-commit hook or an editor passes it, and validates each file's WHOLE register, instead of failing with `not a directory`
@@ -2167,4 +2177,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-217 scouted iterations
+218 scouted iterations

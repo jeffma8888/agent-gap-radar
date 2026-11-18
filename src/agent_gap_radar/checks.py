@@ -975,8 +975,14 @@ def _rank_locations(code_hits: list[str], test_hits: list[str]) -> list[str]:
 _COMPILE_CACHE: dict[tuple[str, int], re.Pattern[str]] = {}
 
 
-def _cached_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
-    """Compile-once cache keyed on `(pattern, flags)`, eliminating recompilation."""
+def _memo_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
+    """Compile-once memo keyed on `(pattern, flags)`.
+
+    Record validation calls this directly to prime the memo at load time, so a
+    scan never compiles a validated pattern twice. It is deliberately NOT the
+    `_cached_compile` seam: tests count that seam's calls as the scan's own
+    regex passes, and load-time priming must not show up in that count.
+    """
     key = (pattern, flags)
     cached = _COMPILE_CACHE.get(key)
     if cached is not None:
@@ -984,6 +990,11 @@ def _cached_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
     compiled = re.compile(pattern, flags)
     _COMPILE_CACHE[key] = compiled
     return compiled
+
+
+def _cached_compile(pattern: str, flags: int = 0) -> re.Pattern[str]:
+    """The scan's compile seam: every scan-time regex pass goes through here."""
+    return _memo_compile(pattern, flags)
 
 
 def _rule_domain(rule: dict, target: pathlib.Path,
