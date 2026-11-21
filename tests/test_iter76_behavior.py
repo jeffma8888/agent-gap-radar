@@ -185,8 +185,11 @@ def _spy(monkeypatch, target) -> _Counts:
 
 
 @contextlib.contextmanager
-def _no_memo():
-    """A scope that memoises nothing -- the control for the whole iteration."""
+def _no_memo(*_args):
+    """A scope that memoises nothing -- the control for the whole iteration.
+
+    Accepts and ignores the `exclude` argument `scan` passes since iteration 425;
+    every scan here is flagless, so the exclusion it would carry is always empty."""
     yield {}
 
 

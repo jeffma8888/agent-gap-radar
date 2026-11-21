@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-425
+    lenses: narrative-and-docs (HEAD `edc93a4`, clean tree), new-capability (HEAD `edc93a4`, clean tree)
+    - Candidate A1 -- The contract says "Every code `radar` can return is above, and nothing else", but Ctrl-C ends any verb by SIGINT death (shell `130`) with a 25-line traceback holding 7 absolute machine paths; publish what an interrupted run looks like, and pin it
+    - Candidate A2 -- Three published `tools/` commands crash exactly as typed: `python3 tools/{verify_quotes,promote,scan_cost}.py` exits rc 1 with `ModuleNotFoundError: No module named 'pydantic'`, while two sibling tools already document `uv run python`
+    - Candidate A3 -- README's "From gap to build" ends at emitting the prd and never mentions `--after`; the return half it omits has a live trap, because a loop that started from `scan --prd` and hands its finished prd to `prd --after` gets the register's top gap, not the target's next PRESENT one
+    - Candidate B1 -- `radar scan --exclude GLOB` (repeatable): a consumer keeps committed vendored or third-party code out of the scan, and the document names what it excluded
+    - Candidate B2 -- `radar show` (markdown and `--json`) carries `needs`, the below-floor prescription `list --json` already publishes, and gains `--floor N` so the prescription follows the floor the caller gates on
+    - Candidate B3 -- `radar scan --accept GAP-ID=REASON` (repeatable): a per-gap, reasoned risk acceptance that keeps the finding DISPLAYED as PRESENT (accepted) and only removes it from `--exit-code`
+    winner: B1
+    ship: pending (not yet decided)
   iter-424
     lenses: narrative-and-docs (HEAD `6b70973`, clean tree)
     - Candidate A1 -- Sharpen the literal prefilter so the 12,524 no-match regex passes (6.36 s, 61% of a self-scan) shrink
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Three of the nine `tools/` commands the docs publish crash as typed: `python3 tools/{verify_quotes,promote,scan_cost}.py` dies rc 1 with a `ModuleNotFoundError: pydantic` traceback, while two sibling tools already document `uv run python`
     - Candidate B3 -- `registry.load_all`'s docstring still claims to be "the ONLY record-reading site under `src/`" that lets `parse_record` hold the strict-parse rule "from one line", but since iter 422 that line lives in `read_json_file`, which three doors call
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED edc93a4
   iter-423
     lenses: simplification-and-deletion (HEAD `f6ec0ab`, clean tree), performance-and-throughput (HEAD `f6ec0ab`)
     - Candidate A1 -- Delete the `cli._fail` alias: 35 call sites call `fail` directly, and the three tests that pin "two names, one object" are re-pinned
@@ -2237,4 +2247,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-224 scouted iterations
+225 scouted iterations

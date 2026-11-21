@@ -59,7 +59,8 @@ EXPECTED_COUNTS = {
     # Iteration 398: +3, the `--n`..`--nam` strict prefixes of scan's new `--name`.
     # Iteration 407: +3, the `--j`..`--jso` strict prefixes of validate's new `--json`.
     # Iteration 410: +4, the `--a`..`--afte` strict prefixes of prd's new `--after`.
-    "test_iter296_behavior.py": 205,
+    # Iteration 425: +4, the nodes scan's new `--exclude` flag parametrizes.
+    "test_iter296_behavior.py": 209,
 }
 
 #: Files that legitimately spell the deleted names: the tracker table and this module.
@@ -173,8 +174,8 @@ def test_behavior7_collected_node_counts_are_exact(module, collected):
     assert count == EXPECTED_COUNTS[module], (module, count)
 
 
-def test_behavior7_total_collected_is_266(collected):
-    assert len(collected) == 266
+def test_behavior7_total_collected_is_270(collected):
+    assert len(collected) == 270
 
 
 def test_behavior7_kept_shared_names_and_blob_pins_survive():

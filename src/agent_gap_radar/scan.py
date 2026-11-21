@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, ConfigDict
 
 from .checks import (CheckOutcome, LocationNote, UNKNOWN_MEANING, Verdict,
+                     iter_files,
                      file_cache_scope, read_cache_scope, run_check)
 from .models import Gap
 from .registry import NotARegularFile, RegistryError, read_json_file
@@ -62,6 +63,12 @@ class ScanResult:
     #: The name the caller pinned with `scan --name`, or `None` to report the
     #: resolved base name. Defaulted for the same positional callers as above.
     name_override: str | None = None
+    #: `scan --exclude` globs, sorted and deduplicated, or `()` for none. Carried so
+    #: both documents DISPLAY the narrowing: an exclusion a reader cannot see would
+    #: silently shrink the domain a gate's verdicts were decided on.
+    exclude: tuple[str, ...] = ()
+    #: How many enumerated target files those globs removed (0 with no globs).
+    excluded_files: int = 0
 
     @property
     def target_name(self) -> str:
@@ -270,6 +277,15 @@ class Baseline:
     target_name: str
     present: frozenset[str]
     scanned: frozenset[str]
+
+
+class ExclusionEmpty(Exception):
+    """Raised when `scan --exclude` removes every file the scan would read.
+
+    Refused rather than reported: with no file left, every check answers
+    NOT_APPLICABLE, so `--exclude '**'` would turn any gate green while looking
+    like a scan. A target that had no files to begin with is not this case.
+    """
 
 
 class BaselineError(Exception):
@@ -607,6 +623,8 @@ def scan_json(result: ScanResult,
         "confidence_floor": confidence_floor,
         "layer": layer,
         **({"match": match} if match is not None else {}),
+        **({"exclude": {"globs": list(result.exclude), "files": result.excluded_files}}
+           if result.exclude else {}),
         "records_applied": result.records_applied,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],
@@ -624,7 +642,7 @@ def scan_json(result: ScanResult,
 
 
 def scan(gaps: list[Gap], target: pathlib.Path | str,
-         name: str | None = None) -> ScanResult:
+         name: str | None = None, exclude: tuple[str, ...] = ()) -> ScanResult:
     # `name` is carried, never applied to the walk: it changes what the target
     # is CALLED (`ScanResult.target_name`), not which files are read.
     # Captured BEFORE resolution, because resolution destroys it: this is the one
@@ -639,6 +657,8 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
 
     findings: list[Finding] = []
     uncheckable: list[Gap] = []
+    exclude = tuple(sorted(set(exclude)))
+    excluded_files = _count_excluded(target, exclude)
 
     # One read snapshot and one enumeration snapshot per scan. Every gap's rules
     # reach the target through these scopes, so a file reached by several rules is
@@ -647,7 +667,7 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
     # close before the result is returned, so no later scan can be answered from
     # either. Entered together because a scan that held one and not the other
     # would answer two rules from one snapshot and one stale walk.
-    with read_cache_scope(), file_cache_scope():
+    with read_cache_scope(), file_cache_scope(exclude):
         for gap in sorted(gaps, key=lambda g: g.id):
             if gap.check is None:
                 uncheckable.append(gap)
@@ -657,7 +677,28 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
 
     return ScanResult(target=target, findings=findings,
                       uncheckable=uncheckable,
-                      requested_spelling=requested, name_override=name)
+                      requested_spelling=requested, name_override=name,
+                      exclude=exclude, excluded_files=excluded_files)
+
+
+def _count_excluded(target: pathlib.Path, exclude: tuple[str, ...]) -> int:
+    """How many enumerated target files `exclude` removes; refuses removing all.
+
+    Counted as the domain outside the exclusion minus the same domain inside it,
+    through `iter_files` itself, so the number is the files the CHECKS would have
+    read -- git-tracked or walked, symlink containment applied -- and not a second
+    enumeration that could disagree with the one the verdicts used.
+    """
+    if not exclude:
+        return 0
+    total = len(iter_files(target, ["**"]))
+    with file_cache_scope(exclude):
+        kept = len(iter_files(target, ["**"]))
+    if total and not kept:
+        raise ExclusionEmpty(
+            f"--exclude matched every file in the target (all {total} "
+            f"file(s)); nothing is left to scan")
+    return total - kept
 
 
 def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
@@ -677,6 +718,12 @@ def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
     # one accessor each, so neither can drift into the other's job.
     lines = [f"# Gap scan: {result.target_name}", "",
              f"Target: `{result.displayed_target}`", ""]
+    if result.exclude:
+        # Directly under `Target:`, because it qualifies WHAT was scanned; absent
+        # without the flag, so a flagless document keeps its exact bytes.
+        globs = ", ".join(f"`{g}`" for g in result.exclude)
+        lines.insert(3, f"Excluded: {globs} -- {result.excluded_files} "
+                        f"target file(s) not scanned")
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}
     meaning = {

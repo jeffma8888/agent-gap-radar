@@ -53,8 +53,10 @@ EXPECTED_SURFACE = {
     # against; it takes a value and defaults to None, like `--gap`.
     # Iteration 389 added `--match`, the list/report/prd prose filter; None default.
     # Iteration 398 added `--name`, the target-identity pin; None default.
-    "scan": (["--baseline", "--exit-code", "--floor", "--gap", "--gaps", "--json",
-              "--layer", "--match", "--name", "--prd"], 1, ["target"], ["target"]),
+    # Iteration 425 added `--exclude`, the repeatable file-domain exclusion; None default.
+    "scan": (["--baseline", "--exclude", "--exit-code", "--floor", "--gap", "--gaps",
+              "--json", "--layer", "--match", "--name", "--prd"], 1, ["target"],
+             ["target"]),
     "show": (["--json"], 2, ["gap_id"], ["gap_id", "path"]),
     # Iteration 302 added `--json`, the only flag this verb carries; a `store_true`
     # with a `False` default, so it earns no `## Defaults` row.
@@ -138,6 +140,9 @@ EXPECTED_ARGUMENTS = {
         # Iteration 398: the target-identity pin, registered after `--baseline` so
         # every row above keeps its position; `None` default, no `## Defaults` row.
         ("name", ["--name"], False, None, None),
+        # Iteration 425: the repeatable file-domain exclusion, registered after
+        # `--name` so every row above keeps its position; `None` default.
+        ("exclude", ["--exclude"], False, None, None),
     ],
     "show": [
         ("help", ["--help", "-h"], False, "SUPPRESS", 0),

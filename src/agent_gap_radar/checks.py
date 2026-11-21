@@ -406,10 +406,18 @@ def _match_globs(target: pathlib.Path, relatives: list[str],
     """
     root = target.resolve()
     seen: set[pathlib.Path] = set()
+    # `scan --exclude` is applied HERE, in the one match loop, so it reaches every
+    # rule kind (`present_when`, `mitigated_when`, `applies_when`) through the one
+    # door they all share: a vendored copy the consumer does not run can then
+    # neither mitigate nor exhibit a gap. Same `_glob_regex` dialect as the
+    # register's own globs, so one pattern means one thing on both sides.
+    excludes = [_glob_regex(g) for g in _EXCLUDE_STACK[-1]] if _EXCLUDE_STACK else []
     for pattern in globs:
         regex = _glob_regex(pattern)
         for rel in relatives:
             if not regex.match(rel):
+                continue
+            if excludes and any(rx.match(rel) for rx in excludes):
                 continue
             path = target / rel
             if not _is_file_or_unreadable(path):
@@ -569,9 +577,15 @@ _RELATIVES_CACHE_STACK: list[dict[pathlib.Path, list[str]]] = []
 #: `_relative_posix`; scan lifetime only, for the reason `file_cache_scope` gives.
 _RELPATH_CACHE_STACK: list[dict[tuple[pathlib.Path, pathlib.Path], str]] = []
 
+#: `scan --exclude` globs per scan frame, innermost last. Frame-scoped like the
+#: caches beside it, so an exclusion can never outlive the scan that asked for it
+#: and leak into a later scan's verdicts.
+_EXCLUDE_STACK: list[tuple[str, ...]] = []
+
 
 @contextlib.contextmanager
-def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
+def file_cache_scope(
+        exclude: tuple[str, ...] = ()) -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
     """Memoise `iter_files` for the duration of ONE scan, then forget everything.
 
     The other half of the iteration that memoised the DECODE beside this and left
@@ -593,11 +607,17 @@ def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
     different questions under differently-shaped keys, and that scope publishes a
     decode-specific contract its own tests patch BY NAME. `scan()` enters both on
     one line, so one scan still holds exactly one snapshot of each kind.
+
+    `exclude` is the scan's `--exclude` globs, held for the same lifetime. It rides
+    THIS scope rather than the `_FileDomainKey` because every domain in one frame is
+    answered under one exclusion, so the key needs no new dimension, and a fresh
+    frame per scope means no cached domain is ever handed across exclusions.
     """
     frame: dict[_FileDomainKey, list[pathlib.Path]] = {}
     _FILE_CACHE_STACK.append(frame)
     _RELATIVES_CACHE_STACK.append({})
     _RELPATH_CACHE_STACK.append({})
+    _EXCLUDE_STACK.append(tuple(exclude))
     try:
         yield frame
     finally:
@@ -606,6 +626,7 @@ def file_cache_scope() -> Iterator[dict[_FileDomainKey, list[pathlib.Path]]]:
         _FILE_CACHE_STACK.pop()
         _RELATIVES_CACHE_STACK.pop()
         _RELPATH_CACHE_STACK.pop()
+        _EXCLUDE_STACK.pop()
 
 
 def _enumerate_files(target: pathlib.Path, globs: list[str],

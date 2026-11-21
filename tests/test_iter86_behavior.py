@@ -486,15 +486,17 @@ def test_qb_the_default_carrying_field_is_the_only_optional_one(gaps, target):
     """Behavior 7's mechanism, discovered through the PUBLIC dataclass interface rather
     than by reading source: only the TRAILING `ScanResult` fields carry a default, which is
     why the three committed three-positional constructions keep working. Iteration 398
-    added the second one (`name_override`, the `scan --name` pin), so the pin names both.
+    added the second one (`name_override`, the `scan --name` pin), and iteration 425 the
+    `scan --exclude` pair (`exclude`, `excluded_files`), so the pin names all four.
     Setting them to `None` -- the value an omitted argument leaves -- must reproduce the
     resolved fallback on both surfaces."""
     import dataclasses
 
     fields = dataclasses.fields(ScanResult)
     optional = [f.name for f in fields if f.default is not dataclasses.MISSING]
-    assert optional == ["requested_spelling", "name_override"], (
-        f"expected exactly the two trailing defaulted fields; got {optional}")
+    assert optional == ["requested_spelling", "name_override", "exclude",
+                        "excluded_files"], (
+        f"expected exactly the four trailing defaulted fields; got {optional}")
     assert [f.name for f in fields[-len(optional):]] == optional
     resolved = target.resolve()
     explicit_none = ScanResult(resolved, [], [], **{name: None for name in optional})

@@ -258,8 +258,9 @@ def test_b1_the_inventory_pins_the_eight_verbs_and_equals_the_prechange_literals
 # ---------------------------------------------------------------------------
 
 def test_b2_long_flags_and_verbs_without_are_read_off_the_inventory():
-    assert long_flags("scan") == ["--baseline", "--exit-code", "--floor", "--gap", "--gaps",
-                                  "--json", "--layer", "--match", "--name", "--prd"], long_flags("scan")
+    assert long_flags("scan") == ["--baseline", "--exclude", "--exit-code", "--floor", "--gap",
+                                  "--gaps", "--json", "--layer", "--match", "--name",
+                                  "--prd"], long_flags("scan")
     assert long_flags("taxonomy") == ["--json"], long_flags("taxonomy")
     assert long_flags("show") == ["--json"], long_flags("show")
     with pytest.raises(KeyError):

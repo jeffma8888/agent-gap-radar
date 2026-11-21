@@ -835,6 +835,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="name to report for the target instead of its "
                              "directory name: the heading, --json's target_name, "
                              "--prd's project, and the name --baseline compares")
+    # Registered LAST, after `--name`, so argument-order pins are extended rather
+    # than reshuffled. Repeatable; `default=None` keeps it out of `## Defaults` and
+    # keeps a flagless scan's documents byte-identical.
+    p_scan.add_argument("--exclude", action="append", default=None, metavar="GLOB",
+                        help="target-relative glob of files no check reads "
+                             "(repeatable); the document names the globs")
 
     p_diff = sub.add_parser(
         "diff", help="Report what changed between two register states.",
@@ -1023,7 +1029,8 @@ def _dispatch(argv: list[str] | None = None) -> int:
     from .prd import HandoffInvalid, prd_for, read_handoff, render_prd
     from .registry import RegisterInvalid, RegistryError, load_all, load_one
     from .render import document, gap_brief, json_document, radar_report
-    from .scan import (BaselineError, _finding_json, gate_verdict, load_baseline,
+    from .scan import (BaselineError, ExclusionEmpty, _finding_json,
+                       gate_verdict, load_baseline,
                        new_since_baseline, no_longer_present,
                        partition_by_baseline,
                        render_baseline_line, render_scan,
@@ -1117,6 +1124,11 @@ def _dispatch(argv: list[str] | None = None) -> int:
             return _fail("--name needs a non-blank printable NAME with no leading "
                          "or trailing whitespace; omit the flag to use the "
                          "target's directory name")
+        # A blank glob excludes nothing, so it would look like a narrowed scan that
+        # is not one. Decided before any directory is read, like `--match`.
+        if args.exclude is not None and any(not g.strip() for g in args.exclude):
+            return _fail("--exclude needs a non-blank GLOB; omit the flag to scan "
+                         "every file")
         try:
             # `_resolve` is INSIDE the guard because it, too, can refuse in this
             # vocabulary: an unreadable argument makes the nested-`gaps/` probe
@@ -1133,7 +1145,10 @@ def _dispatch(argv: list[str] | None = None) -> int:
         except RegistryError as exc:
             return _fail(str(exc))
         try:
-            result = scan(gaps, args.target, name=args.name)
+            result = scan(gaps, args.target, name=args.name,
+                          exclude=tuple(args.exclude or ()))
+        except ExclusionEmpty as exc:
+            return _fail(str(exc))
         except (NotADirectoryError, OSError):
             return _fail(f"cannot scan target: {args.target}")
         # Read the floor ONCE, ahead of every surface branch, and let that one local
