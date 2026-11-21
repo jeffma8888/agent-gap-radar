@@ -300,10 +300,13 @@ class _BaselineDocument(BaseModel):
 
 
 def load_baseline(spelling: str) -> Baseline:
-    """Read a prior `scan --json` document, or refuse in one of two sentences.
+    """Read a prior `scan --json` document, or refuse in one of three sentences.
 
-    Both refusals name the path AS TYPED, because that is the token the caller can fix.
-    `not a file` covers a missing path and a directory alike; `not a scan document`
+    Every refusal names the path AS TYPED, because that is the token the caller can fix.
+    `not a file` covers a missing path and a directory alike; `cannot read the file
+    (<reason>)` covers a regular file the OS will not hand over -- permission denied,
+    an over-long name -- so a CI author is sent to the permissions or the path rather
+    than told to regenerate a document that is fine; `not a scan document`
     covers everything a readable file can be that is not the payload `scan_json`
     writes -- not JSON, not an object, no `target_name` or `findings`, a finding
     without `gap_id` and `verdict`, or an object that repeats a key. The last goes
@@ -325,7 +328,9 @@ def load_baseline(spelling: str) -> Baseline:
         parsed = _BaselineDocument.model_validate(read_json_file(path))
     except NotARegularFile as exc:
         raise BaselineError(f"not a file: {spelling}") from exc
-    except (OSError, ValueError, RegistryError) as exc:
+    except OSError as exc:  # a regular file the OS will not hand over (EACCES, ENAMETOOLONG)
+        raise BaselineError(f"cannot read the file ({exc.strerror or exc}): {spelling}") from exc
+    except (ValueError, RegistryError) as exc:
         raise BaselineError(f"not a scan document: {spelling}") from exc
     present = frozenset(f.gap_id for f in parsed.findings
                         if f.verdict == Verdict.PRESENT.value)

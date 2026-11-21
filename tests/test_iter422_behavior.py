@@ -77,7 +77,8 @@ def _scan_baseline(cwd: pathlib.Path, baseline: str) -> tuple[int, str, str]:
 def test_b1_overlong_baseline_name_is_a_clean_exit_2_not_a_rc1_crash(tmp_path):
     rc, out, err = _scan_baseline(tmp_path, LONG)
     _assert_clean_refusal(rc, out, err)
-    assert "not a scan document: " + LONG in err, err
+    assert "cannot read the file (" in err, err
+    assert err.endswith("): " + LONG + "\n"), err
 
 
 def test_b1_symlink_loop_baseline_is_a_clean_exit_2(tmp_path):

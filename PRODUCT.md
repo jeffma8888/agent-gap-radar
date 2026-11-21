@@ -160,6 +160,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 152 | `radar show --json` has no key for the record's check, so a builder scripting "which gaps can CI gate on" reads nothing while the markdown brief and `prd`'s `sourceGap.check` both answer | shipped | Iteration 421 (re-land of 420's approved patch): `show --json` gains a final `check` key -- `null`, or the check's id, derived detectability and declared rule names |
 | 153 | Three modules hand-roll the same regular-file/read/parse ladder three ways, and scan's copy stats outside any `try`: `scan --exit-code --baseline <300-char name>` dies rc 1 (the published "regression" code) with an `OSError` traceback | shipped | Iteration 422: one `registry.read_json_file` door; prd, scan and registry wrap its errors in their own published sentences; the long name exits 2 |
 | 154 | models.py states one closed-vocabulary rule ("unknown <field> <v!r>; allowed: <tuple>") in four hand-copied validators (`source_class`, `layer`, `gap_type`, `status`) that can drift apart | shipped | Iteration 423: one `_one_of` helper and one multi-field `Gap` validator; every refusal byte-identical |
+| 155 | `scan --exit-code --baseline` publishes a VALID but unreadable baseline (`chmod 000`, an over-long name) as `not a scan document`, a sentence the contract defines as not JSON / wrong keys; `prd --after`'s `cannot read the file (...)` sentence is in no contract cell | shipped | Iteration 424: an unreadable `--baseline` (EACCES, ENAMETOOLONG) says `cannot read the file (<reason>): <path>`; both contract cells name every read-door sentence, pinned by a cause matrix |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -369,3 +370,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 421 re-land of 420 row 152: `radar show --json` carries the record's check: id, detectability, rules, or null
 - iter 422 row 153: one `registry.read_json_file` door replaces three read ladders; a bad `--baseline` stat exits 2
 - iter 423 refactor row 154: one `_one_of` closed-vocabulary validator replaces four `_known_*` copies in models
+- iter 424 row 155: an unreadable `--baseline` says `cannot read the file (<reason>)`, not `not a scan document`

@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-424
+    lenses: narrative-and-docs (HEAD `6b70973`, clean tree)
+    - Candidate A1 -- Sharpen the literal prefilter so the 12,524 no-match regex passes (6.36 s, 61% of a self-scan) shrink
+    - Candidate A2 -- `tools/scan_cost.py --json` counts regex passes and no-match regex passes, so the prefilter's false-admission rate becomes a committed, re-derivable figure
+    - Candidate A3 -- Prove each pattern's folded and ASCII literal DNFs in one walk instead of four
+    - Candidate B1 -- The contract's `--baseline` and `--after` refusal lists are wrong after iter 422's one read door: a permission-denied VALID scan document is published as "not a scan document", and `prd --after`'s cell never names the `cannot read the file (...)` sentence it emits
+    - Candidate B2 -- Three of the nine `tools/` commands the docs publish crash as typed: `python3 tools/{verify_quotes,promote,scan_cost}.py` dies rc 1 with a `ModuleNotFoundError: pydantic` traceback, while two sibling tools already document `uv run python`
+    - Candidate B3 -- `registry.load_all`'s docstring still claims to be "the ONLY record-reading site under `src/`" that lets `parse_record` hold the strict-parse rule "from one line", but since iter 422 that line lives in `read_json_file`, which three doors call
+    winner: B1
+    ship: pending (not yet decided)
   iter-423
     lenses: simplification-and-deletion (HEAD `f6ec0ab`, clean tree), performance-and-throughput (HEAD `f6ec0ab`)
     - Candidate A1 -- Delete the `cli._fail` alias: 35 call sites call `fail` directly, and the three tests that pin "two names, one object" are re-pinned
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- The remaining fresh self-scan nodes (iter63 b9 50 s, iter257 b9 x2 39/34 s, iter376 b1/b2 35/30 s, iter298 b7 35 s, iter29 b5 32 s, iter25 scan<repo> x2 29/28 s, iter265 b5 28 s, iter63 determinism 28 s, iter110 b7 25 s) read the cross-worker `tests/_selfscan.py` cache
     - Candidate B3 -- Halve the setup cost of iter420/iter221/iter364/iter370/iter399 module fixtures (setup 26-38 s each)
     winner: A2
-    ship: pending (not yet decided)
+    ship: PUSHED 6b70973
   iter-422
     lenses: integration-and-adoption (HEAD `ed765a7`, clean tree), simplification-and-deletion (HEAD `ed765a7`, clean tree)
     - Candidate A1 -- `radar scan TARGET --prd --after FILE`: the scan-driven PRD door honours the finished hand-off
@@ -2227,4 +2237,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-223 scouted iterations
+224 scouted iterations
