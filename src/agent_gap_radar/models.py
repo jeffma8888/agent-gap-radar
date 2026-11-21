@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 
 import pathlib
+from collections.abc import Collection
 from datetime import date
 
-from pydantic import (BaseModel, ConfigDict, Field, field_validator,
+from pydantic import (BaseModel, ConfigDict, Field, ValidationInfo, field_validator,
                       model_validator)
 
 from .taxonomy import GAP_TYPES, LAYERS, SOURCE_CLASSES, STATUSES
@@ -111,6 +112,18 @@ def _unencodable_site(value: object, where: str = "") -> tuple[str, str] | None:
     return None
 
 
+def _one_of(field: str, v: str, allowed: Collection[str]) -> str:
+    """Refuse a value outside a closed taxonomy vocabulary, naming the field and the set.
+
+    The register's vocabulary refusal is ONE rule, so it is spelled once: four hand
+    copies could drift in wording. `tuple(allowed)` renders a dict's keys and a tuple
+    identically, keeping every refusal byte-stable whichever shape the taxonomy uses.
+    """
+    if v not in allowed:
+        raise ValueError(f"unknown {field} {v!r}; allowed: {tuple(allowed)}")
+    return v
+
+
 class RecordModel(BaseModel):
     """The base of every model a gap record is built from, holding the record-WIDE rules.
 
@@ -171,10 +184,8 @@ class Evidence(RecordModel):
 
     @field_validator("source_class")
     @classmethod
-    def _known_source(cls, v: str) -> str:
-        if v not in SOURCE_CLASSES:
-            raise ValueError(f"unknown source_class {v!r}; allowed: {SOURCE_CLASSES}")
-        return v
+    def _known_source(cls, v: str, info: ValidationInfo) -> str:
+        return _one_of(info.field_name, v, SOURCE_CLASSES)
 
     @field_validator("date")
     @classmethod
@@ -479,6 +490,12 @@ def _validate_rule(rule: dict, depth: int = 0) -> None:
             raise ValueError(f"invalid regex {pattern!r}: {exc}") from exc
 
 
+#: The closed `Gap` fields and the taxonomy each one must be drawn from.
+_VOCABULARIES: dict[str, Collection[str]] = {
+    "layer": LAYERS, "gap_type": GAP_TYPES, "status": STATUSES,
+}
+
+
 class Gap(RecordModel):
     """A single, ranked, evidence-backed gap in agent infrastructure."""
 
@@ -512,26 +529,10 @@ class Gap(RecordModel):
             raise ValueError(f"id must look like GAP-001, got {v!r}")
         return v
 
-    @field_validator("layer")
+    @field_validator("layer", "gap_type", "status")
     @classmethod
-    def _known_layer(cls, v: str) -> str:
-        if v not in LAYERS:
-            raise ValueError(f"unknown layer {v!r}; allowed: {tuple(LAYERS)}")
-        return v
-
-    @field_validator("gap_type")
-    @classmethod
-    def _known_type(cls, v: str) -> str:
-        if v not in GAP_TYPES:
-            raise ValueError(f"unknown gap_type {v!r}; allowed: {tuple(GAP_TYPES)}")
-        return v
-
-    @field_validator("status")
-    @classmethod
-    def _known_status(cls, v: str) -> str:
-        if v not in STATUSES:
-            raise ValueError(f"unknown status {v!r}; allowed: {STATUSES}")
-        return v
+    def _known_term(cls, v: str, info: ValidationInfo) -> str:
+        return _one_of(info.field_name, v, _VOCABULARIES[info.field_name])
 
     @model_validator(mode="after")
     def _one_citation_is_resolvable(self) -> "Gap":

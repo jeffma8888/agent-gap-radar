@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-423
+    lenses: simplification-and-deletion (HEAD `f6ec0ab`, clean tree), performance-and-throughput (HEAD `f6ec0ab`)
+    - Candidate A1 -- Delete the `cli._fail` alias: 35 call sites call `fail` directly, and the three tests that pin "two names, one object" are re-pinned
+    - Candidate A2 -- One closed-vocabulary validator replaces the four hand-copied `_known_*` validators in models.py (measured: +16/-24, byte-identical on 10/10 cells)
+    - Candidate A3 -- One blank-`--match` refusal replaces four hand-copied ones (scan, list, report, prd)
+    - Candidate B1 -- Collapse iter394 b5's 11 parametrized fixture arms, each a fresh full-tree comparison, into one computed-once pass
+    - Candidate B2 -- The remaining fresh self-scan nodes (iter63 b9 50 s, iter257 b9 x2 39/34 s, iter376 b1/b2 35/30 s, iter298 b7 35 s, iter29 b5 32 s, iter25 scan<repo> x2 29/28 s, iter265 b5 28 s, iter63 determinism 28 s, iter110 b7 25 s) read the cross-worker `tests/_selfscan.py` cache
+    - Candidate B3 -- Halve the setup cost of iter420/iter221/iter364/iter370/iter399 module fixtures (setup 26-38 s each)
+    winner: A2
+    ship: pending (not yet decided)
   iter-422
     lenses: integration-and-adoption (HEAD `ed765a7`, clean tree), simplification-and-deletion (HEAD `ed765a7`, clean tree)
     - Candidate A1 -- `radar scan TARGET --prd --after FILE`: the scan-driven PRD door honours the finished hand-off
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into `PRODUCT_ARCHIVE.md`, and delete the two tests that forbid that file
     - Candidate B3 -- One `tests/_cli.py::run(argv) -> (rc, out, err)` replaces the 34 hand-copied in-process `_run` helpers
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED f6ec0ab
   iter-421
     lenses: hardening/DX (HEAD `7eb646c`, clean tree; iter 420 did NOT ship -- its final gate died on push auth, so iter-420's A2 `show --json` check key is still unlanded), integration-and-adoption (HEAD `7eb646c`, clean tree)
     - Candidate A1 -- A NOT_APPLICABLE decided over an oversized or non-UTF-8 file reports `skipped_files: 0`, so a 600 KB `loop.py` that exhibits GAP-009 reads as "cannot apply here" with no disclosure at all
@@ -2217,4 +2227,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-222 scouted iterations
+223 scouted iterations
