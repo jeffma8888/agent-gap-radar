@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-422
+    lenses: integration-and-adoption (HEAD `ed765a7`, clean tree), simplification-and-deletion (HEAD `ed765a7`, clean tree)
+    - Candidate A1 -- `radar scan TARGET --prd --after FILE`: the scan-driven PRD door honours the finished hand-off
+    - Candidate A2 -- `radar list --json` records carry the same `check` summary `show --json` just gained, so whole-register triage needs one call, not 120
+    - Candidate A3 -- `radar taxonomy --json` publishes the scan verdict vocabulary and the detectability kinds, the two closed sets every `scan --json` / `show --json` script branches on
+    - Candidate B1 -- One `registry.read_json_file` door replaces the three hand-rolled "regular-file check, then read, then parse_record" ladders in prd.py, scan.py and registry.py
+    - Candidate B2 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into `PRODUCT_ARCHIVE.md`, and delete the two tests that forbid that file
+    - Candidate B3 -- One `tests/_cli.py::run(argv) -> (rc, out, err)` replaces the 34 hand-copied in-process `_run` helpers
+    winner: B1
+    ship: pending (not yet decided)
   iter-421
     lenses: hardening/DX (HEAD `7eb646c`, clean tree; iter 420 did NOT ship -- its final gate died on push auth, so iter-420's A2 `show --json` check key is still unlanded), integration-and-adoption (HEAD `7eb646c`, clean tree)
     - Candidate A1 -- A NOT_APPLICABLE decided over an oversized or non-UTF-8 file reports `skipped_files: 0`, so a 600 KB `loop.py` that exhibits GAP-009 reads as "cannot apply here" with no disclosure at all
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar validate FILE...`: the register gate accepts the record paths a pre-commit hook or an editor passes it, and validates each file's whole register
     - Candidate B3 -- `radar scan`'s markdown names the next command for each actionable finding, so the first document a consumer reads leads into `show`, `--prd` and `--baseline`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED ed765a7
   iter-420
     lenses: new-capability (HEAD `7eb646c`, clean tree), hardening/DX (HEAD `7eb646c`, clean tree)
     - Candidate A1 -- `radar diff` reports a changed CHECK, so an edit that flips a record's scan verdict on every target is no longer `Changed (0)`
@@ -2207,4 +2217,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-221 scouted iterations
+222 scouted iterations

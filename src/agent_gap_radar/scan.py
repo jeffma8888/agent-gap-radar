@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict
 from .checks import (CheckOutcome, LocationNote, UNKNOWN_MEANING, Verdict,
                      file_cache_scope, read_cache_scope, run_check)
 from .models import Gap
-from .registry import RegistryError, parse_record
+from .registry import NotARegularFile, RegistryError, read_json_file
 from .render import document, json_document, table
 from .scoring import CONFIDENCE_FLOOR_DEFAULT, confidence, priority
 from .taxonomy import terminal_statuses
@@ -321,11 +321,10 @@ def load_baseline(spelling: str) -> Baseline:
     sends the caller to the actual defect.
     """
     path = pathlib.Path(spelling)
-    if not path.is_file():
-        raise BaselineError(f"not a file: {spelling}")
     try:
-        parsed = _BaselineDocument.model_validate(
-            parse_record(path.read_text(encoding="utf-8")))
+        parsed = _BaselineDocument.model_validate(read_json_file(path))
+    except NotARegularFile as exc:
+        raise BaselineError(f"not a file: {spelling}") from exc
     except (OSError, ValueError, RegistryError) as exc:
         raise BaselineError(f"not a scan document: {spelling}") from exc
     present = frozenset(f.gap_id for f in parsed.findings

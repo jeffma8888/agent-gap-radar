@@ -11,7 +11,7 @@ from __future__ import annotations
 import pathlib
 
 from .models import Check, Gap, detectability
-from .registry import RegistryError, parse_record
+from .registry import RegistryError, read_json_file
 from .render import json_document
 from .scoring import confidence, priority
 
@@ -361,20 +361,8 @@ def read_handoff(spelling: str) -> tuple[str, list[tuple[str, bool]]]:
     """
     path = pathlib.Path(spelling)
     try:
-        irregular = path.exists() and not path.is_file()
-    except OSError as exc:
-        # The stat itself can fail (EACCES, ENAMETOOLONG): same `Error:` text the read gives.
-        raise HandoffInvalid(f"cannot read the file ({exc.strerror or exc})") from exc
-    if irregular:
-        # Refused before the read, as `scan --baseline` is: a FIFO blocks the read
-        # forever and `/dev/zero` never ends, so a loop would get no `Error:` at all.
-        # A MISSING path falls through, keeping the OS's own "No such file" text.
-        # Raised OUTSIDE the `try` below: HandoffInvalid is a ValueError, and that
-        # clause would rewrap it as "not valid JSON (...)".
-        raise HandoffInvalid("cannot read the file (not a regular file)")
-    try:
-        doc = parse_record(path.read_text(encoding="utf-8"))
-    except OSError as exc:
+        doc = read_json_file(path)
+    except OSError as exc:  # NotARegularFile included: its strerror is the refusal's reason
         raise HandoffInvalid(f"cannot read the file ({exc.strerror or exc})") from exc
     except (ValueError, RegistryError) as exc:
         raise HandoffInvalid(f"not valid JSON ({exc})") from exc

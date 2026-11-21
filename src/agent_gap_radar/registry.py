@@ -311,6 +311,30 @@ def parse_record(text: str) -> Any:
     return parsed
 
 
+class NotARegularFile(OSError):
+    """`read_json_file` refused the path BEFORE any read: missing, or not a regular file."""
+
+    def __init__(self, *, missing: bool, reason: str = "not a regular file") -> None:
+        super().__init__("not a regular file")
+        self.missing = missing
+        self.strerror = reason  # what `exc.strerror or exc` doors print; str() is unchanged
+
+
+def read_json_file(path: pathlib.Path) -> object:
+    """Strict-parse one JSON file: THE read door for records, `--after` and `--baseline`.
+
+    A non-regular path is refused BEFORE the read (a FIFO blocks `read_text` forever);
+    a missing one keeps the OS's reason (ELOOP too), which `is_file()` swallows.
+    """
+    if not path.is_file():
+        try:
+            path.stat()
+        except OSError as gone:
+            raise NotARegularFile(missing=True, reason=gone.strerror or str(gone)) from gone
+        raise NotARegularFile(missing=False)
+    return parse_record(path.read_text(encoding="utf-8"))
+
+
 def load_all(directory: pathlib.Path | str) -> list[Gap]:
     """Load every *.json in `directory`, sorted by filename for determinism.
 
@@ -333,14 +357,7 @@ def load_all(directory: pathlib.Path | str) -> list[Gap]:
     problems = [_near_miss_problem(name) for name in near_misses]
     for path in record_paths:
         try:
-            if not path.is_file():
-                # Checked BEFORE the read: a FIFO named like a record blocks `read_text`
-                # forever and `/dev/zero` never ends, so there is no exception to convert.
-                # Inside the `try` so a stat failure (EACCES, ENAMETOOLONG) still becomes
-                # a Problem, not a traceback. `is_file()` follows symlinks, so a link to a
-                # regular record is still read; the rule is about what the name resolves to.
-                raise ValueError("not a regular file")
-            raw = parse_record(path.read_text(encoding="utf-8"))
+            raw = read_json_file(path)
         except (OSError, ValueError) as exc:
             problems.append(Problem("invalid-json", path.name, None,
                                     f"unreadable/invalid JSON: {exc}"))

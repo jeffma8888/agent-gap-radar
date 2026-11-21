@@ -158,6 +158,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 150 | A scan compiles 109 check patterns twice: record validation compiles each with flags 0, the scan again with `re.MULTILINE`, because re's cache keys on flags | shipped | Iteration 418: validation primes the scan's `(pattern, re.MULTILINE)` memo; tiny-target scan 675 -> 566 compiles, output byte-identical |
 | 151 | `radar diff` reads a record whose whole evidence basis was swapped (its only citation replaced by a different source document) as `Changed (0)`, byte-identical to no change, with `--exit-code` 0 | shipped | Iteration 419: a tenth compared field `sources` lists the distinct source documents `confidence()` counts; a re-sourced record is now a change |
 | 152 | `radar show --json` has no key for the record's check, so a builder scripting "which gaps can CI gate on" reads nothing while the markdown brief and `prd`'s `sourceGap.check` both answer | shipped | Iteration 421 (re-land of 420's approved patch): `show --json` gains a final `check` key -- `null`, or the check's id, derived detectability and declared rule names |
+| 153 | Three modules hand-roll the same regular-file/read/parse ladder three ways, and scan's copy stats outside any `try`: `scan --exit-code --baseline <300-char name>` dies rc 1 (the published "regression" code) with an `OSError` traceback | shipped | Iteration 422: one `registry.read_json_file` door; prd, scan and registry wrap its errors in their own published sentences; the long name exits 2 |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -365,3 +366,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 419 row 151: `radar diff` compares a record's distinct source documents; a re-sourced record is a change
 - iter 420 show-json-check: approved and tested, INTERRUPTED at the final gate by an auth outage; tree kept as patch
 - iter 421 re-land of 420 row 152: `radar show --json` carries the record's check: id, detectability, rules, or null
+- iter 422 row 153: one `registry.read_json_file` door replaces three read ladders; a bad `--baseline` stat exits 2
