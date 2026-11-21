@@ -567,11 +567,22 @@ def _declared_rules(check: Check) -> list[str]:
     manual question on `models.detectability`; an earlier revision keyed it on this
     list being empty and silently dropped the question for exactly that record.
     """
-    out: list[str] = []
+    return [f"`{slot}` ({kind})" for slot, kind in declared_rule_kinds(check)]
+
+
+def declared_rule_kinds(check: Check) -> list[tuple[str, str]]:
+    """Each declared rule slot paired with its rule `kind`, in `_RULE_SLOTS` order.
+
+    The ONE traversal of the slots that both the markdown `## Detection` block
+    (`_declared_rules`) and `show --json`'s `check.rules` read, so the two surfaces
+    cannot list different slots or a different order for one record. Same caveat
+    as `_declared_rules`: a non-empty result does NOT imply `automated`.
+    """
+    out: list[tuple[str, str]] = []
     for slot in _RULE_SLOTS:
         rule = getattr(check, slot)
         if rule is not None:
-            out.append(f"`{slot}` ({rule['kind']})")
+            out.append((slot, rule["kind"]))
     return out
 
 

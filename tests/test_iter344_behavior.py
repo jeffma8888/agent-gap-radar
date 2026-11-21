@@ -26,7 +26,7 @@ EXPECTED_TOP_KEYS = [
     "gap_id", "title", "layer", "gap_type", "status",
     "priority", "confidence", "below_floor", "strongest_source",
     "problem", "symptom", "why_now", "existing", "build_hypothesis",
-    "tags", "evidence",
+    "tags", "evidence", "check",
 ]
 
 EXPECTED_EVIDENCE_KEYS = [

@@ -351,8 +351,35 @@ def _show_json(gap: Gap) -> str:
             }
             for ev in gap.evidence
         ],
+        "check": _show_check(gap),
     }
     return json_document(payload)
+
+
+def _show_check(gap: Gap) -> dict[str, Any] | None:
+    """`show --json`'s `check`: what the register holds to find this gap in a target.
+
+    Machine parity with the markdown brief's `## Detection` block, so a consumer
+    scripting "which gaps can CI gate on" need not parse prose. `null` (not an
+    omitted key) when the record has no check: GAP-010 is a real `none`, and a
+    missing key would read as an older document. `detectability` is DERIVED by
+    `models.detectability` -- the same value `prd`'s `sourceGap.check` carries --
+    never read from the record, and `rules` comes from the brief's own slot
+    traversal. Rationale, question and patterns stay out: this states WHAT is
+    declared, not the check's prose or its signatures.
+    """
+    from .models import detectability
+    from .render import declared_rule_kinds
+
+    check = gap.check
+    if check is None:
+        return None
+    return {
+        "id": check.id,
+        "detectability": detectability(check),
+        "rules": [{"slot": slot, "kind": kind}
+                  for slot, kind in declared_rule_kinds(check)],
+    }
 
 
 def _is_valid_name(name: str) -> bool:

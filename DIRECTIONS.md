@@ -1,6 +1,26 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-421
+    lenses: hardening/DX (HEAD `7eb646c`, clean tree; iter 420 did NOT ship -- its final gate died on push auth, so iter-420's A2 `show --json` check key is still unlanded), integration-and-adoption (HEAD `7eb646c`, clean tree)
+    - Candidate A1 -- A NOT_APPLICABLE decided over an oversized or non-UTF-8 file reports `skipped_files: 0`, so a 600 KB `loop.py` that exhibits GAP-009 reads as "cannot apply here" with no disclosure at all
+    - Candidate A2 -- `scan --exit-code --baseline` still crashes with a traceback and rc 1 (the published "new regression found" code) on a too-long path, and calls a permission-denied baseline "not a scan document"
+    - Candidate A3 -- Ctrl-C during any verb prints a 19-line Python traceback with 7 absolute machine paths; absorb `KeyboardInterrupt` the way `BrokenPipeError` already is
+    - Candidate B1 -- `radar scan TARGET --prd --after FILE`: the scan-driven PRD door honours the finished hand-off, so a loop that started from a scan is handed the target's NEXT PRESENT gap, not a gap this target does not have
+    - Candidate B2 -- `radar validate FILE...`: the register gate accepts the record paths a pre-commit hook or an editor passes it, and validates each file's whole register
+    - Candidate B3 -- `radar scan`'s markdown names the next command for each actionable finding, so the first document a consumer reads leads into `show`, `--prd` and `--baseline`
+    winner: B1
+    ship: pending (not yet decided)
+  iter-420
+    lenses: new-capability (HEAD `7eb646c`, clean tree), hardening/DX (HEAD `7eb646c`, clean tree)
+    - Candidate A1 -- `radar diff` reports a changed CHECK, so an edit that flips a record's scan verdict on every target is no longer `Changed (0)`
+    - Candidate A2 -- `radar show --json` carries the record's check (`id`, `detectability`, declared rule kinds), so the one-record machine surface says whether and how `radar scan` can test this gap
+    - Candidate A3 -- A gated evidence-amendment door: `tools/promote.py` accepts `{"amends": "GAP-X", "evidence": [...]}`, so a research pass that finds the primary source for a below-floor record can land it (re-proposal of iter-408 A3, now measured)
+    - Candidate B1 -- `scan --exit-code --baseline` dies with a traceback and rc 1 on a too-long path, which a CI gate reads as "new regression found". It also calls an unreadable baseline "not a scan document"
+    - Candidate B2 -- Make the suite's offline brake reach test CHILD processes, not just in-process sockets
+    - Candidate B3 -- An EMPTY hand-off or baseline file is the shell's in-place redirect trap. Name the trap instead of blaming "not valid JSON"
+    winner: A2
+    ship: unknown
   iter-419
     lenses: narrative-and-docs (HEAD `bbc2e81`, clean tree), new-capability (HEAD `bbc2e81`, clean tree)
     - Candidate A1 -- The suite-wide offline brake says "no test in any module may open a network socket", but any test's child process opens one freely: state the brake's real reach in conftest and README and pin it
@@ -10,7 +30,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- the per-gap brief (`show`, and `show --json`) names the source class that would lift a below-floor record to the floor
     - Candidate B3 -- `radar diff` reports a changed CHECK, so an edit that flips a record's scan verdict on every target is no longer invisible
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 7eb646c
   iter-418
     lenses: performance-and-throughput (HEAD `a81d5b2`), narrative-and-docs (HEAD `a81d5b2`)
     - Candidate A1 -- A scan compiles each check pattern once, not twice: load-time validation and the scan share one `(pattern, re.MULTILINE)` compile memo
@@ -2187,4 +2207,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-219 scouted iterations
+221 scouted iterations
