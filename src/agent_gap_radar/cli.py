@@ -1033,7 +1033,7 @@ def _dispatch(argv: list[str] | None = None) -> int:
                        gate_verdict, load_baseline,
                        new_since_baseline, no_longer_present,
                        partition_by_baseline,
-                       render_baseline_line, render_scan,
+                       render_baseline_line, render_globs, render_scan,
                        scan, scan_json, select_for_prd, unanswered,
                        unknown_above_floor)
     from .scoring import rank
@@ -1257,6 +1257,15 @@ def _dispatch(argv: list[str] | None = None) -> int:
             if baseline.target_name != result.target_name:
                 return _fail(f"baseline target mismatch: {baseline.target_name} "
                              f"(baseline) vs {result.target_name} (target)")
+            # A different read domain is the same drift as a different target: a
+            # baseline written without `--exclude` would read every gap the exclusion
+            # hides as "no longer PRESENT" and pass a gate no code change earned.
+            # Both sides are sorted, deduplicated tuples, so `!=` is the set compare.
+            if baseline.exclude != result.exclude:
+                return _fail(f"baseline exclude mismatch: "
+                             f"{render_globs(baseline.exclude)} (baseline) vs "
+                             f"{render_globs(result.exclude)} (scan); write the "
+                             "baseline with the same --exclude globs")
             # ONE walk feeds the exit code, the document's line AND `--json`'s
             # `baseline` key, so the three cannot disagree about which gaps are new:
             # a gate needs WHICH ids are new, not only the exit code's WHETHER.

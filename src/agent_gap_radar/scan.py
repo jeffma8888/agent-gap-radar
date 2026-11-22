@@ -277,6 +277,9 @@ class Baseline:
     target_name: str
     present: frozenset[str]
     scanned: frozenset[str]
+    #: The `--exclude` globs the baseline was written under, sorted and deduplicated;
+    #: `()` when its document has no `exclude` key, which every flagless scan omits.
+    exclude: tuple[str, ...] = ()
 
 
 class ExclusionEmpty(Exception):
@@ -306,6 +309,14 @@ class _BaselineFinding(BaseModel):
     verdict: str
 
 
+class _BaselineExclude(BaseModel):
+    """The `exclude` key's globs; `files` is ignored, since a target's file count moves."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    globs: list[str]
+
+
 class _BaselineDocument(BaseModel):
     """As much of the shape `scan_json` publishes as `load_baseline` needs to trust."""
 
@@ -313,6 +324,7 @@ class _BaselineDocument(BaseModel):
 
     target_name: str
     findings: list[_BaselineFinding]
+    exclude: _BaselineExclude = _BaselineExclude(globs=[])
 
 
 def load_baseline(spelling: str) -> Baseline:
@@ -352,7 +364,8 @@ def load_baseline(spelling: str) -> Baseline:
                         if f.verdict == Verdict.PRESENT.value)
     scanned = frozenset(f.gap_id for f in parsed.findings)
     return Baseline(spelling=spelling, target_name=parsed.target_name,
-                    present=present, scanned=scanned)
+                    present=present, scanned=scanned,
+                    exclude=tuple(sorted(set(parsed.exclude.globs))))
 
 
 def new_since_baseline(result: ScanResult, confidence_floor: int,
@@ -681,6 +694,15 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
                       exclude=exclude, excluded_files=excluded_files)
 
 
+def render_globs(globs: tuple[str, ...]) -> str:
+    """`--exclude` globs as one backticked, comma-joined phrase; `(none)` if empty.
+
+    Shared by the document's `Excluded:` line and the baseline-mismatch refusal,
+    so the two spell the same domain the same way and a reader can match them.
+    """
+    return ", ".join(f"`{g}`" for g in globs) or "(none)"
+
+
 def _count_excluded(target: pathlib.Path, exclude: tuple[str, ...]) -> int:
     """How many enumerated target files `exclude` removes; refuses removing all.
 
@@ -721,8 +743,8 @@ def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
     if result.exclude:
         # Directly under `Target:`, because it qualifies WHAT was scanned; absent
         # without the flag, so a flagless document keeps its exact bytes.
-        globs = ", ".join(f"`{g}`" for g in result.exclude)
-        lines.insert(3, f"Excluded: {globs} -- {result.excluded_files} "
+        lines.insert(3, f"Excluded: {render_globs(result.exclude)} -- "
+                        f"{result.excluded_files} "
                         f"target file(s) not scanned")
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}

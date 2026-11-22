@@ -319,25 +319,28 @@ def test_b10_baseline_computed_from_excluded_scan(vend):
     exb = vend.parent / "BX.json"
     (b1,) = _batch([_scan(vend, "--json", "--exclude", "vendor/**")], vend.parent)
     exb.write_text(b1[1], encoding="utf-8")  # carries an "exclude" key, GAP-009 PRESENT
+    # iter 426 re-pin: a baseline whose --exclude globs differ from the scan's is
+    # refused (exit 2, stdout empty) -- the narrowed domain must not gate green or red.
+    # Matching pairs keep their codes, and the Baseline: line is still computed from
+    # the excluded scan.
     r = _batch([
         _scan(vend, "--exit-code", "--baseline", str(base), "--exclude", "vendor/**"),
         _scan(vend, "--exit-code", "--baseline", str(exb), "--exclude", "vendor/**"),
         _scan(vend, "--exit-code", "--json", "--baseline", str(exb)),
         _scan(vend, "--exit-code", "--json", "--baseline", str(base), "--exclude", "vendor/**"),
-        _scan(vend, "--exit-code", "--baseline", str(base), "--exclude", "vendor/**"),
+        _scan(vend, "--exit-code", "--json", "--baseline", str(exb), "--exclude", "vendor/**"),
         _scan(vend, "--exit-code", "--baseline", str(base)),
     ], vend.parent)
-    assert r[0][0] == 1, r[0]  # newly PRESENT against an ABSENT baseline
+    for i in (0, 2, 3):  # mismatched pairs
+        assert r[i][0] == 2 and r[i][1] == "", r[i]
+        assert r[i][2].startswith("Error: baseline exclude mismatch: "), r[i]
     assert r[1][0] == 0, r[1]  # baseline with an exclude key accepted, nothing new
-    assert r[2][0] == 0, r[2]  # flagless scan, exclude-carrying baseline accepted
-    assert r[3][0] == 1, r[3]
-    d = json.loads(r[3][1])
+    assert r[4][0] == 0, r[4]
+    d = json.loads(r[4][1])
     assert d["exclude"] == {"globs": ["vendor/**"], "files": 2}
     assert d["baseline"] is not None
-    assert "GAP-009" in json.dumps(d["baseline"])  # GAP-009 is the newly PRESENT gap
-    assert r[4][0] == 1
-    assert "\nBaseline:" in r[4][1] and "Excluded: `vendor/**`" in r[4][1]
-    (bl_x,) = [ln for ln in r[4][1].split("\n") if ln.startswith("Baseline:")]
+    assert "\nBaseline:" in r[1][1] and "Excluded: `vendor/**`" in r[1][1]
+    (bl_x,) = [ln for ln in r[1][1].split("\n") if ln.startswith("Baseline:")]
     (bl_0,) = [ln for ln in r[5][1].split("\n") if ln.startswith("Baseline:")]
     assert r[5][0] == 0
     assert bl_x != bl_0, "the Baseline: line must be computed from the excluded scan"

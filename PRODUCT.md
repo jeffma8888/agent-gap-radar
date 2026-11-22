@@ -162,6 +162,7 @@ Owned by the planning role. One item per iteration, smallest useful increment fi
 | 154 | models.py states one closed-vocabulary rule ("unknown <field> <v!r>; allowed: <tuple>") in four hand-copied validators (`source_class`, `layer`, `gap_type`, `status`) that can drift apart | shipped | Iteration 423: one `_one_of` helper and one multi-field `Gap` validator; every refusal byte-identical |
 | 155 | `scan --exit-code --baseline` publishes a VALID but unreadable baseline (`chmod 000`, an over-long name) as `not a scan document`, a sentence the contract defines as not JSON / wrong keys; `prd --after`'s `cannot read the file (...)` sentence is in no contract cell | shipped | Iteration 424: an unreadable `--baseline` (EACCES, ENAMETOOLONG) says `cannot read the file (<reason>): <path>`; both contract cells name every read-door sentence, pinned by a cause matrix |
 | 156 | A committed `vendor/` copy decides the consumer's verdicts: its `importlib.reload` reads GAP-009 ABSENT (`--exit-code` 0) for a repo whose own loop exhibits it, and `scan` has no way to leave that code out | shipped | Iteration 425: repeatable `scan --exclude GLOB` drops matching files from every rule; both documents echo the globs and how many target files they matched, so an exclusion is displayed, never silent |
+| 157 | `scan --exit-code --baseline` reads a baseline written without `--exclude` against a scan that excludes the offending code as "no longer PRESENT", rc 0: the gate passes because the scan stopped reading, not because the code changed | shipped | Iteration 426: a baseline whose recorded exclude globs differ from the scan's is refused like a target mismatch, `baseline exclude mismatch`, exit 2 |
 
 Status values are exactly `open` or `shipped` -- there is no third value. A row is flipped to `shipped` in the same commit that lands it, together with that iteration's Done-ledger row; the iteration that shipped a row is recorded in the ledger, never in this column.
 
@@ -373,3 +374,4 @@ One row per iteration, landed in that iteration's own ship commit. Deferring a r
 - iter 423 refactor row 154: one `_one_of` closed-vocabulary validator replaces four `_known_*` copies in models
 - iter 424 row 155: an unreadable `--baseline` says `cannot read the file (<reason>)`, not `not a scan document`
 - iter 425 row 156: `radar scan --exclude GLOB` keeps vendored code out of the verdicts and says so in the document
+- iter 426 row 157: `scan --baseline` refuses a baseline whose `--exclude` globs differ from the scan's, exit 2

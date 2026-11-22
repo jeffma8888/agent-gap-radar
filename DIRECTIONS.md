@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-426
+    lenses: new-capability (HEAD `0c16f36`, clean tree)
+    - Candidate A1 -- `scan --exit-code --baseline` notices that the read domain changed: a baseline written without `--exclude` cannot silently gate a scan that excludes files
+    - Candidate A2 -- `radar validate --fixtures`: the register gate runs every automated check against its own two-sided sample, so a check that cannot fire on its own known-bad tree is refused at the door, not discovered in this repo's pytest
+    - Candidate A3 -- `radar scan --gap GAP-X --require ABSENT`: the first door that reads the PRD's own `closure.verdict`, so "the loop fixed it" stops passing the same as "the loop deleted or excluded the code"
+    - Candidate B1 -- An `applies_when` NOT_APPLICABLE decided over an oversized or non-UTF-8 file reports `skipped_files: 0`, which breaks the contract's "tallied in skipped_files" promise. Count the skip; do not weigh it.
+    - Candidate B2 -- Every refusal is ONE `Error: ` line: `fail()` escapes control characters, so typed text can no longer split a refusal into an unprefixed second line
+    - Candidate B3 -- `scan --exclude` refuses a non-printable GLOB using the `--name` rule, because a newline glob forges a line in the byte-stable markdown document
+    winner: A1
+    ship: pending (not yet decided)
   iter-425
     lenses: narrative-and-docs (HEAD `edc93a4`, clean tree), new-capability (HEAD `edc93a4`, clean tree)
     - Candidate A1 -- The contract says "Every code `radar` can return is above, and nothing else", but Ctrl-C ends any verb by SIGINT death (shell `130`) with a 25-line traceback holding 7 absolute machine paths; publish what an interrupted run looks like, and pin it
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- `radar show` (markdown and `--json`) carries `needs`, the below-floor prescription `list --json` already publishes, and gains `--floor N` so the prescription follows the floor the caller gates on
     - Candidate B3 -- `radar scan --accept GAP-ID=REASON` (repeatable): a per-gap, reasoned risk acceptance that keeps the finding DISPLAYED as PRESENT (accepted) and only removes it from `--exit-code`
     winner: B1
-    ship: pending (not yet decided)
+    ship: PUSHED 0c16f36
   iter-424
     lenses: narrative-and-docs (HEAD `6b70973`, clean tree)
     - Candidate A1 -- Sharpen the literal prefilter so the 12,524 no-match regex passes (6.36 s, 61% of a self-scan) shrink
@@ -2247,4 +2257,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-225 scouted iterations
+226 scouted iterations
