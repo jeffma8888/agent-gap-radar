@@ -582,6 +582,20 @@ _RELPATH_CACHE_STACK: list[dict[tuple[pathlib.Path, pathlib.Path], str]] = []
 #: and leak into a later scan's verdicts.
 _EXCLUDE_STACK: list[tuple[str, ...]] = []
 
+#: Files left out of every rule per scan frame, innermost last: radar's OWN scan
+#: documents found in the target (`_skip_in_scope`). Applied by `_rule_domain`, after
+#: the memo, so a cached domain is never a filtered one -- the lockfile precedent.
+_SKIP_STACK: list[set[pathlib.Path]] = []
+
+
+def _skip_in_scope(paths: list[pathlib.Path]) -> None:
+    """Leave `paths` out of every rule for the rest of the open `file_cache_scope`.
+
+    A no-op with no scope open, like the `--exclude` globs that ride the same frame.
+    """
+    if _SKIP_STACK:
+        _SKIP_STACK[-1].update(paths)
+
 
 @contextlib.contextmanager
 def file_cache_scope(
@@ -618,6 +632,7 @@ def file_cache_scope(
     _RELATIVES_CACHE_STACK.append({})
     _RELPATH_CACHE_STACK.append({})
     _EXCLUDE_STACK.append(tuple(exclude))
+    _SKIP_STACK.append(set())
     try:
         yield frame
     finally:
@@ -627,6 +642,7 @@ def file_cache_scope(
         _RELATIVES_CACHE_STACK.pop()
         _RELPATH_CACHE_STACK.pop()
         _EXCLUDE_STACK.pop()
+        _SKIP_STACK.pop()
 
 
 def _enumerate_files(target: pathlib.Path, globs: list[str],
@@ -1040,6 +1056,10 @@ def _rule_domain(rule: dict, target: pathlib.Path,
     exactly one ask per rule.
     """
     files = iter_files(target, rule["globs"], exclude_tests)
+    if _SKIP_STACK and _SKIP_STACK[-1]:
+        # Radar's own scan output is prose about the register, never code that
+        # runs, so it may neither mitigate nor exhibit: dropped for EVERY rule.
+        files = [path for path in files if path not in _SKIP_STACK[-1]]
     if exclude_tests or rule.get("kind") == "content_absent":
         return _drop_wildcard_lockfiles(target, files, rule["globs"])
     return files

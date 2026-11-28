@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, ConfigDict
 
 from .checks import (CheckOutcome, LocationNote, UNKNOWN_MEANING, Verdict,
-                     iter_files,
-                     file_cache_scope, read_cache_scope, run_check)
+                     _read, _relative_posix, _skip_in_scope, file_cache_scope,
+                     iter_files, read_cache_scope, run_check)
 from .models import Gap
 from .registry import NotARegularFile, RegistryError, read_json_file
 from .render import document, json_document, table
@@ -69,6 +69,11 @@ class ScanResult:
     exclude: tuple[str, ...] = ()
     #: How many enumerated target files those globs removed (0 with no globs).
     excluded_files: int = 0
+    #: Target-relative paths, ascending, of radar's own scan documents found in
+    #: the target and left out of every rule (`()` for none). Displayed, because a
+    #: skipped file is a narrowed domain and a narrowing a reader cannot see is
+    #: the fail-open `exclude` already refuses to hide.
+    radar_documents: tuple[str, ...] = ()
 
     @property
     def target_name(self) -> str:
@@ -638,6 +643,8 @@ def scan_json(result: ScanResult,
         **({"match": match} if match is not None else {}),
         **({"exclude": {"globs": list(result.exclude), "files": result.excluded_files}}
            if result.exclude else {}),
+        **({"radar_documents": list(result.radar_documents)}
+           if result.radar_documents else {}),
         "records_applied": result.records_applied,
         "counts": {v.value: len(result.by_verdict(v)) for v in Verdict},
         "uncheckable": [g.id for g in result.uncheckable],
@@ -681,6 +688,7 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
     # either. Entered together because a scan that held one and not the other
     # would answer two rules from one snapshot and one stale walk.
     with read_cache_scope(), file_cache_scope(exclude):
+        own = _radar_documents(target)
         for gap in sorted(gaps, key=lambda g: g.id):
             if gap.check is None:
                 uncheckable.append(gap)
@@ -691,7 +699,48 @@ def scan(gaps: list[Gap], target: pathlib.Path | str,
     return ScanResult(target=target, findings=findings,
                       uncheckable=uncheckable,
                       requested_spelling=requested, name_override=name,
-                      exclude=exclude, excluded_files=excluded_files)
+                      exclude=exclude, excluded_files=excluded_files,
+                      radar_documents=own)
+
+
+#: Keys every `scan --json` document carries whatever its flags (`scan_json`).
+_SCAN_JSON_KEYS = frozenset({"target", "target_name", "confidence_floor",
+                             "records_applied", "counts", "findings", "baseline"})
+
+
+def is_scan_document(path: pathlib.Path, text: str) -> bool:
+    """True if `text` is a document `radar scan` writes, markdown or `--json`.
+
+    By SHAPE, not by name, because a consumer chooses the file name: the markdown
+    heading plus its `Target:` line, or a JSON object holding every key `scan_json`
+    always writes. Such a file is radar's prose about the register, never code that
+    runs, so a word in it can neither mitigate nor exhibit a gap.
+    """
+    if text.startswith("# Gap scan: "):
+        lines = text.split("\n", 3)
+        return len(lines) > 2 and lines[1] == "" and lines[2].startswith("Target: `")
+    # A cheap prefilter on the decode already in hand, so only a JSON object that
+    # names a key `scan_json` always writes pays the strict parse.
+    if not text.lstrip().startswith("{") or '"records_applied"' not in text:
+        return False
+    try:
+        parsed = read_json_file(path)
+    except (OSError, ValueError, RegistryError):
+        return False
+    return isinstance(parsed, dict) and _SCAN_JSON_KEYS <= parsed.keys()
+
+
+def _radar_documents(target: pathlib.Path) -> tuple[str, ...]:
+    """Skip, and name, every file in the scan's domain that is a scan document.
+
+    Called inside the scan's own scopes, so the files judged are the ones the
+    checks read (an `--exclude`d file is not judged), and each read is the decode
+    the rules then reuse.
+    """
+    own = [path for path in iter_files(target, ["**"])
+           if (text := _read(path)) is not None and is_scan_document(path, text)]
+    _skip_in_scope(own)
+    return tuple(sorted(_relative_posix(target, path) for path in own))
 
 
 def render_globs(globs: tuple[str, ...]) -> str:
@@ -746,6 +795,12 @@ def render_scan(result: ScanResult, baseline_line: str | None = None) -> str:
         lines.insert(3, f"Excluded: {render_globs(result.exclude)} -- "
                         f"{result.excluded_files} "
                         f"target file(s) not scanned")
+    if result.radar_documents:
+        # Under `Target:`/`Excluded:` for the same reason: it qualifies WHAT was read.
+        lines.insert(len(lines) - 1,
+                     f"Radar documents: {render_globs(result.radar_documents)} -- "
+                     f"{len(result.radar_documents)} target file(s) not scanned "
+                     f"(radar's own scan output)")
 
     counts = {v: len(result.by_verdict(v)) for v in Verdict}
     meaning = {

@@ -487,7 +487,9 @@ def test_qb_the_default_carrying_field_is_the_only_optional_one(gaps, target):
     than by reading source: only the TRAILING `ScanResult` fields carry a default, which is
     why the three committed three-positional constructions keep working. Iteration 398
     added the second one (`name_override`, the `scan --name` pin), and iteration 425 the
-    `scan --exclude` pair (`exclude`, `excluded_files`), so the pin names all four.
+    `scan --exclude` pair (`exclude`, `excluded_files`), and iteration 427
+    `radar_documents` (radar's own scan output found in the target), so the pin names
+    all five.
     Setting them to `None` -- the value an omitted argument leaves -- must reproduce the
     resolved fallback on both surfaces."""
     import dataclasses
@@ -495,8 +497,8 @@ def test_qb_the_default_carrying_field_is_the_only_optional_one(gaps, target):
     fields = dataclasses.fields(ScanResult)
     optional = [f.name for f in fields if f.default is not dataclasses.MISSING]
     assert optional == ["requested_spelling", "name_override", "exclude",
-                        "excluded_files"], (
-        f"expected exactly the four trailing defaulted fields; got {optional}")
+                        "excluded_files", "radar_documents"], (
+        f"expected exactly the five trailing defaulted fields; got {optional}")
     assert [f.name for f in fields[-len(optional):]] == optional
     resolved = target.resolve()
     explicit_none = ScanResult(resolved, [], [], **{name: None for name in optional})

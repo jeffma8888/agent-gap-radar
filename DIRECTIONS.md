@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-427
+    lenses: unknown
+    - Candidate A1 -- `scan --exclude` refuses a glob that cannot match a repo-relative path by its shape (`./x/**`, `/x/**`, an absolute path, a trailing `/`, a `..` segment, a control character), instead of printing "Excluded: ... 0 files" and scanning the code the user meant to leave out
+    - Candidate A2 -- Ctrl-C (SIGINT) ends any verb with a 20-line traceback holding 7 absolute machine paths and a return code the contract says cannot happen; absorb `KeyboardInterrupt` beside `BrokenPipeError` and publish 130
+    - Candidate A3 -- Three published `tools/` commands crash exactly as the docs type them: `python3 tools/{verify_quotes,promote,scan_cost}.py` exits rc 1 with `ModuleNotFoundError: pydantic`; publish them as `uv run python ...` and pin every documented tool invocation against a real run
+    - Candidate A1 -- radar reads its own committed output as target code: a baseline committed next to the code flips an above-floor PRESENT GAP-020 to ABSENT and turns the gate from rc 1 to rc 0
+    - Candidate A2 -- `scan --exclude ... --prd` hands the build loop a prd.json that never records the scan domain, so the closure check cannot be re-run against the scan that chose the gap
+    - Candidate A3 -- `scan --exclude-from FILE`: one committed glob list feeds every scan and its baseline
+    winner: A1
+    ship: pending (not yet decided)
   iter-426
     lenses: new-capability (HEAD `0c16f36`, clean tree)
     - Candidate A1 -- `scan --exit-code --baseline` notices that the read domain changed: a baseline written without `--exclude` cannot silently gate a scan that excludes files
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate B2 -- Every refusal is ONE `Error: ` line: `fail()` escapes control characters, so typed text can no longer split a refusal into an unprefixed second line
     - Candidate B3 -- `scan --exclude` refuses a non-printable GLOB using the `--name` rule, because a newline glob forges a line in the byte-stable markdown document
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED aa8c673
   iter-425
     lenses: narrative-and-docs (HEAD `edc93a4`, clean tree), new-capability (HEAD `edc93a4`, clean tree)
     - Candidate A1 -- The contract says "Every code `radar` can return is above, and nothing else", but Ctrl-C ends any verb by SIGINT death (shell `130`) with a 25-line traceback holding 7 absolute machine paths; publish what an interrupted run looks like, and pin it
@@ -2257,4 +2267,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-226 scouted iterations
+227 scouted iterations

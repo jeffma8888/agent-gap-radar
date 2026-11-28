@@ -536,7 +536,12 @@ def test_b8_control_bypassing_the_scope_restores_the_amplified_count(
     if counts.decode_calls() == counts.distinct_files():
         pytest.skip("the cache scope is not reached through `read_cache_scope`; "
                     "falsification cannot be demonstrated by patching that name")
-    assert counts.decode_calls() == counts.read_calls() == 24, counts
+    # Every rule ask is a decode again (24). Since iteration 427 the scan also reads
+    # each target file once, through the name `scan` bound, to recognise radar's own
+    # scan documents -- one decode per distinct file (6) the rule spy cannot see.
+    assert counts.read_calls() == 24, counts
+    assert counts.decode_calls() == counts.read_calls() + counts.distinct_files() == 30, (
+        counts)
 
 
 def test_b8_the_bypassed_control_produces_the_same_documents(amplified, monkeypatch):

@@ -388,13 +388,17 @@ def test_b8_the_fixture_is_amplified_before_anything_is_asserted(amplified, monk
 
 
 def test_b8_each_domain_is_walked_at_most_once_per_scan(amplified, monkeypatch):
-    """The feature. 9 asks over 3 domains must produce 3 walks, not 9."""
+    """The feature. 9 asks over 3 domains must produce 3 walks, not 9 -- plus, since
+    iteration 427, exactly one walk for the scan's own `["**"]` domain (the radar
+    scan-document recognition), asked through the name `scan` bound, so the rule spy
+    does not count it as an ask."""
     gaps, target = amplified
     counts = _spy(monkeypatch, target)
     scan(gaps, target)
 
-    assert counts.walks == counts.distinct_domains(), counts
-    assert counts.walks == 3, counts
+    assert counts.distinct_domains() == 3, counts
+    assert counts.walks == counts.distinct_domains() + 1, counts
+    assert counts.walks == 4, counts
 
 
 def test_b8_the_memo_off_control_really_walks_once_per_ask(amplified, monkeypatch):
@@ -405,7 +409,10 @@ def test_b8_the_memo_off_control_really_walks_once_per_ask(amplified, monkeypatc
     counts = _spy(monkeypatch, target)
     scan(gaps, target)
 
-    assert counts.walks == len(counts.asks) == 9, counts
+    # 9 rule asks, one walk each, plus the scan's own `["**"]` ask (iteration 427),
+    # which walks once more and is not seen by the rule spy.
+    assert len(counts.asks) == 9, counts
+    assert counts.walks == len(counts.asks) + 1 == 10, counts
 
 
 def test_b8_memoised_and_unmemoised_scans_emit_identical_bytes(amplified, monkeypatch):
