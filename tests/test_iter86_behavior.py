@@ -46,6 +46,8 @@ import re
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 from agent_gap_radar.cli import main
 from agent_gap_radar.registry import load_all
 from agent_gap_radar.scan import ScanResult, render_scan, scan, scan_json
@@ -463,7 +465,7 @@ def test_ac_roadmap_row_34_is_shipped_and_records_the_three_way_choice():
     assert "| shipped |" in row, f"row 34 must be flipped to shipped; got {row[:120]!r}"
     assert "iter 86" in " ".join(ROADMAP.read_text(encoding="utf-8").splitlines()[-3:]) \
         or any(ln.startswith("- iter 86 ") for ln
-               in ROADMAP.read_text(encoding="utf-8").splitlines()), (
+               in rejoined_roadmap(ROADMAP).splitlines()), (
         "the iteration-86 done-ledger row must be present")
 
 

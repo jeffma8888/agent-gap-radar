@@ -55,6 +55,8 @@ import re
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 from agent_gap_radar import registry, scoring
 from agent_gap_radar.cli import main
 
@@ -295,7 +297,7 @@ def test_documents_are_byte_stable_and_end_in_exactly_one_newline() -> None:
 
 
 def test_roadmap_carries_a_shipped_row_and_a_ledger_row_for_this_iteration() -> None:
-    lines = _document(ROADMAP).splitlines()
+    lines = rejoined_roadmap(ROADMAP).splitlines()
     rows = [ln for ln in lines if ln.startswith("| ") and "| shipped |" in ln]
     assert any("Iteration 74" in ln for ln in rows), "no shipped row dated to iteration 74"
     assert any(ln.startswith("- iter 74 ") for ln in lines), "no `- iter 74` ledger row"

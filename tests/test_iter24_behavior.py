@@ -34,6 +34,8 @@ import json
 import pathlib
 
 import pytest
+
+from _roadmap import rejoined_roadmap
 from pydantic import ValidationError
 
 from agent_gap_radar import scoring
@@ -383,7 +385,7 @@ def test_roadmap_records_this_iteration_once():
     """The spec requires row 44 flipped to `shipped`, a new row 57 for the deferred
     three-door reconciliation, and exactly one `- iter 24` ledger bullet, all in the same
     commit as the code."""
-    text = (REPO_ROOT / "PRODUCT.md").read_text(encoding="utf-8")
+    text = rejoined_roadmap(REPO_ROOT / "PRODUCT.md")
     rows = {
         line.split("|")[1].strip(): line
         for line in text.splitlines()

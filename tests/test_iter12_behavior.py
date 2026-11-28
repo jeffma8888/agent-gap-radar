@@ -60,6 +60,8 @@ import sys
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 #: Repo root, found relative to this file so no absolute machine path appears here.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROADMAP = REPO_ROOT / "PRODUCT.md"
@@ -114,7 +116,7 @@ PREAMBLE_REQUIRED = {
 # ---------------------------------------------------------------------------
 
 def _roadmap() -> str:
-    return ROADMAP.read_text(encoding="utf-8")
+    return rejoined_roadmap(ROADMAP)
 
 
 def _mutate(text: str, old: str, new: str) -> str:

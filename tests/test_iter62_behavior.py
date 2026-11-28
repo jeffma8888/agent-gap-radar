@@ -50,10 +50,13 @@ import importlib
 import inspect
 import pathlib
 import re
+import shutil
 import sys
 import types
 
 import pytest
+
+from _roadmap import rejoined_roadmap
 
 #: Repo root, found relative to this file so no absolute machine path is written down.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -97,6 +100,7 @@ LEDGER_READING_MODULES = (
     "test_iter206_behavior",
     "test_iter261_behavior",
     "test_iter368_behavior",
+    "test_iter368_tester_behavior",
     "test_roadmap_integrity",
     SELF_MODULE,
 )
@@ -113,7 +117,7 @@ LEDGER_INPUT_TOKENS = ("ledger", "shipped_iterations_from_git", "unrecorded_ship
 
 
 def _live() -> str:
-    return ROADMAP.read_text(encoding="utf-8")
+    return rejoined_roadmap(ROADMAP)
 
 
 def _mutate(text: str, old: str, new: str) -> str:
@@ -140,6 +144,21 @@ def _ledger_line(text: str, iteration: int) -> str:
 def _as_roadmap(tmp_path: pathlib.Path, text: str, name: str) -> pathlib.Path:
     path = tmp_path / f"{name}.md"
     path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _as_split_roadmap(tmp_path: pathlib.Path, index_text: str, name: str) -> pathlib.Path:
+    """A clean clone's TWO ledger files: `index_text` under `name/`, the committed archive beside it.
+
+    Since iteration 428 a clone carries the Done ledger split across `PRODUCT.md` and
+    `PRODUCT_ARCHIVE.md`, so a simulation that wrote one rejoined file would measure a layout
+    no clone has. Growth lands in the index, exactly where a later ship commit appends its row.
+    """
+    directory = tmp_path / name
+    directory.mkdir()
+    path = directory / ROADMAP.name
+    path.write_text(index_text, encoding="utf-8")
+    shutil.copyfile(ri.archive_beside(ROADMAP), ri.archive_beside(path))
     return path
 
 
@@ -368,7 +387,8 @@ def test_eb3_no_ledger_reading_test_reds_over_a_sparse_grown_ledger(
     relaxed two pins, cleared a file by neighbourhood, and was killed by a third pin in it.
     """
     text = _live()
-    grown = _grown(text)
+    path = _as_split_roadmap(tmp_path, _grown(ROADMAP.read_text(encoding="utf-8")), "grown_sparse")
+    grown = rejoined_roadmap(path)
     expected_rows = _future_rows(text)
     assert _ledger_values(grown)[-2:] == expected_rows, (
         f"fixture premise broken: no rows appended, expected {expected_rows}"
@@ -383,7 +403,6 @@ def test_eb3_no_ledger_reading_test_reds_over_a_sparse_grown_ledger(
         f"the sweep reaches too few modules to be a sweep: {sorted(set(targets))}"
     )
 
-    path = _as_roadmap(tmp_path, grown, "grown_sparse")
     failures = _sweep(monkeypatch, path, grown, LEDGER_READING_MODULES)
     assert failures == [], (
         "a later iteration's sparse ledger still reds the suite:\n" + "\n".join(failures)
@@ -506,7 +525,8 @@ def test_eb3_and_eb4_a_full_clean_clone_of_this_iterations_ship_commit_stays_gre
         f"the documented exclusion is no longer in the selection: {excluded}"
     )
 
-    grown = _grown(_live())
+    path = _as_split_roadmap(tmp_path, _grown(ROADMAP.read_text(encoding="utf-8")), "clean_clone")
+    grown = rejoined_roadmap(path)
     later = _future_rows(_live())
     ships = sorted({*_real_ships(), THIS_ITER, *later})
     assert THIS_ITER in ships and later[-1] in ships, (
@@ -514,7 +534,7 @@ def test_eb3_and_eb4_a_full_clean_clone_of_this_iterations_ship_commit_stays_gre
     )
 
     failures = _sweep(
-        monkeypatch, _as_roadmap(tmp_path, grown, "clean_clone"), grown,
+        monkeypatch, path, grown,
         LEDGER_READING_MODULES, ships=ships, exclude=(excluded,),
     )
     assert failures == [], (

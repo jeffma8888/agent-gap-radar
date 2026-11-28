@@ -21,6 +21,8 @@ import subprocess
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 ROADMAP = ROOT / "PRODUCT.md"
@@ -228,7 +230,7 @@ def test_b5_archive_still_carries_the_sentence_once_and_no_readme_prose() -> Non
 
 
 def test_b6_iteration_369_row_present_once_and_short() -> None:
-    lines = _text(ROADMAP).splitlines()
+    lines = rejoined_roadmap(ROADMAP).splitlines()
     assert lines.count(ROW_369) == 1, f"row present {lines.count(ROW_369)}x"
     assert len(ROW_369) <= 120, len(ROW_369)
     others = [line for line in lines if line.startswith("- iter 369 ") and line != ROW_369]

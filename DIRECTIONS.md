@@ -1,6 +1,16 @@
 # Foundry directions
 
 foundry directions -- agent-gap-radar
+  iter-428
+    lenses: simplification-and-deletion (HEAD `a240466`, clean tree)
+    - Candidate A1 -- radar reads its own prd.json hand-off as target code: the declared consumer's default `<repo>/prd.json` closes the gap it orders built, at `prd.json:88`, before any code is written
+    - Candidate A2 -- a sparse or partial CI checkout silently narrows the scan: `git ls-files` lists tracked files that are not on disk, radar drops them without saying so, and an above-floor PRESENT becomes NOT_APPLICABLE with rc 1 -> 0
+    - Candidate A3 -- `scan --exclude ... --prd` hands the loop a prd that never records its scan domain, so the loop's closure re-run reads the excluded vendored tree and fakes the closure (re-proposal of iter-427 B-slate A2, now with a measured fake closure)
+    - Candidate B1 -- Move done-ledger rows iter 01..399 out of PRODUCT.md into `PRODUCT_ARCHIVE.md` before the committed 240,000-char brake turns red (re-proposal of iter-422 B2, now with a measured deadline)
+    - Candidate B2 -- One `tests/_cli.py::run(*argv) -> (rc, out, err)` replaces 57 hand-copied in-process `_run` helpers that disagree about SystemExit (re-proposal of iter-422 B3; the copy count has nearly doubled)
+    - Candidate B3 -- Collapse checks.py's five lockstep scan-frame stacks into ONE stack of a `_ScanFrame` record
+    winner: B1
+    ship: pending (not yet decided)
   iter-427
     lenses: unknown
     - Candidate A1 -- `scan --exclude` refuses a glob that cannot match a repo-relative path by its shape (`./x/**`, `/x/**`, an absolute path, a trailing `/`, a `..` segment, a control character), instead of printing "Excluded: ... 0 files" and scanning the code the user meant to leave out
@@ -10,7 +20,7 @@ foundry directions -- agent-gap-radar
     - Candidate A2 -- `scan --exclude ... --prd` hands the build loop a prd.json that never records the scan domain, so the closure check cannot be re-run against the scan that chose the gap
     - Candidate A3 -- `scan --exclude-from FILE`: one committed glob list feeds every scan and its baseline
     winner: A1
-    ship: pending (not yet decided)
+    ship: PUSHED a240466
   iter-426
     lenses: new-capability (HEAD `0c16f36`, clean tree)
     - Candidate A1 -- `scan --exit-code --baseline` notices that the read domain changed: a baseline written without `--exclude` cannot silently gate a scan that excludes files
@@ -2267,4 +2277,4 @@ foundry directions -- agent-gap-radar
     - Candidate B3 -- scan output embeds an absolute machine path, so the artifact a consumer commits is not portable
     winner: B1
     ship: PUSHED c143c3b
-227 scouted iterations
+228 scouted iterations

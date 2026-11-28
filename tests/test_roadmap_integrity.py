@@ -290,5 +290,6 @@ def test_every_shipped_iteration_has_a_done_ledger_row() -> None:
         pytest.skip(f"cannot ask git: {ships.skip_reason}")
     if not ships.iterations:
         pytest.skip("no ship commits in this history: the cross-check has nothing to say")
-    missing = ri.unrecorded_ships(_roadmap_text(), ships.iterations)
+    ledger = ri.ledger_union(_roadmap_text(), ri.read_archive(ROADMAP))
+    missing = ri.unrecorded_ships(ledger, ships.iterations)
     assert missing == [], "; ".join(ri.unrecorded_ship_messages(missing))

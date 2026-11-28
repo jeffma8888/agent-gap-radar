@@ -8,18 +8,27 @@ are the same set, and a pointer stub can only say what the archived body says
 (its first ``Iteration NN`` token), so the move can never silently drop or
 invent history.
 
-Everything is read in-process with ``pathlib``; no subprocess, no git, no
-frozen sha -- the losslessness round-trip against HEAD is a review-time check.
+Everything is read in-process with ``pathlib``; no frozen sha -- the losslessness
+round-trip against HEAD is a review-time check.  The one exception is b9, which asks
+git (via ``_roadmap.git_tracks``, skipping loudly when it cannot answer) whether the
+Done-ledger archive iteration 428 created is tracked.
 """
 
 from __future__ import annotations
 
 import pathlib
 import re
+import sys
 
 import pytest
 
+from _roadmap import ARCHIVE_NAME, archive_rows, git_tracks, rejoined_roadmap
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+
+import roadmap_integrity as ri  # noqa: E402
+
 ROADMAP = ROOT / "PRODUCT.md"
 ARCHIVE = ROOT / "docs" / "ROADMAP_NOTES_ARCHIVE.md"
 POINTER = "Notes archived verbatim in `docs/ROADMAP_NOTES_ARCHIVE.md`."
@@ -28,7 +37,7 @@ HEADING_RE = re.compile(r"^## Row (\d+)$")
 ITERATION_RE = re.compile(r"Iteration \d+")
 ROW_RE = re.compile(r"^\| (\d+) \| .* \|$")
 SHORT_NOTES_MAX = 200
-PRODUCT_MAX_CHARS = 240_000
+PRODUCT_MAX_CHARS = 100_000
 
 
 def _board_rows() -> dict[int, tuple[str, str]]:
@@ -137,12 +146,22 @@ def test_b8_product_md_stays_under_the_paydown_floor() -> None:
     assert len(ROADMAP.read_text(encoding="utf-8")) <= PRODUCT_MAX_CHARS
 
 
-def test_b9_no_vacuous_product_archive_at_repo_root() -> None:
-    assert not (ROOT / "PRODUCT_ARCHIVE.md").exists()
+def test_b9_the_done_ledger_archive_is_tracked_non_vacuous_and_clean() -> None:
+    """Inverted in iteration 428, which created the archive: it must now exist, hold rows,
+    pass the integrity tool's own archive judge, and be committed rather than local."""
+    archive = ROOT / ARCHIVE_NAME
+    assert archive.is_file(), f"{ARCHIVE_NAME} is missing"
+    text = archive.read_text(encoding="utf-8")
+    assert archive_rows(text), f"{ARCHIVE_NAME} holds no ledger rows"
+    assert ri.archive_findings(text) == []
+    tracked = git_tracks(archive)
+    if tracked is None:
+        pytest.skip(f"cannot ask git whether {ARCHIVE_NAME} is tracked")
+    assert tracked, f"{ARCHIVE_NAME} exists but git does not track it"
 
 
 def test_b10_exactly_one_iter_368_ledger_line() -> None:
-    lines = ROADMAP.read_text(encoding="utf-8").splitlines()
+    lines = rejoined_roadmap(ROADMAP).splitlines()
     assert sum(1 for ln in lines if ln.startswith("- iter 368 ")) == 1
 
 

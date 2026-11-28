@@ -59,6 +59,8 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 import roadmap_integrity as ri  # noqa: E402
 
+from _roadmap import rejoined_roadmap  # noqa: E402
+
 #: The live ledger maximum at the time this iteration shipped. A FLOOR, never a ceiling: the
 #: ledger only grows, so a later clean clone still satisfies every claim keyed on it.
 LEDGER_MAX_AT_SHIP = 98
@@ -96,7 +98,7 @@ def test_b1_the_committed_ledger_is_admitted_by_the_sequence_judge() -> None:
     seam iteration 62's durability sweep repoints, so this pin is measured against a LATER ship
     commit's grown ledger as well as against the working tree's.
     """
-    text = ROADMAP.read_text(encoding="utf-8")
+    text = rejoined_roadmap(ROADMAP)
     values = _values(text)
 
     assert len(values) >= 30, (

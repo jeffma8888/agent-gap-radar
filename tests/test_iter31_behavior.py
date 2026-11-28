@@ -51,6 +51,8 @@ import sys
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 from agent_gap_radar import checks
 
 #: Repo root, found relative to this file so no absolute machine path is written down.
@@ -74,7 +76,7 @@ HISTORICAL_RUN: tuple[int, ...] = tuple(range(1, THIS_ITER + 1))
 
 
 def _roadmap_text() -> str:
-    return ROADMAP.read_text(encoding="utf-8")
+    return rejoined_roadmap(ROADMAP)
 
 
 def _mutate(text: str, old: str, new: str) -> str:

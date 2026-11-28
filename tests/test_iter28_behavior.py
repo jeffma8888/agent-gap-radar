@@ -65,6 +65,8 @@ import pathlib
 import re
 
 import pytest
+
+from _roadmap import rejoined_roadmap
 from pydantic import ValidationError
 
 from agent_gap_radar import models
@@ -444,7 +446,7 @@ def test_verb_is_deterministic_and_ends_in_one_newline(name, argv, capsys):
 
 def test_roadmap_records_this_iteration():
     """Behavior 9: row 38 reads `shipped` and the Done ledger carries an `- iter 28 ` row."""
-    text = ROADMAP.read_text(encoding="utf-8")
+    text = rejoined_roadmap(ROADMAP)
     rows = [ln for ln in text.splitlines() if ln.startswith("| 38 |")]
     assert len(rows) == 1, f"expected exactly one roadmap row 38, found {len(rows)}"
     cells = [c.strip() for c in rows[0].split("|")]

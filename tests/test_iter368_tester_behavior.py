@@ -16,6 +16,10 @@ import re
 import subprocess
 import sys
 
+import pytest
+
+from _roadmap import ARCHIVE_NAME, archive_rows, git_tracks, rejoined_roadmap
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROADMAP = ROOT / "PRODUCT.md"
 NOTES_ARCHIVE = ROOT / "docs" / "ROADMAP_NOTES_ARCHIVE.md"
@@ -252,15 +256,31 @@ def test_b9_roadmap_integrity_tool_exits_zero() -> None:
     assert "0 violation(s)" in proc.stdout + proc.stderr
 
 
-def test_b9_no_product_archive_file_at_repo_root() -> None:
-    assert not (ROOT / "PRODUCT_ARCHIVE.md").exists()
+def test_b9_the_product_archive_file_is_tracked_and_judged_clean() -> None:
+    """Inverted in iteration 428: the Done-ledger archive now exists, and the integrity
+    tool's archive judge is run on it in a child process, as b9's other node runs the tool."""
+    archive = ROOT / ARCHIVE_NAME
+    assert archive.is_file(), f"{ARCHIVE_NAME} is missing"
+    assert archive_rows(_text(archive)), f"{ARCHIVE_NAME} holds no ledger rows"
+    probe = (
+        "import pathlib, sys; sys.path.insert(0, 'tools'); import roadmap_integrity as ri; "
+        f"print(ri.archive_findings(pathlib.Path({ARCHIVE_NAME!r}).read_text(encoding='utf-8')))"
+    )
+    proc = subprocess.run([sys.executable, "-c", probe], cwd=ROOT, capture_output=True,
+                          text=True, timeout=120)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert proc.stdout == "[]\n", proc.stdout
+    tracked = git_tracks(archive)
+    if tracked is None:
+        pytest.skip(f"cannot ask git whether {ARCHIVE_NAME} is tracked")
+    assert tracked, f"{ARCHIVE_NAME} exists but git does not track it"
 
 
 # --- B10 / B11 ----------------------------------------------------------------
 
 
 def test_b10_exactly_one_iteration_368_done_row() -> None:
-    hits = [ln for ln in _text(ROADMAP).split("\n") if ln.startswith("- iter 368 ")]
+    hits = [ln for ln in rejoined_roadmap(ROADMAP).split("\n") if ln.startswith("- iter 368 ")]
     assert len(hits) == 1
 
 

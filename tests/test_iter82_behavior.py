@@ -42,6 +42,8 @@ import sys
 
 import pytest
 
+from _roadmap import rejoined_roadmap
+
 #: Repo root, found relative to this file so no absolute machine path is written down.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROADMAP = REPO_ROOT / "PRODUCT.md"
@@ -92,7 +94,7 @@ def _rows_named_independently(paragraph: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _live() -> str:
-    return ROADMAP.read_text(encoding="utf-8")
+    return rejoined_roadmap(ROADMAP)
 
 
 def _pointer(text: str) -> str:

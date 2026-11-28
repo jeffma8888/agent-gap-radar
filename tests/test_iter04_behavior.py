@@ -37,6 +37,7 @@ ROADMAP = REPO_ROOT / "PRODUCT.md"
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 import roadmap_integrity as ri  # noqa: E402
+from _roadmap import rejoined_roadmap  # noqa: E402
 
 ALLOWED_STATUSES = ("open", "shipped")
 LEDGER_HEADING = "## done ledger"
@@ -47,7 +48,7 @@ LEDGER_HEADING = "## done ledger"
 # ---------------------------------------------------------------------------
 
 def _roadmap_text() -> str:
-    return ROADMAP.read_text(encoding="utf-8")
+    return rejoined_roadmap(ROADMAP)
 
 
 def _norm(text: str) -> str:
